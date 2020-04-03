@@ -35,8 +35,9 @@ class HopSkipJumpAttack:
             self.theta = self.gamma / (self.d * self.d)
 
     def attack(self, a, iterations=64):
-        logging.info('Initializing Starting Point...')
-        self.initialize_starting_point(a)
+        if a.perturbed is None:
+            logging.info('Initializing Starting Point...')
+            self.initialize_starting_point(a)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
         pred_label = self.model_interface.model.ask_model(np.stack([perturbed]))[0]
