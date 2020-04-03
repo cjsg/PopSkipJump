@@ -3,6 +3,7 @@ import numpy as np
 from torchvision import transforms
 from cifar10_models import *
 from pytorchmodels import MNIST_Net
+from img_utils import show_image
 
 
 class Model:
@@ -29,7 +30,7 @@ class Model:
             return np.argmax(logits, axis=1)
 
 
-def get_model(key, bayesian=False):
+def get_model(key, dataset, bayesian=False):
     if key == 'mnist':
         class MNIST_Model(Model):
             def predict(self, images):
@@ -42,6 +43,14 @@ def get_model(key, bayesian=False):
         return MNIST_Model(pytorch_model, bayesian)
     if key == 'cifar10':
         return Model(densenet121(pretrained=True).eval(), bayesian)
-    # if key == 'human':
-    #     class Human(Model):
-    #         def ask_model(self, images):
+    if key == 'human':
+        class Human(Model):
+            def ask_model(self, images):
+                results = list()
+                for image in images:
+                    show_image(image, dataset=dataset)
+                    res = int(input("Whats the class?: ").strip())
+                    results.append(res)
+                return np.array(results)
+
+        return Human(model=None)

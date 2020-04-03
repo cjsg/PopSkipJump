@@ -24,3 +24,12 @@ def save_adv_image(image, path, dataset='cifar10'):
     else:
         img = Image.fromarray(np.uint8(data), 'RGB')
     img.save(path)
+
+
+def show_image(image, dataset='cifar10'):
+    data = image * 255
+    if dataset == 'mnist':
+        img = Image.fromarray(np.uint8(data), 'L')
+    else:
+        img = Image.fromarray(np.uint8(data), 'RGB')
+    img.show()
