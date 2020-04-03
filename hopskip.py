@@ -1,6 +1,9 @@
 import math
 import numpy as np
 from distances import MSE, Linf
+import logging
+
+logging.root.setLevel(logging.INFO)
 
 
 class HopSkipJumpAttack:
@@ -32,9 +35,12 @@ class HopSkipJumpAttack:
             self.theta = self.gamma / (self.d * self.d)
 
     def attack(self, a, iterations=64):
+        logging.info('Initializing Starting Point...')
         self.initialize_starting_point(a)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
+        pred_label = self.model_interface.model.ask_model(np.stack([perturbed]))[0]
+        assert pred_label != a.true_label
 
         def decision_function(x):
             outs = []
@@ -46,12 +52,15 @@ class HopSkipJumpAttack:
             outs = np.concatenate(outs, axis=0)
             return outs
 
+        logging.info('Binary Search to project to boundary...')
         perturbed, dist_post_update = self.binary_search_batch(
             original, np.expand_dims(perturbed, 0), decision_function
         )
+        assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
         dist = self.compute_distance(perturbed, original)
         distance = a.distance.value
         for step in range(1, iterations + 1):
+            logging.info('Step %d...' % step)
             # ===========================================================
             # Gradient direction estimation.
             # ===========================================================
@@ -62,11 +71,12 @@ class HopSkipJumpAttack:
             num_evals = int(
                 min([self.initial_num_evals * np.sqrt(step), self.max_num_evals])
             )
-
+            logging.info('Approximating grad with %d evaluation...' % num_evals)
             # approximate gradient.
             gradf = self.approximate_gradient(
                 decision_function, perturbed, num_evals, delta
             )
+            assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
 
             if self.constraint == "linf":
                 update = np.sign(gradf)
@@ -75,6 +85,7 @@ class HopSkipJumpAttack:
             # ===========================================================
             # Update, and binary search back to the boundary.
             # ===========================================================
+            logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
                 # find step size.
                 epsilon = self.geometric_progression_for_stepsize(
@@ -107,6 +118,7 @@ class HopSkipJumpAttack:
                     )
 
             # compute new distance.
+            assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
             dist = self.compute_distance(perturbed, original)
             # ===========================================================
             # Log the step
@@ -116,7 +128,8 @@ class HopSkipJumpAttack:
                 distance = dist ** 2 / self.d / (self.clip_max - self.clip_min) ** 2
             elif self.constraint == "linf":
                 distance = dist / (self.clip_max - self.clip_min)
-            print ("Step", step, " completed")
+            logging.info('distance of adversarial = %f', distance)
+
         return a
 
     def initialize_starting_point(self, a):
@@ -143,6 +156,7 @@ class HopSkipJumpAttack:
             mid = (high + low) / 2.0
             blended = (1 - mid) * a.unperturbed + mid * random_noise
             success = self.model_interface.forward_one(blended, a)
+            logging.info(a.distance.value)
             if success:
                 high = mid
             else:
@@ -169,6 +183,7 @@ class HopSkipJumpAttack:
             thresholds = self.theta * 1000  # remove 1000 later
 
         lows = np.zeros(len(perturbed_inputs))
+        assert self.model_interface.model.ask_model(np.stack([perturbed_inputs[0]]))[0] != 3
 
         # Call recursive function.
         while np.max((highs - lows) / thresholds) > 1:
@@ -181,7 +196,9 @@ class HopSkipJumpAttack:
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
 
+        assert self.model_interface.model.ask_model(np.stack([perturbed_inputs[0]]))[0] != 3
         out_inputs = self.project(unperturbed, perturbed_inputs, highs)
+        assert self.model_interface.model.ask_model(np.stack([out_inputs[0]]))[0] != 3
 
         # Compute distance of the output to select the best choice.
         # (only used when stepsize_search is grid_search.)
