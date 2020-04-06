@@ -2,6 +2,7 @@ import math
 import numpy as np
 from distances import MSE, Linf
 import logging
+from img_utils import save_adv_image, one_big_image
 
 logging.root.setLevel(logging.INFO)
 
@@ -9,7 +10,7 @@ logging.root.setLevel(logging.INFO)
 class HopSkipJumpAttack:
     def __init__(self, model_interface, a, initial_num_evals=100, max_num_evals=10000, distance=MSE,
                  stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
-                 internal_dtype=np.float32, bounds=(0, 1)):
+                 internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist'):
         self.model_interface = model_interface
         self._default_distance = distance
         self.initial_num_evals = initial_num_evals
@@ -19,6 +20,8 @@ class HopSkipJumpAttack:
         self.batch_size = batch_size
         self.internal_dtype = internal_dtype
         self.clip_min, self.clip_max = bounds
+        self.experiment = experiment
+        self.dataset = dataset
 
         # Set constraint based on the distance.
         if self._default_distance == MSE:
@@ -38,10 +41,10 @@ class HopSkipJumpAttack:
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
+            logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        # pred_label = self.model_interface.model.ask_model(np.stack([perturbed]))[0]
-        # assert pred_label != a.true_label
+        save_adv_image(perturbed, '%s/%d.png' % (self.experiment, 0), dataset=self.dataset)
 
         def decision_function(x):
             outs = []
@@ -57,6 +60,7 @@ class HopSkipJumpAttack:
         perturbed, dist_post_update = self.binary_search_batch(
             original, np.expand_dims(perturbed, 0), decision_function
         )
+        logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         # assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
         dist = self.compute_distance(perturbed, original)
         distance = a.distance.value
@@ -72,7 +76,7 @@ class HopSkipJumpAttack:
             num_evals = int(
                 min([self.initial_num_evals * np.sqrt(step), self.max_num_evals])
             )
-            num_evals = int(num_evals/15)
+            num_evals = int(num_evals)
             logging.info('Approximating grad with %d evaluation...' % num_evals)
             # approximate gradient.
             gradf = self.approximate_gradient(
@@ -130,8 +134,10 @@ class HopSkipJumpAttack:
                 distance = dist ** 2 / self.d / (self.clip_max - self.clip_min) ** 2
             elif self.constraint == "linf":
                 distance = dist / (self.clip_max - self.clip_min)
+            logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
             logging.info('distance of adversarial = %f', distance)
-
+            save_adv_image(a.perturbed, '%s/%d.png' % (self.experiment, step), dataset=self.dataset)
+        one_big_image(self.experiment)
         return a
 
     def initialize_starting_point(self, a):

@@ -33,3 +33,31 @@ def show_image(image, dataset='cifar10'):
     else:
         img = Image.fromarray(np.uint8(data), 'RGB')
     img.show()
+
+
+def get_concat_h(im1, im2):
+    dst = Image.new('L', (im1.width + im2.width, im1.height))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (im1.width, 0))
+    return dst
+
+
+def get_concat_v(im1, im2):
+    dst = Image.new('L', (im1.width, im1.height + im2.height))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (0, im1.height))
+    return dst
+
+
+def one_big_image(exp_name):
+    rows = []
+    for row in range(0, 8):
+        h = Image.open('{}/{}.png'.format(exp_name, 8 * row + 1))
+        for i in range(2, 9):
+            img = Image.open('{}/{}.png'.format(exp_name, 8 * row + i))
+            h = get_concat_h(h, img)
+        rows.append(h)
+    cur = rows[0]
+    for row in rows[1:]:
+        cur = get_concat_v(cur, row)
+    cur.save('{}/combined.png'.format(exp_name))

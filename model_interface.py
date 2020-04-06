@@ -6,10 +6,12 @@ class ModelInterface:
     def __init__(self, models, bounds=(0, 1)):
         self.models = models
         self.bounds = bounds
+        self.model_calls = 0
 
     def forward_one(self, image, a):
         batch = np.stack([image])
         m_id = random.choice(list(range(len(self.models))))
+        self.model_calls += 1
         labels = self.models[m_id].ask_model(batch)
         if labels[0] != a.true_label:
             distance = a.calculate_distance(image, self.bounds)
