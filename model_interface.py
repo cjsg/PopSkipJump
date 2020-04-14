@@ -22,8 +22,16 @@ class ModelInterface:
         else:
             return 0
 
-    def forward(self, batch, a):
-        outs = list()
-        for image in batch:
-            outs.append(self.forward_one(image, a))
-        return np.array(outs)
+    def forward(self, images, a):
+        batch = np.stack(images)
+        m_id = random.choice(list(range(len(self.models))))
+        self.model_calls += len(images)
+        labels = self.models[m_id].ask_model(batch)
+        for i in range(len(images)):
+            if labels[i] != a.true_label:
+                distance = a.calculate_distance(images[i], self.bounds)
+                if a.distance.value > distance.value:
+                    a.distance = distance
+                    a.perturbed = images[i]
+        outs = labels != a.true_label
+        return outs * 1
