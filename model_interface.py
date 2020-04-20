@@ -1,14 +1,15 @@
 import numpy as np
 import random
+from conf import SAMPLING_CONF, SAMPLING_FREQ
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), sampling_freq=None):
+    def __init__(self, models, bounds=(0, 1)):
         self.models = models
         self.bounds = bounds
         self.model_calls = 0
-        self.sampling_freq = sampling_freq
-        self.sampling_conf = 0.40
+        self.sampling_freq = SAMPLING_FREQ
+        self.sampling_conf = SAMPLING_CONF
 
     def forward_one(self, image, a):
         m_id = random.choice(list(range(len(self.models))))
