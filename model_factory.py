@@ -22,8 +22,9 @@ class Model:
     def ask_model(self, images):
         logits = self.predict(images)
         if self.bayesian:
+            logits = logits - np.max(logits, axis=1, keepdims=True)
             probs = np.exp(logits)
-            probs = probs / np.sum(probs, axis=1)
+            probs = probs / np.sum(probs, axis=1, keepdims=True)
             sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
             return np.array(sample)
         else:

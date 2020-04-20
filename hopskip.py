@@ -79,9 +79,14 @@ class HopSkipJumpAttack:
             num_evals = int(num_evals)
             logging.info('Approximating grad with %d evaluation...' % num_evals)
             # approximate gradient.
-            gradf = self.approximate_gradient(
-                decision_function, perturbed, num_evals, delta
-            )
+            while True:
+                gradf = self.approximate_gradient(
+                    decision_function, perturbed, num_evals, delta
+                )
+                if gradf is None:
+                    delta *= 2
+                else:
+                    break
             # assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
 
             if self.constraint == "linf":
@@ -116,7 +121,7 @@ class HopSkipJumpAttack:
                 perturbeds = np.clip(perturbeds, self.clip_min, self.clip_max)
                 idx_perturbed = decision_function(perturbeds)
 
-                if np.sum(idx_perturbed) > 0:
+                if (idx_perturbed == 1).any():
                     # Select the perturbation that yields the minimum
                     # distance after binary search.
                     perturbed, dist_post_update = self.binary_search_batch(
@@ -150,8 +155,9 @@ class HopSkipJumpAttack:
             ).astype(self.internal_dtype)
 
             success = self.model_interface.forward_one(random_noise, a)
+            # when model is confused, it is not adversarial
             num_evals += 1
-            if success:
+            if success == 1:
                 break
             if num_evals > 1e4:
                 return
@@ -164,8 +170,9 @@ class HopSkipJumpAttack:
             mid = (high + low) / 2.0
             blended = (1 - mid) * a.unperturbed + mid * random_noise
             success = self.model_interface.forward_one(blended, a)
+            # when model is confused, it is not adversarial
             logging.info(a.distance.value)
-            if success:
+            if success == 1:
                 high = mid
             else:
                 low = mid
@@ -201,6 +208,7 @@ class HopSkipJumpAttack:
 
             # Update highs and lows based on model decisions.
             decisions = decision_function(mid_inputs)
+            decisions[decisions == -1] = 0
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
 
@@ -250,15 +258,19 @@ class HopSkipJumpAttack:
         rv = (perturbed - sample) / delta
 
         # query the model.
-        decisions = decision_function(perturbed)
+        outputs = decision_function(perturbed)
+        decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0
 
         # Baseline subtraction (when fval differs)
         vals = fval if abs(np.mean(fval)) == 1.0 else fval - np.mean(fval)
+        rv = rv[outputs != -1]
         gradf = np.mean(vals * rv, axis=0)
 
         # Get the gradient direction.
+        if np.sum(outputs != -1) == 0:
+            return None
         gradf = gradf / np.linalg.norm(gradf)
 
         return gradf
