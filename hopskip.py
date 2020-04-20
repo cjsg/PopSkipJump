@@ -2,9 +2,6 @@ import math
 import numpy as np
 from distances import MSE, Linf
 import logging
-from img_utils import save_adv_image, one_big_image
-
-logging.root.setLevel(logging.INFO)
 
 
 class HopSkipJumpAttack:

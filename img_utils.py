@@ -5,6 +5,10 @@ CIFAR_PATHS = ['cifar10_00_3.png', 'cifar10_01_8.png']
 MNIST_PATHS = ['mnist_01_3.jpg', 'mnist_02_6.jpg', 'mnist_03_0.jpg', 'mnist_04_7.jpg', 'mnist_05_9.jpg']
 
 
+def read_image(path):
+    return np.asarray(Image.open(path)) / 255
+
+
 def get_sample(dataset, index=0):
     if dataset == 'cifar10':
         filename = CIFAR_PATHS[index]
@@ -12,7 +16,7 @@ def get_sample(dataset, index=0):
         filename = MNIST_PATHS[index]
     else:
         raise
-    img = np.asarray(Image.open('data/%s' % filename)) / 255
+    img = read_image('data/{}'.format(filename))
     label = int(filename.split('.')[0].split('_')[-1])
     return img, label
 
@@ -65,5 +69,5 @@ def one_big_image(exp_name):
 
 def save_all_images(exp_name, images, dataset):
     for i, image in enumerate(images):
-        save_adv_image(image, "%s/%d.png" % (exp_name, i), dataset)
+        save_adv_image(image, "%s/%d.png" % (exp_name, i + 1), dataset)
     one_big_image(exp_name)
