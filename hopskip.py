@@ -1,15 +1,13 @@
 import math
 import numpy as np
-from distances import MSE, Linf
 import logging
 
 
 class HopSkipJumpAttack:
-    def __init__(self, model_interface, a, initial_num_evals=100, max_num_evals=10000, distance=MSE,
+    def __init__(self, model_interface, a, initial_num_evals=100, max_num_evals=10000, distance="MSE",
                  stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
                  internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist'):
         self.model_interface = model_interface
-        self._default_distance = distance
         self.initial_num_evals = initial_num_evals
         self.max_num_evals = max_num_evals
         self.stepsize_search = stepsize_search
@@ -21,9 +19,9 @@ class HopSkipJumpAttack:
         self.dataset = dataset
 
         # Set constraint based on the distance.
-        if self._default_distance == MSE:
+        if distance == 'MSE':
             self.constraint = "l2"
-        elif self._default_distance == Linf:
+        elif distance == 'Linf':
             self.constraint = "linf"
 
         # Set binary search threshold.
@@ -59,7 +57,7 @@ class HopSkipJumpAttack:
         )
         logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         dist = self.compute_distance(perturbed, original)
-        distance = a.distance.value
+        distance = a.distance
         for step in range(1, iterations + 1):
             logging.info('Step %d...' % step)
             # Choose delta.
@@ -155,7 +153,7 @@ class HopSkipJumpAttack:
             blended = (1 - mid) * a.unperturbed + mid * random_noise
             success = self.model_interface.forward_one(blended, a)
             # when model is confused, it is not adversarial
-            logging.info(a.distance.value)
+            logging.info(a.distance)
             if success == 1:
                 high = mid
             else:

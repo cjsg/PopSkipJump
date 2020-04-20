@@ -27,7 +27,7 @@ class ModelInterface:
             label = self.models[m_id].ask_model(batch)[0]
         if label != -2 and label != a.true_label:
             distance = a.calculate_distance(image, self.bounds)
-            if a.distance.value > distance.value:
+            if a.distance > distance:
                 a.distance = distance
                 a.perturbed = image
             return 1
@@ -55,7 +55,7 @@ class ModelInterface:
         for i in range(len(images)):
             if labels[i] != -2 and labels[i] != a.true_label:
                 distance = a.calculate_distance(images[i], self.bounds)
-                if a.distance.value > distance.value:
+                if a.distance > distance:
                     a.distance = distance
                     a.perturbed = images[i]
         ans = (labels != a.true_label) * 1

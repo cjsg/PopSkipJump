@@ -21,4 +21,4 @@ ATTACK_INITIALISE_IMAGE = 'data/mnist_02_6.jpg'  # STRING
 
 # Set this to true if you want Human to act as a model
 # Note that for humans, parameter `BAYESIAN` is redundant
-ASK_HUMAN = True  # BOOLEAN
+ASK_HUMAN = False  # BOOLEAN
