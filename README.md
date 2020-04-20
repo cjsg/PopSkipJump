@@ -17,4 +17,4 @@ For help regarding arguments
 
 ## Changing Configurations
 You can adjust various settings of the attack in `conf.py` present in root directory of the repository.
-For example, you can adjust number of iterations, sampling frequencies and so on. 
+For example, you can adjust number of iterations, sampling frequencies, using humans and so on. 
