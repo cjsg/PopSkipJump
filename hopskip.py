@@ -44,7 +44,7 @@ class HopSkipJumpAttack:
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        save_adv_image(perturbed, '%s/%d.png' % (self.experiment, 0), dataset=self.dataset)
+        additional = {'iterations': list(), 'initial': perturbed}
 
         def decision_function(x):
             outs = []
@@ -61,7 +61,6 @@ class HopSkipJumpAttack:
             original, np.expand_dims(perturbed, 0), decision_function
         )
         logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
-        # assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
         dist = self.compute_distance(perturbed, original)
         distance = a.distance.value
         for step in range(1, iterations + 1):
@@ -130,9 +129,8 @@ class HopSkipJumpAttack:
                 distance = dist / (self.clip_max - self.clip_min)
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
             logging.info('distance of adversarial = %f', distance)
-            save_adv_image(a.perturbed, '%s/%d.png' % (self.experiment, step), dataset=self.dataset)
-        one_big_image(self.experiment)
-        return a
+            additional['iterations'].append(a.perturbed)
+        return additional
 
     def initialize_starting_point(self, a):
         success = 0
@@ -187,7 +185,6 @@ class HopSkipJumpAttack:
             thresholds = self.theta * 1000  # remove 1000 later
 
         lows = np.zeros(len(perturbed_inputs))
-        # assert self.model_interface.model.ask_model(np.stack([perturbed_inputs[0]]))[0] != 3
 
         # Call recursive function.
         while np.max((highs - lows) / thresholds) > 1:
@@ -201,9 +198,7 @@ class HopSkipJumpAttack:
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
 
-        # assert self.model_interface.model.ask_model(np.stack([perturbed_inputs[0]]))[0] != 3
         out_inputs = self.project(unperturbed, perturbed_inputs, highs)
-        # assert self.model_interface.model.ask_model(np.stack([out_inputs[0]]))[0] != 3
 
         # Compute distance of the output to select the best choice.
         # (only used when stepsize_search is grid_search.)

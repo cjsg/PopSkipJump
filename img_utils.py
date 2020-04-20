@@ -61,3 +61,9 @@ def one_big_image(exp_name):
     for row in rows[1:]:
         cur = get_concat_v(cur, row)
     cur.save('{}/combined.png'.format(exp_name))
+
+
+def save_all_images(exp_name, images, dataset):
+    for i, image in enumerate(images):
+        save_adv_image(image, "%s/%d.png" % (exp_name, i), dataset)
+    one_big_image(exp_name)
