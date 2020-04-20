@@ -40,7 +40,7 @@ def get_model(key, dataset, bayesian=False):
                 return outs.detach().numpy()
 
         pytorch_model = MNIST_Net()
-        pytorch_model.load_state_dict(torch.load('mnist_model.pth'))
+        pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()
         return MNIST_Model(pytorch_model, bayesian)
     if key == 'cifar10':

@@ -66,9 +66,6 @@ class HopSkipJumpAttack:
         distance = a.distance.value
         for step in range(1, iterations + 1):
             logging.info('Step %d...' % step)
-            # ===========================================================
-            # Gradient direction estimation.
-            # ===========================================================
             # Choose delta.
             delta = self.select_delta(dist_post_update, step)
 
@@ -78,7 +75,6 @@ class HopSkipJumpAttack:
             )
             num_evals = int(num_evals)
             logging.info('Approximating grad with %d evaluation...' % num_evals)
-            # approximate gradient.
             while True:
                 gradf = self.approximate_gradient(
                     decision_function, perturbed, num_evals, delta
@@ -87,15 +83,12 @@ class HopSkipJumpAttack:
                     delta *= 2
                 else:
                     break
-            # assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
 
             if self.constraint == "linf":
                 update = np.sign(gradf)
             else:
                 update = gradf
-            # ===========================================================
-            # Update, and binary search back to the boundary.
-            # ===========================================================
+
             logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
                 # find step size.
@@ -129,12 +122,8 @@ class HopSkipJumpAttack:
                     )
 
             # compute new distance.
-            # assert self.model_interface.model.ask_model(np.stack([perturbed]))[0] != a.true_label
             dist = self.compute_distance(perturbed, original)
-            # ===========================================================
-            # Log the step
-            # ===========================================================
-            # Using foolbox definition of distance for logging.
+
             if self.constraint == "l2":
                 distance = dist ** 2 / self.d / (self.clip_max - self.clip_min) ** 2
             elif self.constraint == "linf":
