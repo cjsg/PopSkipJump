@@ -1,10 +1,11 @@
 import math
 import numpy as np
 import logging
+from adversarial import Adversarial
 
 
 class HopSkipJumpAttack:
-    def __init__(self, model_interface, a, initial_num_evals=100, max_num_evals=10000, distance="MSE",
+    def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
                  stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
                  internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist'):
         self.model_interface = model_interface
@@ -25,14 +26,28 @@ class HopSkipJumpAttack:
             self.constraint = "linf"
 
         # Set binary search threshold.
-        self.shape = a.unperturbed.shape
+        self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
             self.theta = self.gamma / (np.sqrt(self.d) * self.d)
         else:
             self.theta = self.gamma / (self.d * self.d)
 
-    def attack(self, a, iterations=64):
+    def attack(self, images, labels, starts=None, iterations=64):
+        raw_results = []
+        distances = []
+        for i, (image, label) in enumerate(zip(images, labels)):
+            logging.warning("Attacking Image: {}".format(i))
+            a = Adversarial(image=image, label=label)
+            if starts is not None:
+                a.set_starting_point(starts[i])
+            results = self.attack_one(a, iterations)
+            raw_results.append(results)
+            distances.append(a.distance)
+        median = np.median(np.array(distances))
+        return median, raw_results
+
+    def attack_one(self, a, iterations=64):
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
@@ -177,7 +192,8 @@ class HopSkipJumpAttack:
             thresholds = dists_post_update * self.theta
         else:
             highs = np.ones(len(perturbed_inputs))
-            thresholds = self.theta * 1000  # remove 1000 later
+            # thresholds = self.theta * 1000  # remove 1000 later
+            thresholds = self.theta  # remove 1000 later
 
         lows = np.zeros(len(perturbed_inputs))
 

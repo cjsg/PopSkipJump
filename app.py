@@ -1,14 +1,25 @@
 from hopskip import HopSkipJumpAttack
 from model_interface import ModelInterface
-from adversarial import Adversarial
+import torchvision.datasets as datasets
 from model_factory import get_model
 from img_utils import get_sample, save_all_images, read_image
 from conf import *
 import logging
 from datetime import datetime
 import os
+import numpy as np
+import pickle
 
-logging.root.setLevel(logging.INFO)
+logging.root.setLevel(logging.WARNING)
+
+
+def get_samples(n_samples=16):
+    np.random.seed(42)
+    test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+    indices = np.random.choice(len(test_data), n_samples, replace=False)
+    images = test_data.data[indices].numpy() / 255.0
+    labels = test_data.test_labels[indices].numpy()
+    return images, labels
 
 
 def validate_args(args):
@@ -37,16 +48,19 @@ def main():
     else:
         os.makedirs(exp_name)
 
-    if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
-        img, label = get_sample(dataset=args.dataset, index=0)
+    starts = None
+    if EXPERIMENT:
+        imgs, labels = get_samples(n_samples=4)
     else:
-        img, label = read_image(ATTACK_INPUT_IMAGE), ATTACK_INPUT_LABEL
-    a = Adversarial(image=img, label=label)
+        if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
+            img, label = get_sample(dataset=args.dataset, index=0)
+        else:
+            img, label = read_image(ATTACK_INPUT_IMAGE), ATTACK_INPUT_LABEL
+        imgs, labels = [img], [label]
 
-    # img_start, _ = get_sample(dataset=args.dataset, index=1)
-    if ATTACK_INITIALISE_IMAGE is not None:
-        img_start = read_image(ATTACK_INITIALISE_IMAGE)
-        a.set_starting_point(img_start, bounds=(0, 1))
+        if ATTACK_INITIALISE_IMAGE is not None:
+            img_start = read_image(ATTACK_INITIALISE_IMAGE)
+            starts = [img_start]
 
     # For now choice of model is fixed for a particular dataset
     if ASK_HUMAN:
@@ -55,10 +69,12 @@ def main():
         models = [get_model(key='mnist', dataset=args.dataset, bayesian=BAYESIAN)]
 
     model_interface = ModelInterface(models, bounds=(0, 1))
-    attack = HopSkipJumpAttack(model_interface, a, experiment=exp_name, dataset=args.dataset)
-    results = attack.attack(a, iterations=NUM_ITERATIONS)
-    save_all_images(exp_name, results['iterations'], args.dataset)
-    logging.info('Saved output images at "{}"'.format(exp_name))
+    attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset)
+    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS)
+    # save_all_images(exp_name, results['iterations'], args.dataset)
+    pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
+    logging.warning('Saved output at "{}"'.format(exp_name))
+    logging.warning('Median_distance: {}'.format(median_distance))
 
 
 if __name__ == '__main__':

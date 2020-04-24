@@ -17,8 +17,11 @@ ATTACK_INPUT_LABEL = None  # INT
 
 # Path of initial seed image from where the attack will begin
 # If None, The attack will start from a random perturbation
-ATTACK_INITIALISE_IMAGE = 'data/mnist_02_6.jpg'  # STRING
+# ATTACK_INITIALISE_IMAGE = 'data/mnist_02_6.jpg'  # STRING
+ATTACK_INITIALISE_IMAGE = None  # STRING
 
 # Set this to true if you want Human to act as a model
 # Note that for humans, parameter `BAYESIAN` is redundant
 ASK_HUMAN = False  # BOOLEAN
+
+EXPERIMENT = True
