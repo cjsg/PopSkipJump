@@ -42,12 +42,18 @@ class HopSkipJumpAttack:
             if starts is not None:
                 a.set_starting_point(starts[i])
             results = self.attack_one(a, iterations)
+            if results is None:
+                # distances.append(0)
+                logging.error("Skipping image: Model Prediction of input does not match label")
+            else:
+                distances.append(a.distance)
             raw_results.append(results)
-            distances.append(a.distance)
         median = np.median(np.array(distances))
         return median, raw_results
 
     def attack_one(self, a, iterations=64):
+        if self.model_interface.forward_one(a.unperturbed, a) == 1:
+            return None
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)

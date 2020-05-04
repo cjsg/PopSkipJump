@@ -50,7 +50,7 @@ def main():
 
     starts = None
     if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=4)
+        imgs, labels = get_samples(n_samples=25)
     else:
         if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
             img, label = get_sample(dataset=args.dataset, index=0)
@@ -68,7 +68,7 @@ def main():
     else:
         models = [get_model(key='mnist', dataset=args.dataset, bayesian=BAYESIAN)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1))
+    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset)
     median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS)
     # save_all_images(exp_name, results['iterations'], args.dataset)
