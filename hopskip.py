@@ -43,10 +43,13 @@ class HopSkipJumpAttack:
                 a.set_starting_point(starts[i])
             results = self.attack_one(a, iterations)
             if results is None:
+                results = {}
                 # distances.append(0)
                 logging.error("Skipping image: Model Prediction of input does not match label")
             else:
                 distances.append(a.distance)
+            results['true_label'] = label
+            results['original'] = image
             raw_results.append(results)
         median = np.median(np.array(distances))
         return median, raw_results
@@ -145,7 +148,7 @@ class HopSkipJumpAttack:
                 distance = dist / (self.clip_max - self.clip_min)
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
             logging.info('distance of adversarial = %f', distance)
-            additional['iterations'].append(a.perturbed)
+            additional['iterations'].append({'perturbed': a.perturbed, 'distance': a.distance})
         return additional
 
     def initialize_starting_point(self, a):

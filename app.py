@@ -30,7 +30,7 @@ def validate_args(args):
         exit()
 
 
-def main():
+def main(exp_name, slack, sampling_freq):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -39,6 +39,8 @@ def main():
                         help="(Optional) path to the output directory")
     args = parser.parse_args()
     validate_args(args)
+    logging.warning('NUM_ITERATIONS: {}, FREQ: {}'.format(NUM_ITERATIONS, sampling_freq))
+    args.output = exp_name
     exp_name = args.output
     if args.output is None:
         exp_name = 'adv/%s' % datetime.now().strftime("%b%d_%H%M%S")
@@ -50,7 +52,7 @@ def main():
 
     starts = None
     if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=25)
+        imgs, labels = get_samples(n_samples=16)
     else:
         if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
             img, label = get_sample(dataset=args.dataset, index=0)
@@ -68,7 +70,7 @@ def main():
     else:
         models = [get_model(key='mnist', dataset=args.dataset, bayesian=BAYESIAN)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10)
+    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack, sampling_freq=sampling_freq)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset)
     median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS)
     # save_all_images(exp_name, results['iterations'], args.dataset)
@@ -78,5 +80,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    FF = [256]
+    slack = 0.10
+    for freq in FF:
+        main('adv/prob_{}_{}_{}'.format(NUM_ITERATIONS, slack, freq),
+             slack=slack,
+             sampling_freq=freq)
     pass

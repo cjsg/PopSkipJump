@@ -30,6 +30,14 @@ class Model:
         else:
             return np.argmax(logits, axis=1)
 
+    def get_probs(self, images):
+        logits = self.predict(images)
+        logits = logits - np.max(logits, axis=1, keepdims=True)
+        probs = np.exp(logits)
+        probs = probs / np.sum(probs, axis=1, keepdims=True)
+        # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
+        return np.array(probs)
+
 
 def get_model(key, dataset, bayesian=False):
     if key == 'mnist':

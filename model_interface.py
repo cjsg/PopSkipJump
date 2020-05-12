@@ -1,18 +1,18 @@
 import numpy as np
 import random
-from conf import SAMPLING_CONF, SAMPLING_FREQ
+from conf import SAMPLING_CONF, SAMPLING_FREQ, SLACK
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), n_classes=None):
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, sampling_freq=10):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
         self.model_calls = 0
-        self.sampling_freq = SAMPLING_FREQ
+        self.sampling_freq = sampling_freq
         if self.sampling_freq is not None:
-            self.threshold = SAMPLING_FREQ * SAMPLING_CONF
-            self.slack = 0.10 * SAMPLING_FREQ
+            # self.threshold = SAMPLING_FREQ * SAMPLING_CONF
+            self.slack = slack * sampling_freq
 
     def forward_one(self, image, a):
         m_id = random.choice(list(range(len(self.models))))
