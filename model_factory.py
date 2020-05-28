@@ -7,9 +7,11 @@ from img_utils import show_image
 
 
 class Model:
-    def __init__(self, model, bayesian=False):
+    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25):
         self.model = model
-        self.bayesian = bayesian
+        self.noise = noise
+        self.n_classes = n_classes
+        self.flip_prob = flip_prob
 
     def predict(self, images):
         transform = transforms.Compose([transforms.ToTensor(),
@@ -21,12 +23,18 @@ class Model:
 
     def ask_model(self, images):
         logits = self.predict(images)
-        if self.bayesian:
+        if self.noise == 'bayesian':
             logits = logits - np.max(logits, axis=1, keepdims=True)
             probs = np.exp(logits)
             probs = probs / np.sum(probs, axis=1, keepdims=True)
             sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
             return np.array(sample)
+        elif self.noise == 'stochastic':
+            pred = np.argmax(logits, axis=1)
+            rand = np.random.randint(self.n_classes, size=len(images))
+            flip_prob = np.random.uniform(0, 1, len(images))
+            pred[flip_prob < self.flip_prob] = rand[flip_prob < self.flip_prob]
+            return pred
         else:
             return np.argmax(logits, axis=1)
 
@@ -39,7 +47,7 @@ class Model:
         return np.array(probs)
 
 
-def get_model(key, dataset, bayesian=False):
+def get_model(key, dataset, noise=None, flip_prob=0.25):
     if key == 'mnist':
         class MNIST_Model(Model):
             def predict(self, images):
@@ -50,9 +58,9 @@ def get_model(key, dataset, bayesian=False):
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()
-        return MNIST_Model(pytorch_model, bayesian)
+        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':
-        return Model(densenet121(pretrained=True).eval(), bayesian)
+        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10)
     if key == 'human':
         class Human(Model):
             def ask_model(self, images):

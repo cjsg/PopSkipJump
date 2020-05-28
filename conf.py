@@ -1,5 +1,5 @@
 # Set this to true if you want logits to be treated as probability distribution
-BAYESIAN = True  # BOOLEAN
+NOISE = 'stochastic'  # BOOLEAN
 
 # Number of samples needed to make prediction from non-deterministic model
 SAMPLING_FREQ = 20  # INT
@@ -27,3 +27,4 @@ ASK_HUMAN = False  # BOOLEAN
 EXPERIMENT = True
 
 SLACK = 0.00
+FLIP_PROB = 0.20

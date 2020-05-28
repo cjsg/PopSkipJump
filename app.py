@@ -30,7 +30,7 @@ def validate_args(args):
         exit()
 
 
-def main(exp_name, slack, sampling_freq):
+def main(exp_name, slack, sampling_freq, flip_prob):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -66,9 +66,9 @@ def main(exp_name, slack, sampling_freq):
 
     # For now choice of model is fixed for a particular dataset
     if ASK_HUMAN:
-        models = [get_model(key='human', dataset=args.dataset, bayesian=BAYESIAN)]
+        models = [get_model(key='human', dataset=args.dataset, noise=NOISE)]
     else:
-        models = [get_model(key='mnist', dataset=args.dataset, bayesian=BAYESIAN)]
+        models = [get_model(key='mnist', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack, sampling_freq=sampling_freq)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset)
@@ -80,10 +80,20 @@ def main(exp_name, slack, sampling_freq):
 
 
 if __name__ == '__main__':
-    FF = [256]
-    slack = 0.10
-    for freq in FF:
-        main('adv/prob_{}_{}_{}'.format(NUM_ITERATIONS, slack, freq),
+    # FF = [4, 16, 32, 64]
+    # slack = 0.0
+    # for freq in FF:
+    #     main('adv/sto_{}_{}_{}'.format(NUM_ITERATIONS, 0.2, freq),
+    #          slack=slack,
+    #          sampling_freq=freq)
+    # pass
+
+
+    FP = [0.8]
+    slack = 0.0
+    for flip in FP:
+        main('adv/sto_{}_{}_{}'.format(NUM_ITERATIONS, flip, 32),
              slack=slack,
-             sampling_freq=freq)
+             sampling_freq=32,
+             flip_prob=flip)
     pass
