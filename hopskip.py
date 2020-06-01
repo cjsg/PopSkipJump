@@ -7,7 +7,8 @@ from adversarial import Adversarial
 class HopSkipJumpAttack:
     def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
                  stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
-                 internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist'):
+                 internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist',
+                 sampling_freq=10, grad_sampling_freq=10):
         self.model_interface = model_interface
         self.initial_num_evals = initial_num_evals
         self.max_num_evals = max_num_evals
@@ -18,6 +19,8 @@ class HopSkipJumpAttack:
         self.clip_min, self.clip_max = bounds
         self.experiment = experiment
         self.dataset = dataset
+        self.sampling_freq = sampling_freq
+        self.grad_sampling_freq = grad_sampling_freq
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -55,7 +58,7 @@ class HopSkipJumpAttack:
         return median, raw_results
 
     def attack_one(self, a, iterations=64):
-        if self.model_interface.forward_one(a.unperturbed, a) == 1:
+        if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
             return None
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
@@ -65,12 +68,12 @@ class HopSkipJumpAttack:
         perturbed = a.perturbed.astype(self.internal_dtype)
         additional = {'iterations': list(), 'initial': perturbed}
 
-        def decision_function(x):
+        def decision_function(x, freq):
             outs = []
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
                 current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-                out = self.model_interface.forward(current_batch.astype(self.internal_dtype), a)
+                out = self.model_interface.forward(current_batch.astype(self.internal_dtype), a, freq)
                 outs.append(out)
             outs = np.concatenate(outs, axis=0)
             return outs
@@ -130,7 +133,7 @@ class HopSkipJumpAttack:
                 epsilons_shape = [20] + len(self.shape) * [1]
                 perturbeds = perturbed + epsilons.reshape(epsilons_shape) * update
                 perturbeds = np.clip(perturbeds, self.clip_min, self.clip_max)
-                idx_perturbed = decision_function(perturbeds)
+                idx_perturbed = decision_function(perturbeds, self.sampling_freq)
 
                 if (idx_perturbed == 1).any():
                     # Select the perturbation that yields the minimum
@@ -160,7 +163,7 @@ class HopSkipJumpAttack:
                 self.clip_min, self.clip_max, size=self.shape
             ).astype(self.internal_dtype)
 
-            success = self.model_interface.forward_one(random_noise, a)
+            success = self.model_interface.forward_one(random_noise, a, self.sampling_freq)
             # when model is confused, it is not adversarial
             num_evals += 1
             if success == 1:
@@ -175,7 +178,7 @@ class HopSkipJumpAttack:
         while high - low > 0.2:
             mid = (high + low) / 2.0
             blended = (1 - mid) * a.unperturbed + mid * random_noise
-            success = self.model_interface.forward_one(blended, a)
+            success = self.model_interface.forward_one(blended, a, self.sampling_freq)
             # when model is confused, it is not adversarial
             logging.info(a.distance)
             if success == 1:
@@ -213,7 +216,7 @@ class HopSkipJumpAttack:
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
 
             # Update highs and lows based on model decisions.
-            decisions = decision_function(mid_inputs)
+            decisions = decision_function(mid_inputs, self.sampling_freq)
             decisions[decisions == -1] = 0
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
@@ -262,7 +265,7 @@ class HopSkipJumpAttack:
         rv = (perturbed - sample) / delta
 
         # query the model.
-        outputs = decision_function(perturbed)
+        outputs = decision_function(perturbed, self.grad_sampling_freq)
         decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0
@@ -289,7 +292,7 @@ class HopSkipJumpAttack:
         epsilon = dist / np.sqrt(current_iteration)
         while True:
             updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
-            success = (decision_function(updated[None]))[0]
+            success = (decision_function(updated[None], self.sampling_freq))[0]
             if success:
                 break
             else:

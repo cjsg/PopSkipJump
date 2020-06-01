@@ -30,7 +30,7 @@ def validate_args(args):
         exit()
 
 
-def main(exp_name, slack, sampling_freq, flip_prob):
+def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -49,6 +49,9 @@ def main(exp_name, slack, sampling_freq, flip_prob):
         logging.info("Path: '{}' already exists. Overwriting it!!!".format(exp_name))
     else:
         os.makedirs(exp_name)
+
+    if grad_sampling_freq is None:
+        grad_sampling_freq = sampling_freq
 
     starts = None
     if EXPERIMENT:
@@ -70,8 +73,9 @@ def main(exp_name, slack, sampling_freq, flip_prob):
     else:
         models = [get_model(key='mnist', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack, sampling_freq=sampling_freq)
-    attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset)
+    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack)
+    attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,
+                               sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq)
     median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS)
     # save_all_images(exp_name, results['iterations'], args.dataset)
     pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
@@ -88,12 +92,13 @@ if __name__ == '__main__':
     #          sampling_freq=freq)
     # pass
 
-
-    FP = [0.8]
-    slack = 0.0
-    for flip in FP:
-        main('adv/sto_{}_{}_{}'.format(NUM_ITERATIONS, flip, 32),
+    sampling_freq = 32
+    FF = [1, 32]
+    slack = 0.1
+    for freq in FF:
+        main('adv/approxgrad_{}_gsf{}_sf{}'.format(NUM_ITERATIONS, freq, sampling_freq),
              slack=slack,
-             sampling_freq=32,
-             flip_prob=flip)
+             sampling_freq=sampling_freq,
+             grad_sampling_freq=freq,
+             flip_prob=None)
     pass
