@@ -36,7 +36,7 @@ class HopSkipJumpAttack:
         else:
             self.theta = self.gamma / (self.d * self.d)
 
-    def attack(self, images, labels, starts=None, iterations=64):
+    def attack(self, images, labels, starts=None, iterations=64, average=False):
         raw_results = []
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
@@ -44,10 +44,9 @@ class HopSkipJumpAttack:
             a = Adversarial(image=image, label=label)
             if starts is not None:
                 a.set_starting_point(starts[i])
-            results = self.attack_one(a, iterations)
+            results = self.attack_one(a, iterations, average)
             if results is None:
                 results = {}
-                # distances.append(0)
                 logging.error("Skipping image: Model Prediction of input does not match label")
             else:
                 distances.append(a.distance)
@@ -57,7 +56,7 @@ class HopSkipJumpAttack:
         median = np.median(np.array(distances))
         return median, raw_results
 
-    def attack_one(self, a, iterations=64):
+    def attack_one(self, a, iterations=64, average=False):
         if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
             return None
         if a.perturbed is None:
@@ -68,12 +67,12 @@ class HopSkipJumpAttack:
         perturbed = a.perturbed.astype(self.internal_dtype)
         additional = {'iterations': list(), 'initial': perturbed}
 
-        def decision_function(x, freq):
+        def decision_function(x, freq, average=False):
             outs = []
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
                 current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-                out = self.model_interface.forward(current_batch.astype(self.internal_dtype), a, freq)
+                out = self.model_interface.forward(current_batch.astype(self.internal_dtype), a, freq, average)
                 outs.append(out)
             outs = np.concatenate(outs, axis=0)
             return outs
@@ -98,7 +97,7 @@ class HopSkipJumpAttack:
             logging.info('Approximating grad with %d evaluation...' % num_evals)
             while True:
                 gradf = self.approximate_gradient(
-                    decision_function, perturbed, num_evals, delta
+                    decision_function, perturbed, num_evals, delta, average
                 )
                 if gradf is None:
                     delta *= 2
@@ -249,7 +248,7 @@ class HopSkipJumpAttack:
 
         return delta * 10
 
-    def approximate_gradient(self, decision_function, sample, num_evals, delta):
+    def approximate_gradient(self, decision_function, sample, num_evals, delta, average=False):
         """ Gradient direction estimation """
         # Generate random vectors.
         noise_shape = [num_evals] + list(self.shape)
@@ -265,7 +264,7 @@ class HopSkipJumpAttack:
         rv = (perturbed - sample) / delta
 
         # query the model.
-        outputs = decision_function(perturbed, self.grad_sampling_freq)
+        outputs = decision_function(perturbed, self.grad_sampling_freq, average)
         decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0

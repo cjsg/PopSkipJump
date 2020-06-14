@@ -4,7 +4,7 @@ import matplotlib.pylab as plt
 from model_factory import get_model
 
 
-NUM_ITERATIONS = 32
+NUM_ITERATIONS = 64
 NUM_IMAGES = 16
 FF = [1, 32]
 FP = [0.5, 0.8]
@@ -26,7 +26,7 @@ def read_dumps(noise='bayesian'):
     elif noise == 'bayesian':
         SLACK = 0.10
         for freq in FF:
-            folder = 'approxgrad_{}_gsf{}_sf{}'.format(NUM_ITERATIONS, freq, 32)
+            folder = 'approxgrad_{}_gsf{}_sf{}_avg'.format(NUM_ITERATIONS, freq, 32)
             filepath = 'adv/{}/raw_data.pkl'.format(folder)
             raws.append(pickle.load(open(filepath, 'rb')))
     else:
@@ -37,7 +37,7 @@ def read_dumps(noise='bayesian'):
 raws = read_dumps(noise=NOISE)
 
 
-fig, ax1 = plt.subplots(figsize=(7,7))
+fig, ax1 = plt.subplots(figsize=(7, 7))
 ax1.set_xlabel('Iterations of the Attack')
 ax1.set_ylabel('L2 Distance')
 ax2 = ax1.twinx()
@@ -72,14 +72,14 @@ for i, raw in enumerate(raws):
         ax1.plot(medians, label='flip_prob = {}'.format(FP[i]))
         ax2.plot(1-adv_count/NUM_IMAGES, '--', label='flip_prob = {}'.format(FP[i]))
     if NOISE == 'bayesian':
-        ax1.plot(medians, label='freq = {}'.format(FF[i]))
-        ax2.plot(1-adv_count/NUM_IMAGES, '--', label='gradfreq = {}'.format(FF[i]))
+        ax1.plot(medians, label='C = {}'.format(FF[i]))
+        ax2.plot(1-adv_count/NUM_IMAGES, '--', label='C = {}'.format(FF[i]))
 
 ax1.grid()
 # plt.ylabel('L2 Distance')
 # plt.ylabel('Number of adversarial using true logits')
 # plt.xlabel('Iterations of Attack')
-# plt.title('{} Noise'.format(NOISE.title()))
+plt.title('Using Estimate #2')
 ax1.legend()
-plt.savefig('adv/merged_{}_approxgrad.png'.format(NOISE))
+plt.savefig('adv/merged_{}_approxgrad_64_avg.png'.format(NOISE))
 pass

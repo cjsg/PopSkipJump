@@ -41,7 +41,7 @@ class ModelInterface:
         else:
             return 0
 
-    def forward(self, images, a, freq):
+    def forward(self, images, a, freq, average=False):
         slack = self.slack_prop * freq
         batch = np.stack(images)
         m_id = random.choice(list(range(len(self.models))))
@@ -66,4 +66,8 @@ class ModelInterface:
                 if a.distance > distance:
                     a.distance = distance
                     a.perturbed = images[i]
-        return ans
+        if average and freq is not None:
+            adv_prob = 1 - true_freqs / N
+            return adv_prob
+        else:
+            return ans

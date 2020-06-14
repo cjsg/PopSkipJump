@@ -30,7 +30,7 @@ def validate_args(args):
         exit()
 
 
-def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None):
+def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None, average=False):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -76,7 +76,7 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,
                                sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq)
-    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS)
+    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS, average=average)
     # save_all_images(exp_name, results['iterations'], args.dataset)
     pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
@@ -96,9 +96,10 @@ if __name__ == '__main__':
     FF = [1, 32]
     slack = 0.1
     for freq in FF:
-        main('adv/approxgrad_{}_gsf{}_sf{}'.format(NUM_ITERATIONS, freq, sampling_freq),
+        main('adv/approxgrad_{}_gsf{}_sf{}_avg'.format(NUM_ITERATIONS, freq, sampling_freq),
              slack=slack,
              sampling_freq=sampling_freq,
              grad_sampling_freq=freq,
-             flip_prob=None)
+             flip_prob=None,
+             average=True)
     pass
