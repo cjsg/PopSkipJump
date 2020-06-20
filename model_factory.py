@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from torchvision import transforms
 from cifar10_models import *
-from pytorchmodels import MNIST_Net, CWMNISTNetwork, RonyMNISTNetwork
+from pytorchmodels import MNIST_Net, CWMNISTNetwork
 from img_utils import show_image
 
 
