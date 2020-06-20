@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from torchvision import transforms
 from cifar10_models import *
-from pytorchmodels import MNIST_Net
+from pytorchmodels import MNIST_Net, CWMNISTNetwork, RonyMNISTNetwork
 from img_utils import show_image
 
 
@@ -27,6 +27,7 @@ class Model:
             logits = logits - np.max(logits, axis=1, keepdims=True)
             probs = np.exp(logits)
             probs = probs / np.sum(probs, axis=1, keepdims=True)
+            probs[probs < 1e-4] = 0
             sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
             return np.array(sample)
         elif self.noise == 'stochastic':
@@ -48,15 +49,19 @@ class Model:
 
 
 def get_model(key, dataset, noise=None, flip_prob=0.25):
-    if key == 'mnist':
-        class MNIST_Model(Model):
-            def predict(self, images):
-                images = np.expand_dims(images, axis=1).astype(np.float32)
-                outs = self.model(torch.tensor(images))
-                return outs.detach().numpy()
-
+    class MNIST_Model(Model):
+        def predict(self, images):
+            images = np.expand_dims(images, axis=1).astype(np.float32)
+            outs = self.model(torch.tensor(images))
+            return outs.detach().numpy()
+    if key == 'mnist_noman':
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
+        pytorch_model.eval()
+        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
+    if key == 'mnist_cw':
+        pytorch_model = CWMNISTNetwork()
+        pytorch_model.load_state_dict(torch.load('mnist_models/cw_mnist_cnn.pt', map_location='cpu'))
         pytorch_model.eval()
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':

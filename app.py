@@ -71,7 +71,8 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
     if ASK_HUMAN:
         models = [get_model(key='human', dataset=args.dataset, noise=NOISE)]
     else:
-        models = [get_model(key='mnist', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
+        # models = [get_model(key='mnist_noman', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
+        models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,

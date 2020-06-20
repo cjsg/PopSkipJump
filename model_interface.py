@@ -21,7 +21,10 @@ class ModelInterface:
         if freq is not None:
             batch = np.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
-            label_freqs = np.bincount(outs, minlength=self.n_classes)
+            try:
+                label_freqs = np.bincount(outs, minlength=self.n_classes)
+            except:
+                pass
             true_freq = label_freqs[a.true_label]
             adv_freq = np.max(label_freqs[np.arange(self.n_classes) != a.true_label])
             if true_freq + slack >= adv_freq:
