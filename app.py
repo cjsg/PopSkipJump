@@ -57,7 +57,7 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
 
     starts = None
     if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=10000)
+        imgs, labels = get_samples(n_samples=1000)
     else:
         if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
             img, label = get_sample(dataset=args.dataset, index=0)
@@ -101,8 +101,8 @@ if __name__ == '__main__':
     NUM_ITERATIONS = 30
     slack = 0.10
     G = np.round(10**np.linspace(0, -2, num=9), 2)
-    start = time.time()
     for gamma in G:
+        start = time.time()
         main('adv/det_30_1000_g{}'.format(gamma),
              slack=slack,
              sampling_freq=sampling_freq,
@@ -110,5 +110,5 @@ if __name__ == '__main__':
              flip_prob=None,
              average=False,
              gamma=gamma)
-    print(time.time() - start)
+        print(time.time() - start)
     pass
