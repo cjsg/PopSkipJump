@@ -4,12 +4,13 @@ from conf import SAMPLING_CONF, SAMPLING_FREQ, SLACK
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10):
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic'):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
         self.model_calls = 0
         self.slack_prop = slack
+        self.noise = noise
         # self.sampling_freq = sampling_freq
         # if self.sampling_freq is not None:
             # self.threshold = SAMPLING_FREQ * SAMPLING_CONF
@@ -18,7 +19,7 @@ class ModelInterface:
     def forward_one(self, image, a, freq):
         slack = self.slack_prop * freq
         m_id = random.choice(list(range(len(self.models))))
-        if freq is not None:
+        if self.noise != 'deterministic':
             batch = np.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
             try:
@@ -44,12 +45,17 @@ class ModelInterface:
         else:
             return 0
 
+    def get_probs(self, image):
+        m_id = random.choice(list(range(len(self.models))))
+        outs = self.models[m_id].get_probs(image[None])
+        return outs
+
     def forward(self, images, a, freq, average=False):
         slack = self.slack_prop * freq
         batch = np.stack(images)
         m_id = random.choice(list(range(len(self.models))))
         self.model_calls += len(images)
-        if freq is None:
+        if self.noise == 'deterministic':
             labels = self.models[m_id].ask_model(batch)
             ans = (labels != a.true_label) * 1
         else:
@@ -69,8 +75,8 @@ class ModelInterface:
                 if a.distance > distance:
                     a.distance = distance
                     a.perturbed = images[i]
-        if average and freq is not None:
-            adv_prob = 1 - true_freqs / N
+        if average and self.noise != 'deterministic':
+            adv_prob = 1 - (true_freqs / freq)
             return adv_prob
         else:
             return ans

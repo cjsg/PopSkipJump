@@ -1,5 +1,5 @@
 # Set this to true if you want logits to be treated as probability distribution
-NOISE = 'bayesian'  # BOOLEAN
+NOISE = 'deterministic'  # BOOLEAN
 
 # Number of samples needed to make prediction from non-deterministic model
 SAMPLING_FREQ = 20  # INT
@@ -17,7 +17,7 @@ ATTACK_INPUT_LABEL = None  # INT
 
 # Path of initial seed image from where the attack will begin
 # If None, The attack will start from a random perturbation
-# ATTACK_INITIALISE_IMAGE = 'data/mnist_02_6.jpg'  # STRING
+# ATTACK_INITIALISE_IMAGE = 'data/mnist_05_9.jpg'  # STRING
 ATTACK_INITIALISE_IMAGE = None  # STRING
 
 # Set this to true if you want Human to act as a model

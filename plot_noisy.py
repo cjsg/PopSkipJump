@@ -13,7 +13,7 @@ NOISE = 'bayesian'
 
 FLIP_PROB = 0.2
 
-model = get_model(key='mnist', dataset='mnist')
+model = get_model(key='mnist_noman', dataset='mnist')
 
 
 def read_dumps(noise='bayesian'):

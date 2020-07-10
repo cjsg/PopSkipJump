@@ -2,15 +2,16 @@ from hopskip import HopSkipJumpAttack
 from model_interface import ModelInterface
 import torchvision.datasets as datasets
 from model_factory import get_model
-from img_utils import get_sample, save_all_images, read_image
+from img_utils import get_sample, read_image
 from conf import *
 import logging
 from datetime import datetime
+import time
 import os
 import numpy as np
 import pickle
 
-logging.root.setLevel(logging.WARNING)
+# logging.root.setLevel(logging.DEBUG)
 
 
 def get_samples(n_samples=16):
@@ -30,7 +31,8 @@ def validate_args(args):
         exit()
 
 
-def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None, average=False):
+def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None,
+         average=False, gamma=1):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -55,7 +57,7 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
 
     starts = None
     if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=16)
+        imgs, labels = get_samples(n_samples=10)
     else:
         if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
             img, label = get_sample(dataset=args.dataset, index=0)
@@ -63,20 +65,21 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
             img, label = read_image(ATTACK_INPUT_IMAGE), ATTACK_INPUT_LABEL
         imgs, labels = [img], [label]
 
-        if ATTACK_INITIALISE_IMAGE is not None:
-            img_start = read_image(ATTACK_INITIALISE_IMAGE)
-            starts = [img_start]
+    if ATTACK_INITIALISE_IMAGE is not None:
+        img_start = read_image(ATTACK_INITIALISE_IMAGE)
+        starts = [img_start] * 4
 
     # For now choice of model is fixed for a particular dataset
     if ASK_HUMAN:
         models = [get_model(key='human', dataset=args.dataset, noise=NOISE)]
     else:
-        # models = [get_model(key='mnist_noman', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
-        models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
+        models = [get_model(key='mnist_noman', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
+        # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack)
+    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack, noise=NOISE)
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,
-                               sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq)
+                               sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq,
+                               gamma=gamma)
     median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS, average=average)
     # save_all_images(exp_name, results['iterations'], args.dataset)
     pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
@@ -93,14 +96,19 @@ if __name__ == '__main__':
     #          sampling_freq=freq)
     # pass
 
-    sampling_freq = 32
-    FF = [1, 32]
-    slack = 0.1
-    for freq in FF:
-        main('adv/approxgrad_{}_gsf{}_sf{}_avg'.format(NUM_ITERATIONS, freq, sampling_freq),
+    sampling_freq = 256
+    FF = [16]
+    NUM_ITERATIONS = 30
+    slack = 0.10
+    G = np.round(10**np.linspace(0, -2, num=9), 2)
+    start = time.time()
+    for gamma in G[:6]:
+        main('adv/det_30_g{}'.format(gamma),
              slack=slack,
              sampling_freq=sampling_freq,
-             grad_sampling_freq=freq,
+             grad_sampling_freq=None,
              flip_prob=None,
-             average=True)
+             average=False,
+             gamma=gamma)
+    print(time.time() - start)
     pass

@@ -16,6 +16,7 @@ class HopSkipJumpAttack:
         self.gamma = gamma
         self.batch_size = batch_size
         self.internal_dtype = internal_dtype
+        self.bounds = bounds
         self.clip_min, self.clip_max = bounds
         self.experiment = experiment
         self.dataset = dataset
@@ -32,7 +33,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -43,7 +45,7 @@ class HopSkipJumpAttack:
             logging.warning("Attacking Image: {}".format(i))
             a = Adversarial(image=image, label=label)
             if starts is not None:
-                a.set_starting_point(starts[i])
+                a.set_starting_point(starts[i], self.bounds)
             results = self.attack_one(a, iterations, average)
             if results is None:
                 results = {}
@@ -65,7 +67,7 @@ class HopSkipJumpAttack:
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        additional = {'iterations': list(), 'initial': perturbed}
+        additional = {'iterations': list(), 'initial': perturbed, 'manifold': list()}
 
         def decision_function(x, freq, average=False):
             outs = []
@@ -77,6 +79,8 @@ class HopSkipJumpAttack:
             outs = np.concatenate(outs, axis=0)
             return outs
 
+        # ss = self.screenshot_manifold(perturbed, original)
+        # additional['manifold_init'] = ss
         logging.info('Binary Search to project to boundary...')
         perturbed, dist_post_update = self.binary_search_batch(
             original, np.expand_dims(perturbed, 0), decision_function
@@ -100,7 +104,8 @@ class HopSkipJumpAttack:
                     decision_function, perturbed, num_evals, delta, average
                 )
                 if gradf is None:
-                    delta *= 2
+                    # delta *= 2
+                    raise RuntimeError
                 else:
                     break
 
@@ -121,10 +126,18 @@ class HopSkipJumpAttack:
                     perturbed + epsilon * update, self.clip_min, self.clip_max
                 )
 
+                # ss = self.screenshot_manifold(perturbed, original)
+                # additional['manifold'].append(ss)
+
                 # Binary search to return to the boundary.
                 perturbed, dist_post_update = self.binary_search_batch(
                     original, perturbed[None], decision_function
                 )
+                # perturbed, dist_post_update = self.info_max_batch(
+                #     original, perturbed[None], decision_function
+                # )
+                # _check = decision_function(perturbed[None], self.sampling_freq)[0]
+                # assert _check == 1
 
             elif self.stepsize_search == "grid_search":
                 # Grid search for stepsize.
@@ -152,6 +165,15 @@ class HopSkipJumpAttack:
             logging.info('distance of adversarial = %f', distance)
             additional['iterations'].append({'perturbed': a.perturbed, 'distance': a.distance})
         return additional
+
+    def screenshot_manifold(self, perturbed, original):
+        alphas = np.linspace(0, 1, 201)
+        screenshot = {}
+        for alpha in alphas:
+            point = (2*alpha-1) * original + (2-2*alpha) * perturbed
+            probs = self.model_interface.get_probs(point)
+            screenshot[alpha] = probs.flatten()
+        return screenshot
 
     def initialize_starting_point(self, a):
         success = 0
@@ -184,6 +206,75 @@ class HopSkipJumpAttack:
                 high = mid
             else:
                 low = mid
+
+    def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
+        border_points = []
+        dists = []
+        for perturbed_input in perturbed_inputs:
+            a, b = 0, 1  # interval [a, b]
+            Nx = Nt = 101  # discretization number
+            kmax = 5000  # number of sample points
+
+            # discretize parameter (search) space
+            ts = np.linspace(a, b, Nt)
+            xs = np.linspace(a, b, Nx)
+            ys = [0, 1]
+            ss = 10 ** np.linspace(-2, 0, 11)  # s \in [.01, 1.]
+            epss = np.linspace(0., .1, 2)
+
+            def f_py_xts(y, t, x, s, eps):
+                # y : int in {0,1}
+                # t : float in [a,b]
+                # x : float in [0,1]
+                # s : positive float
+                # eps: float in [0., .5]
+
+                sigmoid = lambda x: .5 * np.tanh(x) + .5
+                p = eps + (1 - 2 * eps) * sigmoid((x - t) / s)
+                return y * p + (1 - y) * (1 - p)
+            f_py_xts = np.vectorize(f_py_xts)
+
+            Y, T, X, S, E = np.meshgrid(ys, ts, xs, ss, epss, indexing='ij')
+            py_txse = f_py_xts(Y, T, X, S, E)  # [y, x, t, s, eps] axis always in this order
+            py_tx = py_txse.sum(axis=(3, 4))  # marginalizing out s and eps
+            pt_x = np.ones((1, Nt, 1)) / Nt  # prior on t
+
+            xjs = []
+            yjs = []
+            t_map, t_max = -1, -1
+            for k in range(kmax):  # k = query index; kmax = total nbr of queries
+                _this_t_map = (pt_x.flatten() * ts).sum()  # Mean a posteriori (or prior mean)
+                _this_t_max = ts[np.argmax(pt_x.flatten())]  # Maximum a posteriori (or prior max)
+                if abs(t_map - _this_t_map) < 1e-4 and abs(t_max - _this_t_max) < 1e-4:
+                    break
+                else:
+                    t_map, t_max = _this_t_map, _this_t_max
+
+                # Compute mutual information I(y, t | (x1,y1), (x2, y2) ... (xj, yj))
+                pyt_x = py_tx * pt_x  # pt_xs = pt_x
+                py_x = pyt_x.sum(axis=1, keepdims=True)
+                I_x = (pyt_x * np.log(pyt_x / (py_x * pt_x + 1e-8) + 1e-8)).sum(axis=(0, 1))
+
+                # Maximize mutual info and sample
+                imax = np.argmax(I_x)
+                xj = xs[imax]
+                projection = (1-xj)*unperturbed+xj*perturbed_input
+                yj = int(decision_function(projection[None], freq=1))
+                xjs.append(xj)
+                yjs.append(yj)
+
+                pyj_txj = py_tx[yj:(yj + 1), :, imax:(imax + 1)]
+                pyj_xj = py_x[yj:(yj + 1), :, imax:(imax + 1)]
+                pt_x = pyj_txj * pt_x / pyj_xj
+
+            border_point = (1-t_map)*unperturbed + t_map*perturbed_input
+            dist = self.compute_distance(unperturbed, border_point)
+            border_points.append(border_point)
+            dists.append(dist)
+        idx = np.argmin(np.array(dists))
+        dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
+        out = border_points[idx]
+        return out, dist
 
     def binary_search_batch(self, unperturbed, perturbed_inputs, decision_function):
         """ Binary search to approach the boundary. """
@@ -246,7 +337,8 @@ class HopSkipJumpAttack:
             elif self.constraint == "linf":
                 delta = self.d * self.theta * dist_post_update
 
-        return delta * 10
+        # return delta * 10  # Did it for noisy models
+        return delta
 
     def approximate_gradient(self, decision_function, sample, num_evals, delta, average=False):
         """ Gradient direction estimation """
