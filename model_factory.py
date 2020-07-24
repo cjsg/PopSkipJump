@@ -47,6 +47,15 @@ class Model:
         # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
         return np.array(probs)
 
+    def get_grads(self, images, true_label):
+        images = np.expand_dims(images, axis=1).astype(np.float32)
+        t_images = torch.tensor(images, requires_grad=True)
+        t_outs = self.model(t_images)
+        grad = torch.zeros(t_images.shape)
+        for i in range(len(images)):
+            _grad = torch.autograd.grad(t_outs[i, true_label], t_images, create_graph=True)[0]
+            grad[i] = _grad[i]
+        return grad.detach().numpy()
 
 def get_model(key, dataset, noise=None, flip_prob=0.25):
     class MNIST_Model(Model):

@@ -32,7 +32,7 @@ def validate_args(args):
 
 
 def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None,
-         average=False, gamma=1):
+         average=False, gamma=1.0):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
@@ -100,15 +100,15 @@ if __name__ == '__main__':
     FF = [16]
     NUM_ITERATIONS = 30
     slack = 0.10
-    G = np.round(10**np.linspace(0, -2, num=9), 2)
+    # G = np.round(10**np.linspace(0, -2, num=9), 2)
+    G = [10]
     for gamma in G:
         start = time.time()
-        main('adv/det_30_1000_g{}'.format(gamma),
+        main('adv/det_30_1000',
              slack=slack,
              sampling_freq=sampling_freq,
              grad_sampling_freq=None,
              flip_prob=None,
-             average=False,
-             gamma=gamma)
+             average=False)
         print(time.time() - start)
     pass

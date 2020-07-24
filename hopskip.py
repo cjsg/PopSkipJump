@@ -2,7 +2,8 @@ import math
 import numpy as np
 import logging
 from adversarial import Adversarial
-
+from numpy import dot
+from numpy.linalg import norm
 
 class HopSkipJumpAttack:
     def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
@@ -33,8 +34,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
-            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
+            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -67,7 +68,7 @@ class HopSkipJumpAttack:
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        additional = {'iterations': list(), 'initial': perturbed, 'manifold': list()}
+        additional = {'iterations': list(), 'initial': perturbed, 'manifold': list(), 'cosine_details': list()}
 
         def decision_function(x, freq, average=False):
             outs = []
@@ -113,6 +114,9 @@ class HopSkipJumpAttack:
                 update = np.sign(gradf)
             else:
                 update = gradf
+
+            cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label)
+            additional['cosine_details'].append(cos_details)
 
             logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
@@ -174,6 +178,16 @@ class HopSkipJumpAttack:
             probs = self.model_interface.get_probs(point)
             screenshot[alpha] = probs.flatten()
         return screenshot
+
+    def capture_cosines(self, perturbed, original, gradf, true_label):
+        grad_st_line = perturbed - original
+        grad_true = self.model_interface.get_grads(perturbed[None], true_label)
+        _g_true = grad_true.flatten()
+        _g_line = grad_st_line.flatten()
+        _g_estm = gradf.flatten()
+        cos_true_vs_line = dot(_g_true, _g_line) / (norm(_g_true) * norm(_g_line))
+        cos_true_vs_estm = dot(_g_true, _g_estm) / (norm(_g_true) * norm(_g_estm))
+        return {'true_vs_line': abs(cos_true_vs_line), 'true_vs_estm': abs(cos_true_vs_estm)}
 
     def initialize_starting_point(self, a):
         success = 0

@@ -50,6 +50,11 @@ class ModelInterface:
         outs = self.models[m_id].get_probs(image[None])
         return outs
 
+    def get_grads(self, images, true_label):
+        m_id = random.choice(list(range(len(self.models))))
+        outs = self.models[m_id].get_grads(images, true_label)
+        return outs
+
     def forward(self, images, a, freq, average=False):
         slack = self.slack_prop * freq
         batch = np.stack(images)
