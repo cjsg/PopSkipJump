@@ -34,8 +34,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
-            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
+            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -70,12 +70,13 @@ class HopSkipJumpAttack:
         perturbed = a.perturbed.astype(self.internal_dtype)
         additional = {'iterations': list(), 'initial': perturbed, 'manifold': list(), 'cosine_details': list()}
 
-        def decision_function(x, freq, average=False):
+        def decision_function(x, freq, average=False, remember=True):
             outs = []
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
                 current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-                out = self.model_interface.forward(current_batch.astype(self.internal_dtype), a, freq, average)
+                out = self.model_interface.forward(current_batch.astype(self.internal_dtype),
+                                                   a, freq, average, remember)
                 outs.append(out)
             outs = np.concatenate(outs, axis=0)
             return outs
@@ -84,7 +85,7 @@ class HopSkipJumpAttack:
         # additional['manifold_init'] = ss
         logging.info('Binary Search to project to boundary...')
         perturbed, dist_post_update = self.binary_search_batch(
-            original, np.expand_dims(perturbed, 0), decision_function
+            original, perturbed[None, ...], decision_function
         )
         logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         dist = self.compute_distance(perturbed, original)
@@ -115,7 +116,7 @@ class HopSkipJumpAttack:
             else:
                 update = gradf
 
-            cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label)
+            cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
             additional['cosine_details'].append(cos_details)
 
             logging.info('Binary Search back to the boundary')
@@ -179,9 +180,10 @@ class HopSkipJumpAttack:
             screenshot[alpha] = probs.flatten()
         return screenshot
 
-    def capture_cosines(self, perturbed, original, gradf, true_label):
+    def capture_cosines(self, perturbed, original, gradf, true_label, decision_function):
         grad_st_line = perturbed - original
-        grad_true = self.model_interface.get_grads(perturbed[None], true_label)
+        boundary, _ = self.binary_search_batch(original, perturbed[None], decision_function, cosine=True)
+        grad_true = self.model_interface.get_grads(boundary[None], true_label)
         _g_true = grad_true.flatten()
         _g_line = grad_st_line.flatten()
         _g_estm = gradf.flatten()
@@ -290,7 +292,7 @@ class HopSkipJumpAttack:
         out = border_points[idx]
         return out, dist
 
-    def binary_search_batch(self, unperturbed, perturbed_inputs, decision_function):
+    def binary_search_batch(self, unperturbed, perturbed_inputs, decision_function, cosine=False):
         """ Binary search to approach the boundary. """
 
         # Compute distance between each of perturbed and unperturbed input.
@@ -310,6 +312,8 @@ class HopSkipJumpAttack:
             highs = np.ones(len(perturbed_inputs))
             # thresholds = self.theta * 1000  # remove 1000 later
             thresholds = self.theta  # remove 1000 later
+            if cosine:
+                thresholds /= self.d
 
         lows = np.zeros(len(perturbed_inputs))
 
@@ -320,7 +324,7 @@ class HopSkipJumpAttack:
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
 
             # Update highs and lows based on model decisions.
-            decisions = decision_function(mid_inputs, self.sampling_freq)
+            decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
             decisions[decisions == -1] = 0
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)

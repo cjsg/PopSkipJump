@@ -100,15 +100,16 @@ if __name__ == '__main__':
     FF = [16]
     NUM_ITERATIONS = 30
     slack = 0.10
-    # G = np.round(10**np.linspace(0, -2, num=9), 2)
-    G = [10]
+    G = np.round(10**np.linspace(0, -2, num=9), 2)
+    # G = [10]
     for gamma in G:
         start = time.time()
-        main('adv/det_30_1000',
+        main('adv/det_cosv2_30_1000_g{}'.format(gamma),
              slack=slack,
              sampling_freq=sampling_freq,
              grad_sampling_freq=None,
              flip_prob=None,
+             gamma=gamma,
              average=False)
         print(time.time() - start)
     pass

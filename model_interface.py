@@ -55,7 +55,7 @@ class ModelInterface:
         outs = self.models[m_id].get_grads(images, true_label)
         return outs
 
-    def forward(self, images, a, freq, average=False):
+    def forward(self, images, a, freq, average=False, remember=True):
         slack = self.slack_prop * freq
         batch = np.stack(images)
         m_id = random.choice(list(range(len(self.models))))
@@ -73,13 +73,13 @@ class ModelInterface:
             r = list(range(self.n_classes))
             false_freqs = np.max(freqs[:, r[:a.true_label] + r[a.true_label+1:]], axis=1)
             ans = (false_freqs > true_freqs + slack) * 1
-
-        for i in range(len(images)):
-            if ans[i] == 1:
-                distance = a.calculate_distance(images[i], self.bounds)
-                if a.distance > distance:
-                    a.distance = distance
-                    a.perturbed = images[i]
+        if remember:
+            for i in range(len(images)):
+                if ans[i] == 1:
+                    distance = a.calculate_distance(images[i], self.bounds)
+                    if a.distance > distance:
+                        a.distance = distance
+                        a.perturbed = images[i]
         if average and self.noise != 'deterministic':
             adv_prob = 1 - (true_freqs / freq)
             return adv_prob
