@@ -3,6 +3,7 @@ import numpy as np
 import logging
 from adversarial import Adversarial
 from numpy import dot
+from infomax import bin_search
 from numpy.linalg import norm
 
 
@@ -42,7 +43,7 @@ class HopSkipJumpAttack:
         else:
             self.theta = self.gamma / (self.d * self.d)
 
-    def attack(self, images, labels, starts=None, iterations=64, average=False):
+    def attack(self, images, labels, starts=None, iterations=64, average=False, flags=None):
         raw_results = []
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
@@ -50,11 +51,8 @@ class HopSkipJumpAttack:
             a = Adversarial(image=image, label=label)
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
-            results = self.attack_one(a, iterations, average)
-            if results is None:
-                results = {}
-                logging.error("Skipping image: Model Prediction of input does not match label")
-            else:
+            results = self.attack_one(a, iterations, average, flags=flags)
+            if len(results) > 0:
                 distances.append(a.distance)
             results['true_label'] = label
             results['original'] = image
@@ -62,31 +60,38 @@ class HopSkipJumpAttack:
         median = np.median(np.array(distances))
         return median, raw_results
 
-    def attack_one(self, a, iterations=64, average=False):
+    def attack_one(self, a, iterations=64, average=False, flags=None):
         if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
-            return None
+            logging.error("Skipping image: Model Prediction of input does not match label")
+            return dict()
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        additional = {'iterations': list(), 'initial': perturbed, 'manifold': list(), 'cosine_details': list()}
+        additional = {'iterations': list(), # Perturbed images and L2 distance for every iteration
+                      'initial': perturbed,  # Starting point of the attack
+                      'manifold': list(),  # Captures probability manifold
+                      'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
+                      }
 
         def decision_function(x, freq, average=False, remember=True):
-            # retunrs 1 if adversarial
+            # returns 1 if adversarial
             outs = []
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
                 current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-                out = self.model_interface.forward(current_batch.astype(self.internal_dtype),
-                                                   a, freq, average, remember)
+                out = self.model_interface.forward(images=current_batch.astype(self.internal_dtype),
+                                                   a=a, freq=freq, average=average, remember=remember)
                 outs.append(out)
             outs = np.concatenate(outs, axis=0)
             return outs
 
-        # ss = self.screenshot_manifold(perturbed, original)
-        # additional['manifold_init'] = ss
+        if flags['stats_manifold']:
+            ss = self.screenshot_manifold(perturbed, original)
+            additional['manifold_init'] = ss
+
         logging.info('Binary Search to project to boundary...')
         perturbed, dist_post_update = self.binary_search_batch(
             original, perturbed[None, ...], decision_function
@@ -100,28 +105,20 @@ class HopSkipJumpAttack:
             delta = self.select_delta(dist_post_update, step)
 
             # Choose number of evaluations.
-            num_evals = int(
-                min([self.initial_num_evals * np.sqrt(step), self.max_num_evals])
-            )
-            num_evals = int(num_evals)
+            num_evals = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
             logging.info('Approximating grad with %d evaluation...' % num_evals)
-            while True:
-                gradf = self.approximate_gradient(
-                    decision_function, perturbed, num_evals, delta, average
-                )
-                if gradf is None:
-                    # delta *= 2
-                    raise RuntimeError
-                else:
-                    break
+            gradf = self.approximate_gradient(
+                decision_function, perturbed, num_evals, delta, average
+            )
 
             if self.constraint == "linf":
                 update = np.sign(gradf)
             else:
                 update = gradf
 
-            # cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
-            # additional['cosine_details'].append(cos_details)
+            if flags['stats_cosines']:
+                cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
+                additional['cosine_details'].append(cos_details)
 
             logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
@@ -131,12 +128,11 @@ class HopSkipJumpAttack:
                 )
 
                 # Update the sample.
-                perturbed = np.clip(
-                    perturbed + epsilon * update, self.clip_min, self.clip_max
-                )
+                perturbed = np.clip(perturbed + epsilon * update, self.clip_min, self.clip_max)
 
-                # ss = self.screenshot_manifold(perturbed, original)
-                # additional['manifold'].append(ss)
+                if flags['stats_manifold']:
+                    ss = self.screenshot_manifold(perturbed, original)
+                    additional['manifold'].append(ss)
 
                 # Binary search to return to the boundary.
                 if self.search == "binary":
@@ -218,7 +214,7 @@ class HopSkipJumpAttack:
         low = 0.0
         high = 1.0
         # while high - low > 0.001:
-        while high - low > 0.2:
+        while high - low > 0.2: # Kept it high so as to keep infomax in check
             mid = (high + low) / 2.0
             blended = (1 - mid) * a.unperturbed + mid * random_noise
             success = self.model_interface.forward_one(blended, a, self.sampling_freq)
@@ -230,7 +226,6 @@ class HopSkipJumpAttack:
                 low = mid
 
     def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function):
-        from infomax import bin_search
         border_points = []
         dists = []
         for perturbed_input in perturbed_inputs:
@@ -245,7 +240,7 @@ class HopSkipJumpAttack:
         decision_function(out[None], freq=1) # this is to make the model remember the sample
         return out, dist
 
-
+    # deprecated
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
         border_points = []
         dists = []
@@ -379,8 +374,8 @@ class HopSkipJumpAttack:
                 delta = np.sqrt(self.d) * self.theta * dist_post_update
             elif self.constraint == "linf":
                 delta = self.d * self.theta * dist_post_update
-
-        # return delta * 10  # Did it for noisy models
+            else:
+                raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
 
     def approximate_gradient(self, decision_function, sample, num_evals, delta, average=False):

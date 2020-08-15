@@ -89,5 +89,5 @@ ax1.grid()
 # plt.xlabel('Iterations of Attack')
 plt.title('Using Estimate #2')
 ax1.legend()
-plt.savefig('adv/del_later.png'.format(NOISE))
+plt.savefig('adv/del_later2.png'.format(NOISE))
 pass

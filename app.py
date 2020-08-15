@@ -9,9 +9,8 @@ from datetime import datetime
 import time
 import os
 import numpy as np
+import argparse
 import pickle
-
-logging.root.setLevel(logging.INFO)
 
 
 def get_samples(n_samples=16):
@@ -32,8 +31,8 @@ def validate_args(args):
 
 
 def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None,
-         average=False, gamma=1.0):
-    import argparse
+         average=False, gamma=1.0, flags=None):
+    logging.root.setLevel(flags['logging_level'])
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
                         help="(Mandatory) supported: mnist, cifar10")
@@ -80,7 +79,8 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
     attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,
                                sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq,
                                gamma=gamma)
-    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS, average=average)
+    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS,
+                                                average=average, flags=flags)
     # save_all_images(exp_name, results['iterations'], args.dataset)
     pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
@@ -98,6 +98,9 @@ if __name__ == '__main__':
 
     sampling_freq = 32
     NUM_ITERATIONS = 30
+    flags = dict(logging_level=logging.DEBUG,
+                 stats_cosines=False,
+                 stats_manifold=False)
     slack = 0.10
     # G = np.round(10**np.linspace(0, -2, num=9), 2)
     G = [10]
@@ -109,6 +112,7 @@ if __name__ == '__main__':
              grad_sampling_freq=None,
              flip_prob=None,
              # gamma=None,
-             average=False)
+             average=False,
+             flags=flags)
         print(time.time() - start)
     pass
