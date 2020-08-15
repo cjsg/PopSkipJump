@@ -1,6 +1,5 @@
 import numpy as np
 import random
-from conf import SAMPLING_CONF, SAMPLING_FREQ, SLACK
 
 
 class ModelInterface:
@@ -12,10 +11,6 @@ class ModelInterface:
         self.slack_prop = slack
         self.noise = noise
         self.new_adversarial_def = True
-        # self.sampling_freq = sampling_freq
-        # if self.sampling_freq is not None:
-        # self.threshold = SAMPLING_FREQ * SAMPLING_CONF
-        # self.slack = slack * sampling_freq
 
     def forward_one(self, image, a, freq):
         slack = self.slack_prop * freq
@@ -46,11 +41,21 @@ class ModelInterface:
             return 0
 
     def get_probs(self, image):
+        """
+            WARNING
+            This function should only be used for capturing statistics.
+            It should not be a part of a decision based attack.
+        """
         m_id = random.choice(list(range(len(self.models))))
         outs = self.models[m_id].get_probs(image[None])
         return outs
 
     def get_grads(self, images, true_label):
+        """
+            WARNING
+            This function should only be used for capturing statistics.
+            It should not be a part of a decision based attack.
+        """
         m_id = random.choice(list(range(len(self.models))))
         outs = self.models[m_id].get_grads(images, true_label)
         return outs

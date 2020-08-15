@@ -9,24 +9,21 @@ from numpy.linalg import norm
 
 class HopSkipJumpAttack:
     def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
-                 stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
-                 internal_dtype=np.float32, bounds=(0, 1), experiment='default', dataset='mnist',
-                 sampling_freq=10, grad_sampling_freq=10):
+                 stepsize_search="geometric_progression", batch_size=256, internal_dtype=np.float32, bounds=(0, 1),
+                 experiment='default', params=None):
         self.model_interface = model_interface
         self.initial_num_evals = initial_num_evals
         self.max_num_evals = max_num_evals
         self.stepsize_search = stepsize_search
-        self.gamma = gamma
+        self.gamma = params.gamma
         self.batch_size = batch_size
         self.internal_dtype = internal_dtype
         self.bounds = bounds
         self.clip_min, self.clip_max = bounds
         self.experiment = experiment
-        self.dataset = dataset
-        self.sampling_freq = sampling_freq
-        self.grad_sampling_freq = grad_sampling_freq
-        # self.search = "binary"
-        self.search = "infomax"
+        self.sampling_freq = params.sampling_freq_binsearch
+        self.grad_sampling_freq = params.sampling_freq_approxgrad
+        self.search = params.search
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -70,7 +67,7 @@ class HopSkipJumpAttack:
             logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
-        additional = {'iterations': list(), # Perturbed images and L2 distance for every iteration
+        additional = {'iterations': list(),  # Perturbed images and L2 distance for every iteration
                       'initial': perturbed,  # Starting point of the attack
                       'manifold': list(),  # Captures probability manifold
                       'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
@@ -214,7 +211,7 @@ class HopSkipJumpAttack:
         low = 0.0
         high = 1.0
         # while high - low > 0.001:
-        while high - low > 0.2: # Kept it high so as to keep infomax in check
+        while high - low > 0.2:  # Kept it high so as to keep infomax in check
             mid = (high + low) / 2.0
             blended = (1 - mid) * a.unperturbed + mid * random_noise
             success = self.model_interface.forward_one(blended, a, self.sampling_freq)
@@ -237,10 +234,10 @@ class HopSkipJumpAttack:
         idx = np.argmin(np.array(dists))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
         out = border_points[idx]
-        decision_function(out[None], freq=1) # this is to make the model remember the sample
+        decision_function(out[None], freq=1)  # this is to make the model remember the sample
         return out, dist
 
-    # deprecated
+    # This function is deprecated now
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
         border_points = []
         dists = []
@@ -353,9 +350,7 @@ class HopSkipJumpAttack:
 
         # Compute distance of the output to select the best choice.
         # (only used when stepsize_search is grid_search.)
-        dists = np.array(
-            [self.compute_distance(unperturbed, out) for out in out_inputs]
-        )
+        dists = np.array([self.compute_distance(unperturbed, out) for out in out_inputs])
         idx = np.argmin(dists)
 
         dist = dists_post_update[idx]
@@ -386,6 +381,8 @@ class HopSkipJumpAttack:
             rv = np.random.randn(*noise_shape)
         elif self.constraint == "linf":
             rv = np.random.uniform(low=-1, high=1, size=noise_shape)
+        else:
+            raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
 
         axis = tuple(range(1, 1 + len(self.shape)))
         rv = rv / np.sqrt(np.sum(rv ** 2, axis=axis, keepdims=True))

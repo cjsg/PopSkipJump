@@ -3,14 +3,16 @@ from model_interface import ModelInterface
 import torchvision.datasets as datasets
 from model_factory import get_model
 from img_utils import get_sample, read_image
-from conf import *
 import logging
+from defaultparams import DefaultParams
 from datetime import datetime
 import time
 import os
 import numpy as np
 import argparse
 import pickle
+
+logging.root.setLevel(logging.DEBUG)
 
 
 def get_samples(n_samples=16):
@@ -30,20 +32,17 @@ def validate_args(args):
         exit()
 
 
-def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None,
-         average=False, gamma=1.0, flags=None):
-    logging.root.setLevel(flags['logging_level'])
+def main(params=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset",
                         help="(Mandatory) supported: mnist, cifar10")
-    parser.add_argument("-o", "--output", default=None,
+    parser.add_argument("-o", "--exp_name", default=None,
                         help="(Optional) path to the output directory")
     args = parser.parse_args()
     validate_args(args)
-    logging.warning('NUM_ITERATIONS: {}, FREQ: {}'.format(NUM_ITERATIONS, sampling_freq))
-    args.output = exp_name
-    exp_name = args.output
-    if args.output is None:
+    logging.warning(params)
+    exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
+    if exp_name is None:
         exp_name = 'adv/%s' % datetime.now().strftime("%b%d_%H%M%S")
 
     if os.path.exists(exp_name):
@@ -51,68 +50,44 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
     else:
         os.makedirs(exp_name)
 
-    if grad_sampling_freq is None:
-        grad_sampling_freq = sampling_freq
+    if params.sampling_freq_approxgrad is None:
+        params.sampling_freq_approxgrad = params.sampling_freq_binsearch
 
     starts = None
-    if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=3)
+    if params.experiment_mode:
+        imgs, labels = get_samples(n_samples=params.num_samples)
     else:
-        if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
+        if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=args.dataset, index=0)
         else:
-            img, label = read_image(ATTACK_INPUT_IMAGE), ATTACK_INPUT_LABEL
+            img, label = read_image(params.input_image_path), params.input_image_label
         imgs, labels = [img], [label]
 
-    if ATTACK_INITIALISE_IMAGE is not None:
-        img_start = read_image(ATTACK_INITIALISE_IMAGE)
-        starts = [img_start] * 4
+        if params.init_image_path is not None:
+            starts = [read_image(params.init_image_path)]
 
     # For now choice of model is fixed for a particular dataset
-    if ASK_HUMAN:
-        models = [get_model(key='human', dataset=args.dataset, noise=NOISE)]
+    if params.ask_human:
+        models = [get_model(key='human', dataset=args.dataset, noise=params.noise)]
     else:
-        models = [get_model(key='mnist_noman', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
+        models = [get_model(key='mnist_noman', dataset=args.dataset, noise=params.noise, flip_prob=params.flip_prob)]
         # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=slack, noise=NOISE)
-    attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, dataset=args.dataset,
-                               sampling_freq=sampling_freq, grad_sampling_freq=grad_sampling_freq,
-                               gamma=gamma)
-    median_distance, additional = attack.attack(imgs, labels, starts, iterations=NUM_ITERATIONS,
-                                                average=average, flags=flags)
-    # save_all_images(exp_name, results['iterations'], args.dataset)
+    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise)
+    attack = HopSkipJumpAttack(model_interface, imgs[0].shape, experiment=exp_name, params=params)
+    median_distance, additional = attack.attack(imgs, labels, starts, iterations=params.num_iterations,
+                                                average=params.average, flags=params.flags)
     pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
 
 
 if __name__ == '__main__':
-    # FF = [4, 16, 32, 64]
-    # slack = 0.0
-    # for freq in FF:
-    #     main('adv/sto_{}_{}_{}'.format(NUM_ITERATIONS, 0.2, freq),
-    #          slack=slack,
-    #          sampling_freq=freq)
-    # pass
-
-    sampling_freq = 32
-    NUM_ITERATIONS = 30
-    flags = dict(logging_level=logging.DEBUG,
-                 stats_cosines=False,
-                 stats_manifold=False)
-    slack = 0.10
-    # G = np.round(10**np.linspace(0, -2, num=9), 2)
-    G = [10]
-    for gamma in G:
-        start = time.time()
-        main('adv/del_later',
-             slack=slack,
-             sampling_freq=sampling_freq,
-             grad_sampling_freq=None,
-             flip_prob=None,
-             # gamma=None,
-             average=False,
-             flags=flags)
-        print(time.time() - start)
+    hyperparams = DefaultParams()
+    hyperparams.sampling_freq_binsearch = 32
+    hyperparams.num_iterations = 30
+    hyperparams.experiment_name = 'del_later'
+    start = time.time()
+    main(params=hyperparams)
+    print(time.time() - start)
     pass
