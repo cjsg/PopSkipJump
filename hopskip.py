@@ -152,8 +152,7 @@ class HopSkipJumpAttack:
                 idx_perturbed = decision_function(perturbeds, self.sampling_freq)
 
                 if (idx_perturbed == 1).any():
-                    # Select the perturbation that yields the minimum
-                    # distance after binary search.
+                    # Select the perturbation that yields the minimum distance after binary search.
                     perturbed, dist_post_update = self.binary_search_batch(
                         original, perturbeds[idx_perturbed], decision_function
                     )

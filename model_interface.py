@@ -3,14 +3,14 @@ import random
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic'):
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
         self.model_calls = 0
         self.slack_prop = slack
         self.noise = noise
-        self.new_adversarial_def = True
+        self.new_adversarial_def = new_adv_def
 
     def forward_one(self, image, a, freq):
         slack = self.slack_prop * freq
