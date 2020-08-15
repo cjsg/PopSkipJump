@@ -5,6 +5,7 @@ from adversarial import Adversarial
 from numpy import dot
 from numpy.linalg import norm
 
+
 class HopSkipJumpAttack:
     def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
                  stepsize_search="geometric_progression", gamma=1.0, batch_size=256,
@@ -23,6 +24,8 @@ class HopSkipJumpAttack:
         self.dataset = dataset
         self.sampling_freq = sampling_freq
         self.grad_sampling_freq = grad_sampling_freq
+        # self.search = "binary"
+        self.search = "infomax"
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -34,8 +37,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
-            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
+            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -71,6 +74,7 @@ class HopSkipJumpAttack:
         additional = {'iterations': list(), 'initial': perturbed, 'manifold': list(), 'cosine_details': list()}
 
         def decision_function(x, freq, average=False, remember=True):
+            # retunrs 1 if adversarial
             outs = []
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
@@ -116,8 +120,8 @@ class HopSkipJumpAttack:
             else:
                 update = gradf
 
-            cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
-            additional['cosine_details'].append(cos_details)
+            # cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
+            # additional['cosine_details'].append(cos_details)
 
             logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
@@ -135,14 +139,16 @@ class HopSkipJumpAttack:
                 # additional['manifold'].append(ss)
 
                 # Binary search to return to the boundary.
-                perturbed, dist_post_update = self.binary_search_batch(
-                    original, perturbed[None], decision_function
-                )
-                # perturbed, dist_post_update = self.info_max_batch(
-                #     original, perturbed[None], decision_function
-                # )
-                # _check = decision_function(perturbed[None], self.sampling_freq)[0]
-                # assert _check == 1
+                if self.search == "binary":
+                    perturbed, dist_post_update = self.binary_search_batch(
+                        original, perturbed[None], decision_function
+                    )
+                else:
+                    perturbed, dist_post_update = self.info_max_batch2(
+                        original, perturbed[None], decision_function
+                    )
+                    # _check = decision_function(perturbed[None], self.sampling_freq)[0]
+                    # assert _check == 1
 
             elif self.stepsize_search == "grid_search":
                 # Grid search for stepsize.
@@ -175,7 +181,7 @@ class HopSkipJumpAttack:
         alphas = np.linspace(0, 1, 201)
         screenshot = {}
         for alpha in alphas:
-            point = (2*alpha-1) * original + (2-2*alpha) * perturbed
+            point = (2 * alpha - 1) * original + (2 - 2 * alpha) * perturbed
             probs = self.model_interface.get_probs(point)
             screenshot[alpha] = probs.flatten()
         return screenshot
@@ -223,6 +229,23 @@ class HopSkipJumpAttack:
             else:
                 low = mid
 
+    def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function):
+        from infomax import bin_search
+        border_points = []
+        dists = []
+        for perturbed_input in perturbed_inputs:
+            t_map = bin_search(unperturbed, perturbed_input, decision_function)['tts_max'][-1][0]
+            border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
+            dist = self.compute_distance(unperturbed, border_point)
+            border_points.append(border_point)
+            dists.append(dist)
+        idx = np.argmin(np.array(dists))
+        dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
+        out = border_points[idx]
+        decision_function(out[None], freq=1) # this is to make the model remember the sample
+        return out, dist
+
+
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
         border_points = []
         dists = []
@@ -248,6 +271,7 @@ class HopSkipJumpAttack:
                 sigmoid = lambda x: .5 * np.tanh(x) + .5
                 p = eps + (1 - 2 * eps) * sigmoid((x - t) / s)
                 return y * p + (1 - y) * (1 - p)
+
             f_py_xts = np.vectorize(f_py_xts)
 
             Y, T, X, S, E = np.meshgrid(ys, ts, xs, ss, epss, indexing='ij')
@@ -274,7 +298,8 @@ class HopSkipJumpAttack:
                 # Maximize mutual info and sample
                 imax = np.argmax(I_x)
                 xj = xs[imax]
-                projection = (1-xj)*unperturbed+xj*perturbed_input
+                projection = (1 - xj) * unperturbed + xj * perturbed_input
+                projection = (1 - xj) * unperturbed + xj * perturbed_input
                 yj = int(decision_function(projection[None], freq=1))
                 xjs.append(xj)
                 yjs.append(yj)
@@ -283,7 +308,7 @@ class HopSkipJumpAttack:
                 pyj_xj = py_x[yj:(yj + 1), :, imax:(imax + 1)]
                 pt_x = pyj_txj * pt_x / pyj_xj
 
-            border_point = (1-t_map)*unperturbed + t_map*perturbed_input
+            border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)
             dists.append(dist)

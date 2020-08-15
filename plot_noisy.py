@@ -4,8 +4,8 @@ import matplotlib.pylab as plt
 from model_factory import get_model
 
 
-NUM_ITERATIONS = 64
-NUM_IMAGES = 16
+NUM_ITERATIONS = 30
+NUM_IMAGES = 3
 FF = [1, 32]
 FP = [0.5, 0.8]
 NOISE = 'bayesian'
@@ -14,6 +14,13 @@ NOISE = 'bayesian'
 FLIP_PROB = 0.2
 
 model = get_model(key='mnist_noman', dataset='mnist')
+
+
+def read_dump(path):
+    raws = []
+    filepath = 'adv/{}/raw_data.pkl'.format(path)
+    raws.append(pickle.load(open(filepath, 'rb')))
+    return raws
 
 
 def read_dumps(noise='bayesian'):
@@ -34,7 +41,8 @@ def read_dumps(noise='bayesian'):
     return raws
 
 
-raws = read_dumps(noise=NOISE)
+# raws = read_dumps(noise=NOISE)
+raws = read_dump('del_later')
 
 
 fig, ax1 = plt.subplots(figsize=(7, 7))
@@ -81,5 +89,5 @@ ax1.grid()
 # plt.xlabel('Iterations of Attack')
 plt.title('Using Estimate #2')
 ax1.legend()
-plt.savefig('adv/merged_{}_approxgrad_64_avg.png'.format(NOISE))
+plt.savefig('adv/del_later.png'.format(NOISE))
 pass

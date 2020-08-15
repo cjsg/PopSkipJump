@@ -1,5 +1,5 @@
 # Set this to true if you want logits to be treated as probability distribution
-NOISE = 'deterministic'  # BOOLEAN
+NOISE = 'bayesian'  # BOOLEAN
 
 # Number of samples needed to make prediction from non-deterministic model
 SAMPLING_FREQ = 20  # INT

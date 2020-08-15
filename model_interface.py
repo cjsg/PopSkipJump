@@ -11,10 +11,11 @@ class ModelInterface:
         self.model_calls = 0
         self.slack_prop = slack
         self.noise = noise
+        self.new_adversarial_def = True
         # self.sampling_freq = sampling_freq
         # if self.sampling_freq is not None:
-            # self.threshold = SAMPLING_FREQ * SAMPLING_CONF
-            # self.slack = slack * sampling_freq
+        # self.threshold = SAMPLING_FREQ * SAMPLING_CONF
+        # self.slack = slack * sampling_freq
 
     def forward_one(self, image, a, freq):
         slack = self.slack_prop * freq
@@ -22,13 +23,12 @@ class ModelInterface:
         if self.noise != 'deterministic':
             batch = np.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
-            try:
-                label_freqs = np.bincount(outs, minlength=self.n_classes)
-            except:
-                pass
+            label_freqs = np.bincount(outs, minlength=self.n_classes)
             true_freq = label_freqs[a.true_label]
             adv_freq = np.max(label_freqs[np.arange(self.n_classes) != a.true_label])
-            if true_freq + slack >= adv_freq:
+            if self.new_adversarial_def and true_freq >= 0.5 * freq:
+                label = a.true_label
+            elif not self.new_adversarial_def and true_freq + slack >= adv_freq:
                 label = a.true_label
             else:
                 label = -2
@@ -71,8 +71,13 @@ class ModelInterface:
             freqs = np.bincount(id.ravel(), minlength=N * outs.shape[0]).reshape(-1, N)
             true_freqs = freqs[:, a.true_label]
             r = list(range(self.n_classes))
-            false_freqs = np.max(freqs[:, r[:a.true_label] + r[a.true_label+1:]], axis=1)
-            ans = (false_freqs > true_freqs + slack) * 1
+            false_freqs = np.max(freqs[:, r[:a.true_label] + r[a.true_label + 1:]], axis=1)
+
+            if self.new_adversarial_def:
+                ans = (true_freqs < 0.5 * freq) * 1
+            else:
+                ans = (false_freqs > true_freqs + slack) * 1
+
         if remember:
             for i in range(len(images)):
                 if ans[i] == 1:

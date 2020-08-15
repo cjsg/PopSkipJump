@@ -11,7 +11,7 @@ import os
 import numpy as np
 import pickle
 
-# logging.root.setLevel(logging.DEBUG)
+logging.root.setLevel(logging.INFO)
 
 
 def get_samples(n_samples=16):
@@ -57,7 +57,7 @@ def main(exp_name, slack, sampling_freq, grad_sampling_freq=None, flip_prob=None
 
     starts = None
     if EXPERIMENT:
-        imgs, labels = get_samples(n_samples=1000)
+        imgs, labels = get_samples(n_samples=3)
     else:
         if ATTACK_INPUT_IMAGE is None or ATTACK_INPUT_LABEL is None:
             img, label = get_sample(dataset=args.dataset, index=0)
@@ -96,20 +96,19 @@ if __name__ == '__main__':
     #          sampling_freq=freq)
     # pass
 
-    sampling_freq = 256
-    FF = [16]
+    sampling_freq = 32
     NUM_ITERATIONS = 30
     slack = 0.10
-    G = np.round(10**np.linspace(0, -2, num=9), 2)
-    # G = [10]
+    # G = np.round(10**np.linspace(0, -2, num=9), 2)
+    G = [10]
     for gamma in G:
         start = time.time()
-        main('adv/det_cosv2_30_1000_g{}'.format(gamma),
+        main('adv/del_later',
              slack=slack,
              sampling_freq=sampling_freq,
              grad_sampling_freq=None,
              flip_prob=None,
-             gamma=gamma,
+             # gamma=None,
              average=False)
         print(time.time() - start)
     pass
