@@ -87,9 +87,10 @@ def main(params=None):
 if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.sampling_freq_binsearch = 32
-    hyperparams.num_iterations = 30
-    hyperparams.experiment_name = 'del_later'
+    hyperparams.num_iterations = 32
+    hyperparams.experiment_name = 'infomax_100_32'
     hyperparams.new_adversarial_def = True
+    hyperparams.num_samples = 100
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)

@@ -1,8 +1,6 @@
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LogNorm
 from scipy.special import erf, xlogy
 from tqdm import tqdm
 
@@ -71,7 +69,7 @@ def bin_search(
         unperturbed, perturbed, decision_function,
         acquisition_function='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
         center_on='near_best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode', None
-        kmax=100,  # max number of bin search steps
+        kmax=200,  # max number of bin search steps
         target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
         delta=.5,  # radius of sphere
         d=1000,  # input dimension
