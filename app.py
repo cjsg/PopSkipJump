@@ -11,7 +11,7 @@ from img_utils import get_sample, read_image, get_samples, get_shape
 from model_factory import get_model
 from model_interface import ModelInterface
 
-logging.root.setLevel(logging.DEBUG)
+logging.root.setLevel(logging.WARNING)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset",

@@ -12,16 +12,17 @@ class ModelInterface:
         self.noise = noise
         self.new_adversarial_def = new_adv_def
 
-    def forward_one(self, image, a, freq):
+    def forward_one(self, image, a, freq, is_original=False):
         slack = self.slack_prop * freq
         m_id = random.choice(list(range(len(self.models))))
         if self.noise != 'deterministic':
+            new_def_threshold = 0.6 if is_original else 0.5
             batch = np.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
             label_freqs = np.bincount(outs, minlength=self.n_classes)
             true_freq = label_freqs[a.true_label]
             adv_freq = np.max(label_freqs[np.arange(self.n_classes) != a.true_label])
-            if self.new_adversarial_def and true_freq >= 0.5 * freq:
+            if self.new_adversarial_def and true_freq >= new_def_threshold * freq:
                 label = a.true_label
             elif not self.new_adversarial_def and true_freq + slack >= adv_freq:
                 label = a.true_label

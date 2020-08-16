@@ -232,8 +232,13 @@ class HopSkipJumpAttack:
             dists.append(dist)
         idx = np.argmin(np.array(dists))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
+        if dist == 0:
+            print("Distance is zero in search")
         out = border_points[idx]
-        decision_function(out[None], freq=1)  # this is to make the model remember the sample
+        dist_border = self.compute_distance(out, unperturbed)
+        if dist_border == 0:
+            print("Distance of border point is 0")
+        decision_function(out[None], freq=self.sampling_freq)  # this is to make the model remember the sample
         return out, dist
 
     # This function is deprecated now

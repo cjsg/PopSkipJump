@@ -69,13 +69,12 @@ def bin_search(
         unperturbed, perturbed, decision_function,
         acquisition_function='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
         center_on='near_best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode', None
-        kmax=200,  # max number of bin search steps
+        kmax=1000,  # max number of bin search steps
         target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
         delta=.5,  # radius of sphere
         d=1000,  # input dimension
         verbose=False,  # print log info
         eps_=.1):
-
     Nx, Nt, Ns = 101, 101, 31  # Current code assumes Nx = Nt
     Nz = Nx  # candidate center locations = candidate sample location for bin search
 
@@ -133,7 +132,7 @@ def bin_search(
         'nn_tmap_tru': [],
         # 'n_opt': n_opt,
     }
-
+    ts_map, ts_max = [-1, 0], [-1, 0]
     for k in tqdm(range(kmax), desc='bin-search'):
         # Compute some probabilities / expectations
         pyts_x = py_txs * pts_x
@@ -143,8 +142,13 @@ def bin_search(
 
         # Compute new stats for logs and stopping criterium
         i_ts_max, j_ts_max = np.unravel_index(pts_x.argmax(), (Nt, Ns))
-        ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
-        ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
+
+        this_ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
+        this_ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
+        if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_max[0] - this_ts_max[0]) < 1e-3:
+            break
+        else:
+            ts_map, ts_max = this_ts_map, this_ts_max
         iz_best = np.argmin(n_z)
         iz_tmax = pt_x.argmax()
         iz_tmap = int(np.round((pt_x.squeeze() * ii_t).sum()))  # assumes lin-spaced tt
@@ -266,7 +270,6 @@ def bin_search(
     vprint(f'Time to finish: {end - start:.2f} s')
 
     return output
-
 
 # output = bin_search(
 #     acquisition_function='-E[n]',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
