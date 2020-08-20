@@ -70,6 +70,7 @@ class HopSkipJumpAttack:
         additional = {'iterations': list(),  # Perturbed images and L2 distance for every iteration
                       'initial': perturbed,  # Starting point of the attack
                       'manifold': list(),  # Captures probability manifold
+                      'progression': list(),
                       'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
                       }
 
@@ -93,10 +94,12 @@ class HopSkipJumpAttack:
         perturbed, dist_post_update = self.binary_search_batch(
             original, perturbed[None, ...], decision_function
         )
+        additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
         logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         dist = self.compute_distance(perturbed, original)
         distance = a.distance
         for step in range(1, iterations + 1):
+            additional['progression'].append(dict())
             logging.info('Step %d...' % step)
             # Choose delta.
             delta = self.select_delta(dist_post_update, step)
@@ -126,10 +129,14 @@ class HopSkipJumpAttack:
 
                 # Update the sample.
                 perturbed = np.clip(perturbed + epsilon * update, self.clip_min, self.clip_max)
-
+                additional['progression'][-1]['approx_grad'] = perturbed
                 if flags['stats_manifold']:
                     ss = self.screenshot_manifold(perturbed, original)
                     additional['manifold'].append(ss)
+
+                # Go in the opposite direction
+                perturbed = np.clip(2*perturbed - original, self.clip_min, self.clip_max)
+                additional['progression'][-1]['opposite'] = perturbed
 
                 # Binary search to return to the boundary.
                 if self.search == "binary":
@@ -142,6 +149,7 @@ class HopSkipJumpAttack:
                     )
                     # _check = decision_function(perturbed[None], self.sampling_freq)[0]
                     # assert _check == 1
+                additional['progression'][-1]['binary'] = perturbed
 
             elif self.stepsize_search == "grid_search":
                 # Grid search for stepsize.
@@ -239,7 +247,7 @@ class HopSkipJumpAttack:
         dist_border = self.compute_distance(out, unperturbed)
         if dist_border == 0:
             print("Distance of border point is 0")
-        decision_function(out[None], freq=self.sampling_freq*10)  # this is to make the model remember the sample
+        decision_function(out[None], freq=self.sampling_freq*32)  # this is to make the model remember the sample
         return out, dist
 
     # This function is deprecated now
