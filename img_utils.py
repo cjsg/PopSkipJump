@@ -30,10 +30,21 @@ def get_shape(dataset):
     raise RuntimeError("Unknown Dataset: {}".format(dataset))
 
 
-def get_samples(n_samples=16):
+def get_samples(n_samples=16, conf=None, model=None):
     np.random.seed(42)
     test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
-    indices = np.random.choice(len(test_data), n_samples, replace=False)
+    if conf is None:
+        indices = np.random.choice(len(test_data), n_samples, replace=False)
+    else:
+        indices = []
+        i = 0
+        candidates = np.random.choice(len(test_data), len(test_data), replace=False)
+        while len(indices) != n_samples:
+            probs = model.get_probs(test_data.data[candidates[i]].numpy()[None]/255.0)
+            if probs[0][test_data.test_labels[candidates[i]]] > conf:
+                indices.append(candidates[i])
+            i += 1
+
     images = test_data.data[indices].numpy() / 255.0
     labels = test_data.test_labels[indices].numpy()
     return images, labels

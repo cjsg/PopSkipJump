@@ -10,6 +10,9 @@ class DefaultParams:
         self.init_image_path = None
         self.search = 'infomax'  # binary or infomax
 
+        # Hand-picking images
+        self.orig_image_conf = 0.90
+
         # Specific to Noisy Models
         self.noise = 'bayesian'
         self.new_adversarial_def = False  # New Def: if p(true_label)<0.5 then its adversarial

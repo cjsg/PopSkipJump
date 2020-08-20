@@ -30,12 +30,13 @@ def validate_args(args):
 
 def create_attack(exp_name, dataset, params):
     if exp_name is None:
-        exp_name = 'adv/%s' % datetime.now().strftime("%b%d_%H%M%S")
+        exp_name = '%s' % datetime.now().strftime("%b%d_%H%M%S")
 
-    if os.path.exists(exp_name):
+    exp_path = 'adv/{}'.format(exp_name)
+    if os.path.exists(exp_path):
         logging.info("Path: '{}' already exists. Overwriting it!!!".format(exp_name))
     else:
-        os.makedirs(exp_name)
+        os.makedirs(exp_path)
 
     # Register all the models
     if params.ask_human:
@@ -52,7 +53,12 @@ def create_attack(exp_name, dataset, params):
 def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
-        imgs, labels = get_samples(n_samples=params.num_samples)
+        if params.orig_image_conf is not None:
+            det_model = get_model(key='mnist_noman', dataset=dataset, noise='deterministic')
+            imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf, model=det_model)
+        else:
+            imgs, labels = get_samples(n_samples=params.num_samples)
+
     else:
         if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=dataset, index=0)
@@ -79,7 +85,7 @@ def main(params=None):
     attack = create_attack(exp_name, dataset, params)
     median_distance, additional = run_attack(attack, dataset, params)
 
-    pickle.dump(additional, open('{}/raw_data.pkl'.format(exp_name), 'wb'))
+    pickle.dump(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
 
@@ -91,6 +97,7 @@ if __name__ == '__main__':
     hyperparams.experiment_name = 'infomax_100_32'
     hyperparams.new_adversarial_def = True
     hyperparams.num_samples = 100
+    hyperparams.flags = dict(stats_cosines=False, stats_manifold=False)
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)

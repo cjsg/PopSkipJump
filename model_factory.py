@@ -48,6 +48,7 @@ class Model:
         return np.array(probs)
 
     def get_grads(self, images, true_label):
+        # TODO: this line will not work for noisy model.
         wrong_labels = self.ask_model(images)
         images = np.expand_dims(images, axis=1).astype(np.float32)
         t_images = torch.tensor(images, requires_grad=True)

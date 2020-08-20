@@ -180,8 +180,9 @@ class HopSkipJumpAttack:
 
     def capture_cosines(self, perturbed, original, gradf, true_label, decision_function):
         grad_st_line = perturbed - original
-        boundary, _ = self.binary_search_batch(original, perturbed[None], decision_function, cosine=True)
-        grad_true = self.model_interface.get_grads(boundary[None], true_label)
+        # boundary, _ = self.binary_search_batch(original, perturbed[None], decision_function, cosine=True)
+        # grad_true = self.model_interface.get_grads(boundary[None], true_label)
+        grad_true = self.model_interface.get_grads(perturbed[None], true_label)
         _g_true = grad_true.flatten()
         _g_line = grad_st_line.flatten()
         _g_estm = gradf.flatten()
@@ -345,7 +346,8 @@ class HopSkipJumpAttack:
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
 
             # Update highs and lows based on model decisions.
-            decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
+            # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
+            decisions = decision_function(mid_inputs, self.sampling_freq, remember=False)
             decisions[decisions == -1] = 0
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
@@ -395,7 +397,7 @@ class HopSkipJumpAttack:
         rv = (perturbed - sample) / delta
 
         # query the model.
-        outputs = decision_function(perturbed, self.grad_sampling_freq, average)
+        outputs = decision_function(perturbed, self.grad_sampling_freq, average, remember=False)
         decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0
@@ -420,14 +422,17 @@ class HopSkipJumpAttack:
           the desired side of the boundary.
         """
         epsilon = dist / np.sqrt(current_iteration)
+        count = 1
         while True:
+            if count % 10 == 0:
+                logging.warning("Decreased epsilon {} times".format(count))
             updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
-            success = (decision_function(updated[None], self.sampling_freq))[0]
+            success = (decision_function(updated[None], self.sampling_freq, remember=False))[0]
             if success:
                 break
             else:
                 epsilon = epsilon / 2.0  # pragma: no cover
-
+            count += 1
         return epsilon
 
     def compute_distance(self, x1, x2):
