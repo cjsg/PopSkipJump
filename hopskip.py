@@ -239,7 +239,7 @@ class HopSkipJumpAttack:
         dist_border = self.compute_distance(out, unperturbed)
         if dist_border == 0:
             print("Distance of border point is 0")
-        decision_function(out[None], freq=self.sampling_freq)  # this is to make the model remember the sample
+        decision_function(out[None], freq=self.sampling_freq*10)  # this is to make the model remember the sample
         return out, dist
 
     # This function is deprecated now
@@ -424,7 +424,7 @@ class HopSkipJumpAttack:
         epsilon = dist / np.sqrt(current_iteration)
         count = 1
         while True:
-            if count % 10 == 0:
+            if count % 200 == 0:
                 logging.warning("Decreased epsilon {} times".format(count))
             updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
             success = (decision_function(updated[None], self.sampling_freq, remember=False))[0]

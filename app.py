@@ -94,7 +94,7 @@ if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.sampling_freq_binsearch = 32
     hyperparams.num_iterations = 32
-    hyperparams.experiment_name = 'infomax_100_32'
+    hyperparams.experiment_name = 'infomax_100_32_new'
     hyperparams.new_adversarial_def = True
     hyperparams.num_samples = 100
     hyperparams.flags = dict(stats_cosines=False, stats_manifold=False)
