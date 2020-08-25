@@ -3,7 +3,7 @@ import numpy as np
 import logging
 from adversarial import Adversarial
 from numpy import dot
-from infomax import bin_search
+from infomax import bin_search, get_n_from_cos
 from numpy.linalg import norm
 
 
@@ -35,8 +35,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
-            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
+            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -58,6 +58,7 @@ class HopSkipJumpAttack:
         return median, raw_results
 
     def attack_one(self, a, iterations=64, average=False, flags=None):
+        self.model_interface.model_calls = 0
         if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
             logging.error("Skipping image: Model Prediction of input does not match label")
             return dict()
@@ -93,9 +94,16 @@ class HopSkipJumpAttack:
             additional['manifold_init'] = ss
 
         logging.info('Binary Search to project to boundary...')
-        perturbed, dist_post_update = self.binary_search_batch(
-            original, perturbed[None, ...], decision_function
-        )
+
+        if self.search == "binary":
+            perturbed, dist_post_update = self.binary_search_batch(
+                original, perturbed[None], decision_function
+            )
+        else:
+            perturbed, dist_post_update, s_ = self.info_max_batch2(
+                original, perturbed[None], decision_function
+            )
+
         additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
         additional['model_calls']['projection'] = self.model_interface.model_calls
         dist = self.compute_distance(perturbed, original)
@@ -109,9 +117,15 @@ class HopSkipJumpAttack:
 
             # Choose number of evaluations.
             num_evals = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
+            self.grad_sampling_freq = self.sampling_freq
+            est_num_evals = int(get_n_from_cos(s_, self.theta, target_cos=.2, delta=delta, d=self.d))
             logging.info('Approximating grad with %d evaluation...' % num_evals)
+
             gradf = self.approximate_gradient(
-                decision_function, perturbed, num_evals, delta, average
+                decision_function, perturbed,
+                num_evals,
+                # est_num_evals,
+                delta, average
             )
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
 
@@ -148,7 +162,7 @@ class HopSkipJumpAttack:
                         original, perturbed[None], decision_function
                     )
                 else:
-                    perturbed, dist_post_update = self.info_max_batch2(
+                    perturbed, dist_post_update, s_ = self.info_max_batch2(
                         original, perturbed[None], decision_function
                     )
                     # _check = decision_function(perturbed[None], self.sampling_freq)[0]
@@ -220,30 +234,32 @@ class HopSkipJumpAttack:
             if num_evals > 1e4:
                 return
 
-        # Binary search to minimize l2 distance to the original input.
-        low = 0.0
-        high = 1.0
-        # while high - low > 0.001:
-        while high - low > 0.2:  # Kept it high so as to keep infomax in check
-            mid = (high + low) / 2.0
-            blended = (1 - mid) * a.unperturbed + mid * random_noise
-            success = self.model_interface.forward_one(blended, a, self.sampling_freq)
-            # when model is confused, it is not adversarial
-            logging.info(a.distance)
-            if success == 1:
-                high = mid
-            else:
-                low = mid
+        # # Binary search to minimize l2 distance to the original input.
+        # low = 0.0
+        # high = 1.0
+        # # while high - low > 0.001:
+        # while high - low > 0.2:  # Kept it high so as to keep infomax in check
+        #     mid = (high + low) / 2.0
+        #     blended = (1 - mid) * a.unperturbed + mid * random_noise
+        #     success = self.model_interface.forward_one(blended, a, self.sampling_freq)
+        #     # when model is confused, it is not adversarial
+        #     logging.info(a.distance)
+        #     if success == 1:
+        #         high = mid
+        #     else:
+        #         low = mid
 
     def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function):
         border_points = []
         dists = []
+        smaps = []
         for perturbed_input in perturbed_inputs:
-            t_map = bin_search(unperturbed, perturbed_input, decision_function)['tts_max'][-1][0]
+            t_map, s_map = bin_search(unperturbed, perturbed_input, decision_function, d=self.d)['tts_max'][-1]
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)
             dists.append(dist)
+            smaps.append(s_map)
         idx = np.argmin(np.array(dists))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
         if dist == 0:
@@ -253,7 +269,7 @@ class HopSkipJumpAttack:
         if dist_border == 0:
             print("Distance of border point is 0")
         decision_function(out[None], freq=self.sampling_freq*32)  # this is to make the model remember the sample
-        return out, dist
+        return out, dist, smaps[idx]
 
     # This function is deprecated now
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
@@ -381,8 +397,9 @@ class HopSkipJumpAttack:
         Choose the delta at the scale of distance
         between x and perturbed sample.
         """
-        if current_iteration == 1:
-            delta = 0.1 * (self.clip_max - self.clip_min)
+        # if current_iteration == 1:
+        if False:
+                delta = 0.1 * (self.clip_max - self.clip_min)
         else:
             if self.constraint == "l2":
                 delta = np.sqrt(self.d) * self.theta * dist_post_update
