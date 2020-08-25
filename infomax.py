@@ -112,8 +112,8 @@ def bin_search(
         s=lss, theta=lls, target_cos=target_cos,
         delta=delta, d=d).transpose([1, 2, 0])
     n_tsz = np.minimum(n_tsz, 1e8)  # for numerical stability
-    if acquisition_function == '-E[n]':
-        n_ytxsz = n_tsz.reshape(1, Nt, 1, Ns, Nz)
+    # if acquisition_function == '-E[n]':
+    #     n_ytxsz = n_tsz.reshape(1, Nt, 1, Ns, Nz)
 
     # Initialize logs
     output = {
@@ -145,7 +145,9 @@ def bin_search(
 
         this_ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
         this_ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
-        if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_max[0] - this_ts_max[0]) < 1e-3:
+        # if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_max[0] - this_ts_max[0]) < 1e-3:
+        if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_map[1] - this_ts_map[1]) < 1e-2:
+        # if False:
             break
         else:
             ts_map, ts_max = this_ts_map, this_ts_max

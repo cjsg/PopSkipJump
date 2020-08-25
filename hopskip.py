@@ -64,11 +64,13 @@ class HopSkipJumpAttack:
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
-            logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
         original = a.unperturbed.astype(self.internal_dtype)
         perturbed = a.perturbed.astype(self.internal_dtype)
         additional = {'iterations': list(),  # Perturbed images and L2 distance for every iteration
                       'initial': perturbed,  # Starting point of the attack
+                      'model_calls': {'initialization': self.model_interface.model_calls,
+                                      'projection': -1,
+                                      'iters': list()},  # cumulative model calls
                       'manifold': list(),  # Captures probability manifold
                       'progression': list(),
                       'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
@@ -95,11 +97,12 @@ class HopSkipJumpAttack:
             original, perturbed[None, ...], decision_function
         )
         additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
-        logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
+        additional['model_calls']['projection'] = self.model_interface.model_calls
         dist = self.compute_distance(perturbed, original)
         distance = a.distance
         for step in range(1, iterations + 1):
             additional['progression'].append(dict())
+            additional['model_calls']['iters'].append(dict())
             logging.info('Step %d...' % step)
             # Choose delta.
             delta = self.select_delta(dist_post_update, step)
@@ -110,6 +113,7 @@ class HopSkipJumpAttack:
             gradf = self.approximate_gradient(
                 decision_function, perturbed, num_evals, delta, average
             )
+            additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
 
             if self.constraint == "linf":
                 update = np.sign(gradf)
@@ -150,6 +154,7 @@ class HopSkipJumpAttack:
                     # _check = decision_function(perturbed[None], self.sampling_freq)[0]
                     # assert _check == 1
                 additional['progression'][-1]['binary'] = perturbed
+                additional['model_calls']['iters'][-1]['binary'] = self.model_interface.model_calls
 
             elif self.stepsize_search == "grid_search":
                 # Grid search for stepsize.

@@ -19,6 +19,7 @@ class ModelInterface:
             new_def_threshold = 0.6 if is_original else 0.5
             batch = np.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
+            self.model_calls += freq
             label_freqs = np.bincount(outs, minlength=self.n_classes)
             true_freq = label_freqs[a.true_label]
             adv_freq = np.max(label_freqs[np.arange(self.n_classes) != a.true_label])
@@ -30,8 +31,8 @@ class ModelInterface:
                 label = -2
         else:
             batch = np.stack([image])
-            self.model_calls += 1
             label = self.models[m_id].ask_model(batch)[0]
+            self.model_calls += 1
         if label != a.true_label:
             distance = a.calculate_distance(image, self.bounds)
             if a.distance > distance:
@@ -65,13 +66,14 @@ class ModelInterface:
         slack = self.slack_prop * freq
         batch = np.stack(images)
         m_id = random.choice(list(range(len(self.models))))
-        self.model_calls += len(images)
         if self.noise == 'deterministic':
             labels = self.models[m_id].ask_model(batch)
             ans = (labels != a.true_label) * 1
+            self.model_calls += len(images)
         else:
             inp_batch = np.tile(batch, (freq, 1, 1))
             outs = self.models[m_id].ask_model(inp_batch).reshape(freq, len(images)).T
+            self.model_calls += (len(images) * freq)
             N = self.n_classes
             id = outs + (N * np.arange(outs.shape[0]))[:, None]
             freqs = np.bincount(id.ravel(), minlength=N * outs.shape[0]).reshape(-1, N)

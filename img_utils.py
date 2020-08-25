@@ -47,6 +47,7 @@ def get_samples(n_samples=16, conf=None, model=None):
 
     images = test_data.data[indices].numpy() / 255.0
     labels = test_data.test_labels[indices].numpy()
+    print("Images indices: ", indices)
     return images, labels
 
 
