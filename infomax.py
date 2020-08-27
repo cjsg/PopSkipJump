@@ -51,6 +51,10 @@ def get_alpha(s, theta, delta, d):
     return get_alpha_(s_, theta_)
 
 
+#TODO
+def get_cos_from_n(s, theta, n, delta, d):
+    pass
+
 # Sample size needed to achieve an E[cos(est_grad, true_grad) = target_cos
 def get_n_from_cos(s, theta, target_cos=.9,
                    delta=1., d=10):  # target_cos = targeted expected cosine
@@ -61,7 +65,7 @@ def get_n_from_cos(s, theta, target_cos=.9,
 
     out = np.empty_like(alpha)
     out[ix_nul] = np.inf
-    out[ix_pos] = d * target_cos ** 2 / (alpha[ix_pos] ** 2 * (1 - target_cos ** 2))
+    out[ix_pos] = (d-1) * target_cos ** 2 / (alpha[ix_pos] ** 2 * (1 - target_cos ** 2))
     return out
 
 
@@ -69,7 +73,7 @@ def bin_search(
         unperturbed, perturbed, decision_function,
         acquisition_function='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
         center_on='near_best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode', None
-        kmax=1000,  # max number of bin search steps
+        kmax=5000,  # max number of bin search steps
         target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
         delta=.5,  # radius of sphere
         d=1000,  # input dimension

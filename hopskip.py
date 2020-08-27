@@ -100,7 +100,7 @@ class HopSkipJumpAttack:
                 original, perturbed[None], decision_function
             )
         else:
-            perturbed, dist_post_update, s_ = self.info_max_batch2(
+            perturbed, dist_post_update, s_, _ = self.info_max_batch2(
                 original, perturbed[None], decision_function
             )
 
@@ -123,8 +123,8 @@ class HopSkipJumpAttack:
 
             gradf = self.approximate_gradient(
                 decision_function, perturbed,
-                num_evals,
-                # est_num_evals,
+                # num_evals,
+                est_num_evals,
                 delta, average
             )
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
@@ -162,9 +162,10 @@ class HopSkipJumpAttack:
                         original, perturbed[None], decision_function
                     )
                 else:
-                    perturbed, dist_post_update, s_ = self.info_max_batch2(
+                    perturbed, dist_post_update, s_, tmap = self.info_max_batch2(
                         original, perturbed[None], decision_function
                     )
+                    additional['progression'][-1]['tmap'] = tmap
                     # _check = decision_function(perturbed[None], self.sampling_freq)[0]
                     # assert _check == 1
                 additional['progression'][-1]['binary'] = perturbed
@@ -254,7 +255,9 @@ class HopSkipJumpAttack:
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
-            t_map, s_map = bin_search(unperturbed, perturbed_input, decision_function, d=self.d)['tts_max'][-1]
+            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d)
+            nn_tmap_est = output['nn_tmap_est']
+            t_map, s_map = output['tts_max'][-1]
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)
@@ -269,7 +272,7 @@ class HopSkipJumpAttack:
         if dist_border == 0:
             print("Distance of border point is 0")
         decision_function(out[None], freq=self.sampling_freq*32)  # this is to make the model remember the sample
-        return out, dist, smaps[idx]
+        return out, dist, smaps[idx], nn_tmap_est
 
     # This function is deprecated now
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):
