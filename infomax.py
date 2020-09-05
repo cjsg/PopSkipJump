@@ -24,6 +24,24 @@ get_py_txse = np.vectorize(get_py_txse)
 
 # Compute E[cos(est_grad, true_grad)]
 def get_alpha_(s, theta=0.):  # TODO: include dependence on epsilon
+    """
+        Computes
+            * alpha_ = E[Y(X - theta) X]
+                where
+                    * p(x-theta) = sigmoid(s(x - theta))
+                    * X ~ N(0, 1)  <-- NB: variance of queries is fixed to 1
+                    * Y(X) ~ Ber(p(X-theta))
+
+        In words, Y(X-theta) is the binary answer of a classifier Y queried at
+        point X, where the classifier's probabilities follow a sigmoid centered
+        on theta with (inverse) scale parameter s, and X is sampled according
+        to a normal distribution centered on 0 (i.e. at distance theta of the
+        sigmoid's center).
+
+        The quantity alpha_ directly yields alpha, which is needed to compute
+            * E[cos(est_grad, true_grad)] = 1 / np.sqrt(1 + (d-1) / (n*alpha**2)
+    """
+
     # broadcast s and theta to np.array with same shape
     s = np.array(s)
     theta = np.array(theta)
@@ -37,37 +55,87 @@ def get_alpha_(s, theta=0.):  # TODO: include dependence on epsilon
 
     # Do computations
     y = np.empty_like(s)
-    x_up = (theta[ix_fin] + 1. / (2 * s[ix_fin])) / np.sqrt(2)
-    x_do = (theta[ix_fin] - 1. / (2 * s[ix_fin])) / np.sqrt(2)
+    x_up = (theta[ix_fin] + 1./(2*s[ix_fin])) / np.sqrt(2)
+    x_do = (theta[ix_fin] - 1./(2*s[ix_fin])) / np.sqrt(2)
     y[ix_fin] = s[ix_fin] * (erf(x_up) - erf(x_do))
-    y[ix_inf] = np.sqrt(2. / np.pi) * np.e ** (-theta[ix_inf] ** 2 / 2.)
+    y[ix_inf] = np.sqrt(2./np.pi) * np.e**(-theta[ix_inf]**2/2.)
     return y
 
 
-# E[cos(est_grad, true_grad)] adjusted for delta and d
 def get_alpha(s, theta, delta, d):
+    """
+        Computes the same as get_alpha_, but when X follows a Gaussian
+        distribution centered on 0 with standard deviation delta / sqrt(d):
+
+            * X ~ N(0, a^2) where a = delta / sqrt(d)
+
+        This amounts to sampling a vector vecX \in R^d from an isotropic
+        Gaussian with variance delta^2 = d * a^2 (i.e., vecX ~ N(0, a^2 I_d) )
+        and then consider one coordinate of vecX (the coordinate X of vecX
+        along the axis of the sigmoid). Clearly, compared to alpha_, this
+        amounts to multiplying the inverse scale by delta / sqrt(d) and theta
+        by sqrt(d) / delta (because by increasing delta, we 'zoom out', i.e. s
+        increases and theta decreases).
+    """
+
     s_ = s * delta / np.sqrt(d)
     theta_ = theta * np.sqrt(d) / delta
     return get_alpha_(s_, theta_)
 
 
-#TODO
-def get_cos_from_n(s, theta, n, delta, d):
-    pass
+def get_cos_from_n(n, s=np.infty, theta=0., delta=1., d=10):
+    """
+        Computes
 
-# Sample size needed to achieve an E[cos(est_grad, true_grad) = target_cos
-def get_n_from_cos(s, theta, target_cos=.9,
-                   delta=1., d=10):  # target_cos = targeted expected cosine
+            * E[cos(est_grad, true_grad)] = 1 / np.sqrt(1 + (d-1) / (n*alpha**2)
 
+        where
+            * est_grad = sum_{i=1}^n Y(X-theta) vecX
+            * vecX ~ N(0, a^2 I_d)  [see get_alpha]
+            * X is the probajection of vecX on the true grad direction
+            * theta is the center of the sigmoid along the true grad direction
+
+        In words, get_cos_from_n computes the expected cosinus between the true
+        gradient and the gradient estimate that we get by querying a
+        probabilistic classifier Y, whose answers follow a sigmoid centered on
+        theta with (inverse) scale s, queried at points X ~ N(0, a^2 I_d).
+
+        Note that, we will get the highest expected cos when we center our
+        queries X on the center of the classifier's sigmoid theta, which, with
+        our conventions here, amounts to taking theta=0.
+    """
     alpha = get_alpha(s, theta, delta, d)
-    ix_nul = (alpha ** 2) == 0.
+    alpha = alpha * np.ones_like(n)  # expand alpha to match dims of n if needed
+    ix_nul = (alpha**2) == 0.
+    ix_pos = np.invert(ix_nul)
+
+    out = np.empty_like(alpha)
+    out[ix_nul] = 0.
+    out[ix_pos] = 1. / np.sqrt(1. + (d-1) / (n * alpha**2))
+    return out
+
+
+# Nbr of queries n needed to achieve E[cos(est_grad, true_grad)] = target_cos
+def get_n_from_cos(target_cos, s=np.inf, theta=0., delta=1., d=10):
+    """
+        Computes the number of samples needed to reach a prescribed value
+        target_cos of the expected cosine between true and estimated gradient
+        E[cos(est_grad, true_grad)], when the estimated gradient is computed as
+        in get_cos_from_n, given that we know the parameters (s, theta) of the
+        underlying sigmoid, and the Gaussian standard deviation delta / sqrt(d)
+        of the queries X (see get_cos_from_n).
+
+        This is the inverse of get_cos_from_n (wrt. to n and target_cos).
+    """
+    alpha = get_alpha(s, theta, delta, d)
+    alpha = alpha * np.ones_like(target_cos)  # expand alpha to match dims of target_cos if needed
+    ix_nul = (alpha**2) == 0.
     ix_pos = np.invert(ix_nul)
 
     out = np.empty_like(alpha)
     out[ix_nul] = np.inf
-    out[ix_pos] = (d-1) * target_cos ** 2 / (alpha[ix_pos] ** 2 * (1 - target_cos ** 2))
+    out[ix_pos] = (d-1) * target_cos**2 / (alpha[ix_pos]**2 * (1 - target_cos**2))
     return out
-
 
 def bin_search(
         unperturbed, perturbed, decision_function,
@@ -78,6 +146,7 @@ def bin_search(
         delta=.5,  # radius of sphere
         d=1000,  # input dimension
         verbose=False,  # print log info
+        window_size=10,
         eps_=.1):
     Nx, Nt, Ns = 101, 101, 31  # Current code assumes Nx = Nt
     Nz = Nx  # candidate center locations = candidate sample location for bin search
@@ -150,8 +219,8 @@ def bin_search(
         this_ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
         this_ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
         # if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_max[0] - this_ts_max[0]) < 1e-3:
-        if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_map[1] - this_ts_map[1]) < 1e-2:
-        # if False:
+        # if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_map[1] - this_ts_map[1]) < 1e-2:
+        if False:
             break
         else:
             ts_map, ts_max = this_ts_map, this_ts_max
@@ -261,7 +330,13 @@ def bin_search(
         output['nn_best_est'].append(n_zbest_est)
         output['nn_tmax_est'].append(n_ztmax_est)
         output['nn_tmap_est'].append(n_ztmap_est)
-
+        if len(output['nn_tmap_est']) > window_size:
+            smoothing_kernel = np.ones(10, ) / 10
+            exp_n = output['nn_tmap_est'][-window_size:]
+            diffs = np.abs(np.diff(exp_n))
+            smoothed = int(np.mean(diffs))
+            if smoothed == 0:
+                break
         # Compute posterior (i.e. new prior) for t
         pyj_txjs = py_txs[yj:(yj + 1), :, j_amax:(j_amax + 1), :]
         pyj_xj = py_x[yj:(yj + 1), :, j_amax:(j_amax + 1), :]

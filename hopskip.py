@@ -3,12 +3,12 @@ import numpy as np
 import logging
 from adversarial import Adversarial
 from numpy import dot
-from infomax import bin_search, get_n_from_cos
+from infomax import bin_search, get_n_from_cos, get_cos_from_n
 from numpy.linalg import norm
 
 
 class HopSkipJumpAttack:
-    def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=10000, distance="MSE",
+    def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=50000, distance="MSE",
                  stepsize_search="geometric_progression", batch_size=256, internal_dtype=np.float32, bounds=(0, 1),
                  experiment='default', params=None):
         self.model_interface = model_interface
@@ -35,8 +35,8 @@ class HopSkipJumpAttack:
         self.shape = data_shape
         self.d = np.prod(self.shape)
         if self.constraint == "l2":
-            # self.theta = self.gamma / (np.sqrt(self.d) * self.d)
-            self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
+            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta = self.gamma / (self.d * self.d)
 
@@ -74,6 +74,7 @@ class HopSkipJumpAttack:
                                       'iters': list()},  # cumulative model calls
                       'manifold': list(),  # Captures probability manifold
                       'progression': list(),
+                      'grad_num_evals': list(), # track number of evals in approximate gradient
                       'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
                       }
 
@@ -116,15 +117,19 @@ class HopSkipJumpAttack:
             delta = self.select_delta(dist_post_update, step)
 
             # Choose number of evaluations.
-            num_evals = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
-            self.grad_sampling_freq = self.sampling_freq
-            est_num_evals = int(get_n_from_cos(s_, self.theta, target_cos=.2, delta=delta, d=self.d))
-            logging.info('Approximating grad with %d evaluation...' % num_evals)
+            num_evals_det = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
+            # self.grad_sampling_freq = self.sampling_freq
+
+            target_cos = get_cos_from_n(num_evals_det, theta=self.theta, delta=delta/dist_post_update, d=self.d)
+            num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
+            additional['grad_num_evals'].append(num_evals_prob)
+            num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
+            logging.info('Approximating grad with %d evaluation...' % num_evals_det)
 
             gradf = self.approximate_gradient(
                 decision_function, perturbed,
-                # num_evals,
-                est_num_evals,
+                # num_evals_det,
+                num_evals_prob,
                 delta, average
             )
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
@@ -144,6 +149,7 @@ class HopSkipJumpAttack:
                 epsilon = self.geometric_progression_for_stepsize(
                     perturbed, update, dist, decision_function, step
                 )
+                additional['model_calls']['iters'][-1]['step_search'] = self.model_interface.model_calls
 
                 # Update the sample.
                 perturbed = np.clip(perturbed + epsilon * update, self.clip_min, self.clip_max)
@@ -455,6 +461,7 @@ class HopSkipJumpAttack:
           the desired side of the boundary.
         """
         epsilon = dist / np.sqrt(current_iteration)
+        return epsilon # TODO: remove later
         count = 1
         while True:
             if count % 200 == 0:
