@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import time
 import logging
 from adversarial import Adversarial
 from numpy import dot
@@ -74,6 +75,7 @@ class HopSkipJumpAttack:
                                       'iters': list()},  # cumulative model calls
                       'manifold': list(),  # Captures probability manifold
                       'progression': list(),
+                      'timing': {'initial': time.time(), 'iters': list()},
                       'grad_num_evals': list(), # track number of evals in approximate gradient
                       'cosine_details': list()  # Details of grad cosines (true vs line vs estimate)
                       }
@@ -104,12 +106,13 @@ class HopSkipJumpAttack:
             perturbed, dist_post_update, s_, _ = self.info_max_batch2(
                 original, perturbed[None], decision_function
             )
-
+        additional['timing']['init_search'] = time.time()
         additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
         additional['model_calls']['projection'] = self.model_interface.model_calls
         dist = self.compute_distance(perturbed, original)
         distance = a.distance
         for step in range(1, iterations + 1):
+            additional['timing']['iters'].append({'start': time.time()})
             additional['progression'].append(dict())
             additional['model_calls']['iters'].append(dict())
             logging.info('Step %d...' % step)
@@ -132,6 +135,7 @@ class HopSkipJumpAttack:
                 num_evals_prob,
                 delta, average
             )
+            additional['timing']['iters'][-1]['approx_grad'] = time.time()
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
 
             if self.constraint == "linf":
@@ -150,6 +154,7 @@ class HopSkipJumpAttack:
                     perturbed, update, dist, decision_function, step
                 )
                 additional['model_calls']['iters'][-1]['step_search'] = self.model_interface.model_calls
+                additional['timing']['iters'][-1]['step_search'] = time.time()
 
                 # Update the sample.
                 perturbed = np.clip(perturbed + epsilon * update, self.clip_min, self.clip_max)
@@ -168,10 +173,13 @@ class HopSkipJumpAttack:
                         original, perturbed[None], decision_function
                     )
                 else:
-                    perturbed, dist_post_update, s_, tmap = self.info_max_batch2(
+                    perturbed, dist_post_update, s_, (tmap, xx) = self.info_max_batch2(
                         original, perturbed[None], decision_function
                     )
                     additional['progression'][-1]['tmap'] = tmap
+                    additional['progression'][-1]['samples'] = xx
+                    additional['timing']['iters'][-1]['bin_search'] = time.time()
+
                     # _check = decision_function(perturbed[None], self.sampling_freq)[0]
                     # assert _check == 1
                 additional['progression'][-1]['binary'] = perturbed
@@ -190,6 +198,7 @@ class HopSkipJumpAttack:
                     perturbed, dist_post_update = self.binary_search_batch(
                         original, perturbeds[idx_perturbed], decision_function
                     )
+            additional['timing']['iters'][-1]['end'] = time.time()
 
             # compute new distance.
             dist = self.compute_distance(perturbed, original)
@@ -278,7 +287,7 @@ class HopSkipJumpAttack:
         if dist_border == 0:
             print("Distance of border point is 0")
         decision_function(out[None], freq=self.sampling_freq*32)  # this is to make the model remember the sample
-        return out, dist, smaps[idx], nn_tmap_est
+        return out, dist, smaps[idx], (nn_tmap_est, output['xxj'])
 
     # This function is deprecated now
     def info_max_batch(self, unperturbed, perturbed_inputs, decision_function):

@@ -95,9 +95,9 @@ if __name__ == '__main__':
     hyperparams.sampling_freq_binsearch = 32
     hyperparams.sampling_freq_approxgrad = 1
     hyperparams.num_iterations = 32
-    hyperparams.experiment_name = 'eval_exp_wo_step_50'
+    hyperparams.experiment_name = 'del_later'
     hyperparams.new_adversarial_def = True
-    hyperparams.num_samples = 50
+    hyperparams.num_samples = 1
     hyperparams.flags = dict(stats_cosines=False, stats_manifold=False)
     start = time.time()
     main(params=hyperparams)
