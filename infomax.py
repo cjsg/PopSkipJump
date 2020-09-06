@@ -148,6 +148,7 @@ def bin_search(
         verbose=False,  # print log info
         window_size=10,
         eps_=.1):
+    t_start = time.time()
     Nx, Nt, Ns = 101, 101, 31  # Current code assumes Nx = Nt
     Nz = Nx  # candidate center locations = candidate sample location for bin search
 
@@ -205,25 +206,22 @@ def bin_search(
         'nn_tmap_tru': [],
         # 'n_opt': n_opt,
     }
-    ts_map, ts_max = [-1, 0], [-1, 0]
+    tt_preprocessing = time.time() - t_start
+    tt_compute_probs, tt_setting_stats, tt_acc_func, tt_max_acquisition, tt_posterior = 0.0,0.0,0.0,0.0,0.0
     for k in tqdm(range(kmax), desc='bin-search'):
+        t_start = time.time()
         # Compute some probabilities / expectations
         pyts_x = py_txs * pts_x
         py_x = pyts_x.sum(axis=(1, 3), keepdims=True)
         pt_x = pts_x.sum(axis=3, keepdims=True)
         n_z = (pts_x.reshape(Nt, Ns, 1) * n_tsz).sum(axis=(0, 1))  # E[n | z]
-
+        tt_compute_probs += (time.time() - t_start)
+        t_start = time.time()
         # Compute new stats for logs and stopping criterium
         i_ts_max, j_ts_max = np.unravel_index(pts_x.argmax(), (Nt, Ns))
 
-        this_ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
-        this_ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
-        # if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_max[0] - this_ts_max[0]) < 1e-3:
-        # if abs(ts_map[0] - this_ts_map[0]) < 1e-3 and abs(ts_map[1] - this_ts_map[1]) < 1e-2:
-        if False:
-            break
-        else:
-            ts_map, ts_max = this_ts_map, this_ts_max
+        ts_max = ttss[:, i_ts_max, j_ts_max]  # Maximum a posteriori (or prior max)
+        ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2))  # Mean a posteriori (or prior mean)
         iz_best = np.argmin(n_z)
         iz_tmax = pt_x.argmax()
         iz_tmap = int(np.round((pt_x.squeeze() * ii_t).sum()))  # assumes lin-spaced tt
@@ -236,7 +234,8 @@ def bin_search(
         # n_zbest_tru = n_tsz[it_true, is_true, iz_best]  # get_n_from_cos(s_, z_best-t_, target_cos, delta, d)
         # n_ztmax_tru = n_tsz[it_true, is_true, iz_best]  # get_n_from_cos(s_, z_tmax-t_, target_cos, delta, d)
         # n_ztmap_tru = n_tsz[it_true, is_true, iz_tmax]  # get_n_from_cos(s_, z_tmap-t_, target_cos, delta, d)
-
+        tt_setting_stats += time.time() - t_start
+        t_start = time.time()
         # Compute acquisition function a(x), x = next sample loc
         if acquisition_function == 'I(y,t,s)':
             # Compute mutual information I(y, (t, s) | (x1,y1), (x2, y2) ... (xj, yj))
@@ -310,14 +309,16 @@ def bin_search(
 
         else:
             raise ValueError
-
+        tt_acc_func += time.time() - t_start
+        t_start = time.time()
         # Maximize acquisition function over sampling loc x
         j_amax = np.argmax(a_x)
         xj = xx[j_amax]
         projection = (1 - xj) * unperturbed + xj * perturbed
         yj = int(decision_function(projection[None], freq=1, remember=False))
         # yj = np.random.binomial(n=1, p=get_py_txse(1, 0.2, xj, 10, eps_))
-
+        tt_max_acquisition += time.time() - t_start
+        t_start = time.time()
         # Update logs
         # vprint(f'E[n]_lim = {n_opt:.2e}\t E[n] = {n_z[j_amax]:.2e}')
         output['xxj'].append(xj)
@@ -346,8 +347,16 @@ def bin_search(
         pts = pts_xyj
         pts_x = pts  # (t, s) independent of sampling point x
         k += 1
+        tt_posterior += time.time() - t_start
 
     end = time.time()
+    # print('Preprocessing: {}'.format(tt_preprocessing))
+    # print('Computing Probs: {}'.format(tt_compute_probs))
+    # print('Setting Stats: {}'.format(tt_setting_stats))
+    # print('Acquisition Func: {}'.format(tt_acc_func))
+    # print('Maximizing AccFun: {}'.format(tt_max_acquisition))
+    # print('Compute Posterior: {}'.format(tt_posterior))
+    # print ('Time to finish: {}'.format(end - start))
     vprint(f'Time to finish: {end - start:.2f} s')
 
     return output
