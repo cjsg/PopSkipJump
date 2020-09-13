@@ -93,17 +93,13 @@ def main(params=None):
 
 if __name__ == '__main__':
     hyperparams = DefaultParams()
-    hyperparams.sampling_freq_binsearch = 32
-    hyperparams.sampling_freq_approxgrad = 1
     hyperparams.num_iterations = 32
     hyperparams.noise = 'deterministic'
     hyperparams.hopskipjumpattack = True
     # hyperparams.remember_all = True
     hyperparams.experiment_name = 'hsja_on_det_model2'
-    hyperparams.new_adversarial_def = True
     hyperparams.num_samples = 50
     # hyperparams.beta = 20
-    hyperparams.flags = dict(stats_cosines=False, stats_manifold=False)
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)

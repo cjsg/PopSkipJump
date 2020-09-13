@@ -17,8 +17,8 @@ class DefaultParams:
 
         # Specific to Noisy Models
         self.noise = 'bayesian'
-        self.new_adversarial_def = False  # New Def: if p(true_label)<0.5 then its adversarial
-        self.sampling_freq_binsearch = 20
+        self.new_adversarial_def = True  # New Def: if p(true_label)<0.5 then its adversarial
+        self.sampling_freq_binsearch = 1
         self.sampling_freq_approxgrad = None
         self.ask_human = False
         self.average = False
