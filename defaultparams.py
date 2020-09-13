@@ -9,6 +9,8 @@ class DefaultParams:
         self.input_image_label = None  # integer
         self.init_image_path = None
         self.search = 'infomax'  # binary or infomax
+        self.hopskipjumpattack = False
+        self.remember_all = False  # This should be true for HSJA
 
         # Hand-picking images
         self.orig_image_conf = 0.90
@@ -22,6 +24,7 @@ class DefaultParams:
         self.average = False
         self.slack = 0.0
         self.flip_prob = 0.2  # Specific to Stochastic Noise
+        self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
 
         # Specific to Experiment mode
         self.experiment_mode = True

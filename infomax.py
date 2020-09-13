@@ -207,7 +207,7 @@ def bin_search(
         # 'n_opt': n_opt,
     }
     tt_preprocessing = time.time() - t_start
-    tt_compute_probs, tt_setting_stats, tt_acc_func, tt_max_acquisition, tt_posterior = 0.0,0.0,0.0,0.0,0.0
+    tt_compute_probs, tt_setting_stats, tt_acc_func, tt_max_acquisition, tt_posterior = 0.0, 0.0,0.0,0.0,0.0
     for k in tqdm(range(kmax), desc='bin-search'):
         t_start = time.time()
         # Compute some probabilities / expectations

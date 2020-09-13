@@ -42,7 +42,8 @@ def create_attack(exp_name, dataset, params):
     if params.ask_human:
         models = [get_model(key='human', dataset=dataset, noise=params.noise)]
     else:
-        models = [get_model(key='mnist_noman', dataset=dataset, noise=params.noise, flip_prob=params.flip_prob)]
+        models = [get_model(key='mnist_noman', dataset=dataset, noise=params.noise, flip_prob=params.flip_prob,
+                            beta=params.beta)]
         # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
@@ -95,9 +96,13 @@ if __name__ == '__main__':
     hyperparams.sampling_freq_binsearch = 32
     hyperparams.sampling_freq_approxgrad = 1
     hyperparams.num_iterations = 32
-    hyperparams.experiment_name = 'del_later'
+    hyperparams.noise = 'deterministic'
+    hyperparams.hopskipjumpattack = True
+    # hyperparams.remember_all = True
+    hyperparams.experiment_name = 'hsja_on_det_model2'
     hyperparams.new_adversarial_def = True
-    hyperparams.num_samples = 1
+    hyperparams.num_samples = 50
+    # hyperparams.beta = 20
     hyperparams.flags = dict(stats_cosines=False, stats_manifold=False)
     start = time.time()
     main(params=hyperparams)

@@ -25,6 +25,8 @@ class HopSkipJumpAttack:
         self.sampling_freq = params.sampling_freq_binsearch
         self.grad_sampling_freq = params.sampling_freq_approxgrad
         self.search = params.search
+        self.hsja = params.hopskipjumpattack
+        self.remember = params.remember_all
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -98,7 +100,7 @@ class HopSkipJumpAttack:
 
         logging.info('Binary Search to project to boundary...')
 
-        if self.search == "binary":
+        if self.search == "binary" or self.hsja:
             perturbed, dist_post_update = self.binary_search_batch(
                 original, perturbed[None], decision_function
             )
@@ -123,18 +125,20 @@ class HopSkipJumpAttack:
             num_evals_det = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
             # self.grad_sampling_freq = self.sampling_freq
 
-            target_cos = get_cos_from_n(num_evals_det, theta=self.theta, delta=delta/dist_post_update, d=self.d)
-            num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
-            additional['grad_num_evals'].append(num_evals_prob)
-            num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
-            logging.info('Approximating grad with %d evaluation...' % num_evals_det)
+            if self.hsja:
+                gradf = self.approximate_gradient(
+                    decision_function, perturbed, num_evals_det, delta, average
+                )
+            else:
+                target_cos = get_cos_from_n(num_evals_det, theta=self.theta, delta=delta/dist_post_update, d=self.d)
+                num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
+                additional['grad_num_evals'].append(num_evals_prob)
+                num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
+                logging.info('Approximating grad with %d evaluation...' % num_evals_det)
 
-            gradf = self.approximate_gradient(
-                decision_function, perturbed,
-                # num_evals_det,
-                num_evals_prob,
-                delta, average
-            )
+                gradf = self.approximate_gradient(
+                    decision_function, perturbed, num_evals_prob, delta, average
+                )
             additional['timing']['iters'][-1]['approx_grad'] = time.time()
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
 
@@ -164,11 +168,12 @@ class HopSkipJumpAttack:
                     additional['manifold'].append(ss)
 
                 # Go in the opposite direction
-                perturbed = np.clip(2*perturbed - original, self.clip_min, self.clip_max)
+                if not self.hsja:
+                    perturbed = np.clip(2*perturbed - original, self.clip_min, self.clip_max)
                 additional['progression'][-1]['opposite'] = perturbed
 
                 # Binary search to return to the boundary.
-                if self.search == "binary":
+                if self.search == "binary" or self.hsja:
                     perturbed, dist_post_update = self.binary_search_batch(
                         original, perturbed[None], decision_function
                     )
@@ -286,7 +291,10 @@ class HopSkipJumpAttack:
         dist_border = self.compute_distance(out, unperturbed)
         if dist_border == 0:
             print("Distance of border point is 0")
-        decision_function(out[None], freq=self.sampling_freq*32)  # this is to make the model remember the sample
+        if self.hsja:
+            decision_function(out[None], freq=1, remember=True)  # this is to make the model remember the sample
+        else:
+            decision_function(out[None], freq=self.sampling_freq*32, remember=True)  # this is to make the model remember the sample
         return out, dist, smaps[idx], (nn_tmap_est, output['xxj'])
 
     # This function is deprecated now
@@ -394,7 +402,7 @@ class HopSkipJumpAttack:
 
             # Update highs and lows based on model decisions.
             # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
-            decisions = decision_function(mid_inputs, self.sampling_freq, remember=False)
+            decisions = decision_function(mid_inputs, self.sampling_freq, remember=self.remember)
             decisions[decisions == -1] = 0
             lows = np.where(decisions == 0, mids, lows)
             highs = np.where(decisions == 1, mids, highs)
@@ -408,6 +416,10 @@ class HopSkipJumpAttack:
 
         dist = dists_post_update[idx]
         out = out_inputs[idx]
+        if self.hsja:
+            decision_function(out[None], freq=1, remember=True)  # this is to make the model remember the sample
+        else:
+            decision_function(out[None], freq=self.sampling_freq*32, remember=True)  # this is to make the model remember the sample
         return out, dist
 
     def select_delta(self, dist_post_update, current_iteration):
@@ -415,8 +427,7 @@ class HopSkipJumpAttack:
         Choose the delta at the scale of distance
         between x and perturbed sample.
         """
-        # if current_iteration == 1:
-        if False:
+        if current_iteration == 1 and self.hsja:
                 delta = 0.1 * (self.clip_max - self.clip_min)
         else:
             if self.constraint == "l2":
@@ -445,7 +456,7 @@ class HopSkipJumpAttack:
         rv = (perturbed - sample) / delta
 
         # query the model.
-        outputs = decision_function(perturbed, self.grad_sampling_freq, average, remember=False)
+        outputs = decision_function(perturbed, self.grad_sampling_freq, average, remember=self.remember)
         decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0
@@ -470,18 +481,18 @@ class HopSkipJumpAttack:
           the desired side of the boundary.
         """
         epsilon = dist / np.sqrt(current_iteration)
-        return epsilon # TODO: remove later
-        count = 1
-        while True:
-            if count % 200 == 0:
-                logging.warning("Decreased epsilon {} times".format(count))
-            updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
-            success = (decision_function(updated[None], self.sampling_freq, remember=False))[0]
-            if success:
-                break
-            else:
-                epsilon = epsilon / 2.0  # pragma: no cover
-            count += 1
+        if self.hsja:
+            count = 1
+            while True:
+                if count % 200 == 0:
+                    logging.warning("Decreased epsilon {} times".format(count))
+                updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
+                success = (decision_function(updated[None], self.sampling_freq, remember=self.remember))[0]
+                if success:
+                    break
+                else:
+                    epsilon = epsilon / 2.0  # pragma: no cover
+                count += 1
         return epsilon
 
     def compute_distance(self, x1, x2):
