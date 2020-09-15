@@ -2,4 +2,6 @@ matplotlib
 torchvision
 Pillow
 torch
+scipy
 numpy
+tqdm

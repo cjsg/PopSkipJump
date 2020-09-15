@@ -1,4 +1,5 @@
 import numpy as np
+import torchvision.datasets as datasets
 from PIL import Image
 
 CIFAR_PATHS = ['cifar10_00_3.png', 'cifar10_01_8.png']
@@ -19,6 +20,35 @@ def get_sample(dataset, index=0):
     img = read_image('data/{}'.format(filename))
     label = int(filename.split('.')[0].split('_')[-1])
     return img, label
+
+
+def get_shape(dataset):
+    if dataset == 'cifar10':
+        return 32, 32, 3
+    if dataset == 'mnist':
+        return 28, 28
+    raise RuntimeError("Unknown Dataset: {}".format(dataset))
+
+
+def get_samples(n_samples=16, conf=None, model=None):
+    np.random.seed(42)
+    test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+    if conf is None:
+        indices = np.random.choice(len(test_data), n_samples, replace=False)
+    else:
+        indices = []
+        i = 0
+        candidates = np.random.choice(len(test_data), len(test_data), replace=False)
+        while len(indices) != n_samples:
+            probs = model.get_probs(test_data.data[candidates[i]].numpy()[None]/255.0)
+            if probs[0][test_data.test_labels[candidates[i]]] > conf:
+                indices.append(candidates[i])
+            i += 1
+
+    images = test_data.data[indices].numpy() / 255.0
+    labels = test_data.test_labels[indices].numpy()
+    print("Images indices: ", indices)
+    return images, labels
 
 
 def save_adv_image(image, path, dataset='cifar10'):
