@@ -25,6 +25,8 @@ class DefaultParams:
         self.slack = 0.0
         self.flip_prob = 0.2  # Specific to Stochastic Noise
         self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
+        # Specific to Info max procedure
+        self.grid_size = 100
 
         # Specific to Experiment mode
         self.experiment_mode = True

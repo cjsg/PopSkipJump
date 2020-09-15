@@ -37,11 +37,13 @@ class HopSkipJumpAttack:
         # Set binary search threshold.
         self.shape = data_shape
         self.d = np.prod(self.shape)
+        self.grid_size = params.grid_size
+        self.theta_prob = 1.0/self.grid_size
         if self.constraint == "l2":
-            self.theta = self.gamma / (np.sqrt(self.d) * self.d)
+            self.theta_det = self.gamma / (np.sqrt(self.d) * self.d)
             # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
-            self.theta = self.gamma / (self.d * self.d)
+            self.theta_det = self.gamma / (self.d * self.d)
 
     def attack(self, images, labels, starts=None, iterations=64, average=False, flags=None):
         raw_results = []
@@ -106,7 +108,7 @@ class HopSkipJumpAttack:
             )
         else:
             perturbed, dist_post_update, s_, _ = self.info_max_batch2(
-                original, perturbed[None], decision_function
+                original, perturbed[None], decision_function, self.grid_size
             )
         additional['timing']['init_search'] = time.time()
         additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
@@ -130,7 +132,7 @@ class HopSkipJumpAttack:
                     decision_function, perturbed, num_evals_det, delta, average
                 )
             else:
-                target_cos = get_cos_from_n(num_evals_det, theta=self.theta, delta=delta/dist_post_update, d=self.d)
+                target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta / dist_post_update, d=self.d)
                 num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
                 additional['grad_num_evals'].append(num_evals_prob)
                 num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
@@ -179,7 +181,7 @@ class HopSkipJumpAttack:
                     )
                 else:
                     perturbed, dist_post_update, s_, (tmap, xx) = self.info_max_batch2(
-                        original, perturbed[None], decision_function
+                        original, perturbed[None], decision_function, self.grid_size
                     )
                     additional['progression'][-1]['tmap'] = tmap
                     additional['progression'][-1]['samples'] = xx
@@ -270,12 +272,12 @@ class HopSkipJumpAttack:
         #     else:
         #         low = mid
 
-    def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function):
+    def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function, grid_size):
         border_points = []
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
-            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d)
+            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d, grid_size=grid_size)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
@@ -384,11 +386,11 @@ class HopSkipJumpAttack:
         if self.constraint == "linf":
             highs = dists_post_update
             # Stopping criteria.
-            thresholds = dists_post_update * self.theta
+            thresholds = dists_post_update * self.theta_det
         else:
             highs = np.ones(len(perturbed_inputs))
             # thresholds = self.theta * 1000  # remove 1000 later
-            thresholds = self.theta  # remove 1000 later
+            thresholds = self.theta_det  # remove 1000 later
             if cosine:
                 thresholds /= self.d
 
@@ -431,9 +433,9 @@ class HopSkipJumpAttack:
                 delta = 0.1 * (self.clip_max - self.clip_min)
         else:
             if self.constraint == "l2":
-                delta = np.sqrt(self.d) * self.theta * dist_post_update
+                delta = np.sqrt(self.d) * self.theta_det * dist_post_update
             elif self.constraint == "linf":
-                delta = self.d * self.theta * dist_post_update
+                delta = self.d * self.theta_det * dist_post_update
             else:
                 raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta

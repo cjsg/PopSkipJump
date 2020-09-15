@@ -147,9 +147,10 @@ def bin_search(
         d=1000,  # input dimension
         verbose=False,  # print log info
         window_size=10,
+        grid_size=100,
         eps_=.1):
     t_start = time.time()
-    Nx, Nt, Ns = 101, 101, 31  # Current code assumes Nx = Nt
+    Nx, Nt, Ns = grid_size+1, grid_size+1, 31  # Current code assumes Nx = Nt
     Nz = Nx  # candidate center locations = candidate sample location for bin search
 
     # discretize parameter (search) space

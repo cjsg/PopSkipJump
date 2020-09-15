@@ -94,11 +94,11 @@ def main(params=None):
 if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.num_iterations = 32
-    hyperparams.noise = 'deterministic'
-    hyperparams.hopskipjumpattack = True
+    hyperparams.noise = 'bayesian'
+    # hyperparams.hopskipjumpattack = True
     # hyperparams.remember_all = True
-    hyperparams.experiment_name = 'hsja_on_det_model2'
-    hyperparams.num_samples = 50
+    hyperparams.experiment_name = 'prob'
+    hyperparams.num_samples = 1
     # hyperparams.beta = 20
     start = time.time()
     main(params=hyperparams)
