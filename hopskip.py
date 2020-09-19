@@ -139,7 +139,7 @@ class HopSkipJumpAttack:
                 logging.info('Approximating grad with %d evaluation...' % num_evals_det)
 
                 gradf = self.approximate_gradient(
-                    decision_function, perturbed, num_evals_prob, delta, average
+                    decision_function, perturbed, num_evals_prob, dist_post_update*np.sqrt(self.d)/100, average
                 )
             additional['timing']['iters'][-1]['approx_grad'] = time.time()
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls

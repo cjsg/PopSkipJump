@@ -59,7 +59,18 @@ def run_attack(attack, dataset, params):
             imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf, model=det_model)
         else:
             imgs, labels = get_samples(n_samples=params.num_samples)
-
+        ii, ll = get_samples(n_samples=10)
+        cand_img, cand_lbl = [], []
+        for i, l in enumerate(ll):
+            if l != ll[0]:
+                cand_img = [ii[0], ii[i]]
+                cand_lbl = [ll[0], ll[i]]
+        starts = []
+        for l in labels:
+            if l != cand_lbl[0]:
+                starts.append(ii[0])
+            else:
+                starts.append(ii[1])
     else:
         if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=dataset, index=0)
@@ -94,12 +105,10 @@ def main(params=None):
 if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.num_iterations = 32
-    hyperparams.noise = 'bayesian'
+    hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    # hyperparams.remember_all = True
-    hyperparams.experiment_name = 'prob'
-    hyperparams.num_samples = 1
-    # hyperparams.beta = 20
+    hyperparams.experiment_name = 'prob_prior_500'
+    hyperparams.num_samples = 500
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)
