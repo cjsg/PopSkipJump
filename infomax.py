@@ -157,10 +157,7 @@ def bin_search(
     tt = np.linspace(0, 1, Nt)
     xx = np.linspace(0, 1, Nx)
     yy = [0, 1]
-    # ss = np.logspace(-1, 2, Ns)  # s \in [.01, 10.]
-    Ns = 1
-    ss = np.array([1000])
-    eps_ = 1e-6
+    ss = np.logspace(-1, 2, Ns)  # s \in [.01, 10.]
     eeps = [eps_]  # np.linspace(0., .1, 2)
 
     ttss = np.stack(np.meshgrid(tt, ss, indexing='ij'))  # 2 x Nt x Ns
