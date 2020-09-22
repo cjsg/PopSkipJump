@@ -13,7 +13,7 @@ class DefaultParams:
         self.remember_all = False  # This should be true for HSJA
 
         # Hand-picking images
-        self.orig_image_conf = 0.90
+        self.orig_image_conf = 0.75
 
         # Specific to Noisy Models
         self.noise = 'bayesian'
