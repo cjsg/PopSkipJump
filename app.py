@@ -106,8 +106,8 @@ if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.num_iterations = 32
     hyperparams.noise = 'deterministic'
-    # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'del_later'
+    hyperparams.hopskipjumpattack = True
+    hyperparams.experiment_name = 'hsja_500_dusra'
     hyperparams.num_samples = 500
     start = time.time()
     main(params=hyperparams)
