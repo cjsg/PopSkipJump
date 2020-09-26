@@ -8,6 +8,7 @@ from scipy.optimize import minimize
 TITLE = 'Infomax Progression'
 NUM_ITERATIONS = 32
 NUM_IMAGES = 50
+BETA = float(sys.argv[3])
 FROM = int(sys.argv[1])
 TO = int(sys.argv[2])
 # TARGET_IMAGE = 10
@@ -16,7 +17,7 @@ exp_name = 'hsja_500_dusra'
 image_path = 'adv/del_later_dusra.pdf'
 
 
-model = get_model(key='mnist_noman', dataset='mnist')
+model = get_model(key='mnist_noman', dataset='mnist', beta=BETA)
 
 
 def read_dump(path):
@@ -73,7 +74,6 @@ for i, raw in enumerate(raws):
     for iteration in range(NUM_ITERATIONS+1):
         print ('iteration {}'.format(iteration))
         for image in range(FROM, TO+1):
-            # if iteration % 4 == 0 and image == TARGET_IMAGE:
             if 'iterations' not in raw[image]:
                 continue
             label = raw[image]['true_label']
@@ -94,5 +94,5 @@ for i, raw in enumerate(raws):
             # ax1.set_title(f"Iteration {iteration}")
             # ax1.grid()
 # plt.savefig(f"sigmoids_image{TARGET_IMAGE}.pdf")
-np.save(f"adv/sigmoids_{FROM}_{TO}.npy", data)
+np.save(f"adv/sigmoids_{BETA}_{FROM}_{TO}.npy", data)
 pass
