@@ -7,6 +7,7 @@ from datetime import datetime
 
 from defaultparams import DefaultParams
 from hopskip import HopSkipJumpAttack
+from our_attack import OurAttack
 from img_utils import get_sample, read_image, get_samples, get_shape
 from model_factory import get_model
 from model_interface import ModelInterface
@@ -49,6 +50,7 @@ def create_attack(exp_name, dataset, params):
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
                                      new_adv_def=params.new_adversarial_def)
     return HopSkipJumpAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
+    # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
 def run_attack(attack, dataset, params):
@@ -106,9 +108,9 @@ if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.num_iterations = 32
     hyperparams.noise = 'deterministic'
-    hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'hsja_500_dusra'
-    hyperparams.num_samples = 500
+    # hyperparams.hopskipjumpattack = True
+    hyperparams.experiment_name = 'our_gradstep_25'
+    hyperparams.num_samples = 25
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)

@@ -7,7 +7,14 @@ from model_factory import get_model
 NUM_ITERATIONS = 32
 NUM_IMAGES = 25
 NOISE = 'bayesian'
-exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25']
+# exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25', 'our_gradstep_25',
+#              'hsja_on_det_model_ourtheta_25_v2', 'det_25_v2']
+exp_names = ['det_25_v2', 'hsja_on_det_model_ourtheta_25_v2', 'prob_25_deltainit_v2', 'prob_prior_25', 'our_gradstep_25']
+labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
+          'Our Attack (prior disabled)', 'Our Attack (grad step det)']
+exp_names = [exp_names[i] for i in [0,1,2,4]]
+labels = [labels[i] for i in [0,1,2,3,5]]
+
 image_path = 'adv/debug_25.pdf'
 ALPHA = 0.4
 
@@ -98,7 +105,8 @@ for i, raw in enumerate(raws):
         plot1series2.append(abs_error2 / NUM_IMAGES)
         plot2series.append(total_bin_calls)
 
-labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)', 'Our Attack (prior disabled)']
+# labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
+#           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 plt.figure(figsize=(12, 16))
 plt.suptitle('Debugging Attack on Deterministic Model with 25 random images')
 N = 3

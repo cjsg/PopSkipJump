@@ -5,12 +5,12 @@ from model_factory import get_model
 
 
 NUM_ITERATIONS = 32
-NUM_IMAGES = 50
+NUM_IMAGES = 1
 FF = [1, 32]
 FP = [0.5, 0.8]
 NOISE = 'bayesian'
-exp_name = 'our_on_det_model'
-image_path = 'adv/our_on_det_model.pdf'
+exp_name = 'del_later'
+image_path = 'adv/del_later.pdf'
 
 
 FLIP_PROB = 0.2

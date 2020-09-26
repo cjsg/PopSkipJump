@@ -157,7 +157,7 @@ class HopSkipJumpAttack:
             if self.stepsize_search == "geometric_progression":
                 # find step size.
                 epsilon = self.geometric_progression_for_stepsize(
-                    perturbed, update, dist, decision_function, step
+                    perturbed, update, dist, decision_function, step, original
                 )
                 additional['model_calls']['iters'][-1]['step_search'] = self.model_interface.model_calls
                 additional['timing']['iters'][-1]['step_search'] = time.time()
@@ -429,7 +429,7 @@ class HopSkipJumpAttack:
         Choose the delta at the scale of distance
         between x and perturbed sample.
         """
-        if current_iteration == 1 and self.hsja:
+        if current_iteration == 1:
                 delta = 0.1 * (self.clip_max - self.clip_min)
         else:
             if self.constraint == "l2":
@@ -476,7 +476,7 @@ class HopSkipJumpAttack:
         return gradf
 
     def geometric_progression_for_stepsize(
-            self, x, update, dist, decision_function, current_iteration
+            self, x, update, dist, decision_function, current_iteration, original=None
     ):
         """ Geometric progression to search for stepsize.
           Keep decreasing stepsize by half until reaching
