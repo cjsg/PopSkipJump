@@ -51,7 +51,7 @@ def solve_opt(x, y_star):
     p0 = np.array([0, 0, 1, 0.5])
     bnds = ((0.0, 1.0), (0.0, 1.0), (0.0, 100), (-10, 10))
     cons = [{"fun": constraint1a, "type": "eq"},
-            # {"fun": constraint1b, "type": "eq"},
+            {"fun": constraint1b, "type": "eq"},
             {"fun": constraint2, "type": "ineq"}]
     solution = minimize(objective, p0, method='SLSQP', bounds=bnds, constraints=cons)
     p = solution.x
@@ -94,5 +94,5 @@ for i, raw in enumerate(raws):
             # ax1.set_title(f"Iteration {iteration}")
             # ax1.grid()
 # plt.savefig(f"sigmoids_image{TARGET_IMAGE}.pdf")
-np.save(f"adv/sigmoids_{BETA}_{FROM}_{TO}.npy", data)
+np.save(f"adv/sigmoids_v2_{BETA}_{FROM}_{TO}.npy", data)
 pass
