@@ -107,10 +107,10 @@ def main(params=None):
 if __name__ == '__main__':
     hyperparams = DefaultParams()
     hyperparams.num_iterations = 32
-    hyperparams.noise = 'deterministic'
+    # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'our_gradstep_25'
-    hyperparams.num_samples = 25
+    hyperparams.experiment_name = 'gpu'
+    hyperparams.num_samples = 1
     start = time.time()
     main(params=hyperparams)
     print(time.time() - start)

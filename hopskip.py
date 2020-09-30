@@ -4,7 +4,7 @@ import time
 import logging
 from adversarial import Adversarial
 from numpy import dot
-from infomax import bin_search, get_n_from_cos, get_cos_from_n
+from infomax_gpu import bin_search, get_n_from_cos, get_cos_from_n
 from numpy.linalg import norm
 
 
@@ -280,6 +280,7 @@ class HopSkipJumpAttack:
             output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d, grid_size=grid_size)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
+            t_map, s_map = t_map.numpy(), s_map.numpy()
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)
