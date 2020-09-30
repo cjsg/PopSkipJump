@@ -10,8 +10,10 @@ NUM_IMAGES = 1
 NOISE = 'bayesian'
 exp_name = 'eval_exp_wo_step_50'
 # lis = ['infomax_5_32_opp', 'infomax_5_32_evals','infomax_5_32_opp_evals']
-lis = ['gpu_cpu', 'gpu', 'gpu2']
+lis = ['gpu_cpu', 'gpu', 'gpu2_frag']
 titles = ['CPU', 'GPU', 'GPU2']
+lis, titles = lis[-1:], titles[-1:]
+
 image_path = 'adv/del_later.png'
 
 

@@ -218,6 +218,17 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
     plt.show()
 
 
+def get_model_output(xj, unperturbed, perturbed, decision_function, memory):
+    import numpy as np
+    if xj not in memory or len(memory[xj]) == 0:
+        projection = (1 - xj) * unperturbed + xj * perturbed
+        batch = np.tile(projection, (20, 1, 1))
+        memory[xj] = decision_function(batch, freq=1, remember=False)
+    yj = memory[xj][0]
+    memory[xj] = memory[xj][1:]
+    return yj, memory
+
+
 def bin_search(
         unperturbed, perturbed, decision_function,
         acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
@@ -251,7 +262,7 @@ def bin_search(
     '''
 
     t_start = time.time()
-
+    memory = dict()
 
     Nx, Nt, Ns = grid_size + 1, grid_size + 1, 31  # Current code assumes Nx = Nt
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball
@@ -431,8 +442,8 @@ def bin_search(
         t_start = time.time()
         j_amax = torch.argmax(a_x)
         xj = xx[j_amax].item()
-        projection = (1 - xj) * unperturbed + xj * perturbed
-        yj = int(decision_function(projection[None], freq=1, remember=False))
+        yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
+
         # yj = int(torch.bernoulli(get_py_txse(1, 0.2, xj, 10, eps_)))
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

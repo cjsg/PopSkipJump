@@ -137,6 +137,17 @@ def get_n_from_cos(target_cos, s=np.inf, theta=0., delta=1., d=10):
     out[ix_pos] = (d-1) * target_cos**2 / (alpha[ix_pos]**2 * (1 - target_cos**2))
     return out
 
+
+def get_model_output(xj, unperturbed, perturbed, decision_function, memory):
+    if xj not in memory or len(memory[xj]) == 0:
+        projection = (1 - xj) * unperturbed + xj * perturbed
+        batch = np.tile(projection, (20, 1, 1))
+        memory[xj] = decision_function(batch)
+    yj = memory[xj][0]
+    memory[xj] = memory[xj][1:]
+    return yj
+
+
 def bin_search(
         unperturbed, perturbed, decision_function,
         acquisition_function='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
@@ -149,6 +160,7 @@ def bin_search(
         window_size=10,
         grid_size=100,
         eps_=.1):
+    memory = dict()
     t_start = time.time()
     Nx, Nt, Ns = grid_size+1, grid_size+1, 31  # Current code assumes Nx = Nt
     Nz = Nx  # candidate center locations = candidate sample location for bin search
@@ -315,8 +327,7 @@ def bin_search(
         # Maximize acquisition function over sampling loc x
         j_amax = np.argmax(a_x)
         xj = xx[j_amax]
-        projection = (1 - xj) * unperturbed + xj * perturbed
-        yj = int(decision_function(projection[None], freq=1, remember=False))
+        yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         # yj = np.random.binomial(n=1, p=get_py_txse(1, 0.2, xj, 10, eps_))
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

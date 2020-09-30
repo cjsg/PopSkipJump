@@ -109,7 +109,7 @@ if __name__ == '__main__':
     hyperparams.num_iterations = 32
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'gpu_local'
+    hyperparams.experiment_name = 'gpu_exp'
     hyperparams.num_samples = 1
     start = time.time()
     main(params=hyperparams)
