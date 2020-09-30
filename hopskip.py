@@ -6,6 +6,7 @@ from adversarial import Adversarial
 from numpy import dot
 from infomax_gpu import bin_search, get_n_from_cos, get_cos_from_n
 from numpy.linalg import norm
+from img_utils import get_device
 
 
 class HopSkipJumpAttack:
@@ -277,7 +278,8 @@ class HopSkipJumpAttack:
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
-            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d, grid_size=grid_size)
+            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d,
+                                grid_size=grid_size, device=get_device())
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
             t_map, s_map = t_map.numpy(), s_map.numpy()

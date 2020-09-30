@@ -8,7 +8,7 @@ from datetime import datetime
 from defaultparams import DefaultParams
 from hopskip import HopSkipJumpAttack
 from our_attack import OurAttack
-from img_utils import get_sample, read_image, get_samples, get_shape
+from img_utils import get_sample, read_image, get_samples, get_shape, get_device
 from model_factory import get_model
 from model_interface import ModelInterface
 
@@ -48,7 +48,7 @@ def create_attack(exp_name, dataset, params):
         # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
-                                     new_adv_def=params.new_adversarial_def)
+                                     new_adv_def=params.new_adversarial_def, device=get_device())
     return HopSkipJumpAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 

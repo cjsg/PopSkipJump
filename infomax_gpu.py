@@ -251,12 +251,7 @@ def bin_search(
     '''
 
     t_start = time.time()
-    if device is None:
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
-    print(device)
+
 
     Nx, Nt, Ns = grid_size + 1, grid_size + 1, 31  # Current code assumes Nx = Nt
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball

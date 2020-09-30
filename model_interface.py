@@ -3,7 +3,8 @@ import random
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False):
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False,
+                 device=None):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -11,6 +12,12 @@ class ModelInterface:
         self.slack_prop = slack
         self.noise = noise
         self.new_adversarial_def = new_adv_def
+        self.device = device
+        self.send_models_to_device()
+
+    def send_models_to_device(self):
+        for model in self.models:
+            model.model = model.model.to(self.device)
 
     def forward_one(self, image, a, freq, is_original=False):
         slack = self.slack_prop * freq

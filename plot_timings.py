@@ -10,7 +10,7 @@ NUM_IMAGES = 1
 NOISE = 'bayesian'
 exp_name = 'eval_exp_wo_step_50'
 # lis = ['infomax_5_32_opp', 'infomax_5_32_evals','infomax_5_32_opp_evals']
-lis = ['del_later']
+lis = ['gpu_cpu', 'gpu']
 image_path = 'adv/del_later.png'
 
 
@@ -27,7 +27,7 @@ def read_dump(path):
 raws = [read_dump(s) for s in lis]
 
 
-fig = plt.figure(figsize=(10, 7))
+fig = plt.figure(figsize=(10, 14))
 for i, raw in enumerate(raws):
     t_approx_grad, t_step_search, t_bin_search, t_total = 0, 0, 0, 0
     for iteration in range(NUM_ITERATIONS):
@@ -51,6 +51,7 @@ for i, raw in enumerate(raws):
             t_total += end - start
     labels = ['Approx Grad', 'Step Search', 'Binary Search']
     values = [t_approx_grad, t_step_search, t_bin_search]
+    plt.subplot(len(raws), 1, i + 1)
     plt.pie(values, labels=labels)
     plt.text(-2, 1, "Approx Grad: {} secs".format(np.round(t_approx_grad, 1)))
     plt.text(-2, 0.9, "Step Search: {} secs".format(np.round(t_step_search, 1)))

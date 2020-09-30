@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import torchvision.datasets as datasets
 from PIL import Image
 
@@ -29,6 +30,13 @@ def get_shape(dataset):
         return 28, 28
     raise RuntimeError("Unknown Dataset: {}".format(dataset))
 
+
+def get_device():
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    return device
 
 def get_samples(n_samples=16, conf=None, model=None):
     np.random.seed(42)
