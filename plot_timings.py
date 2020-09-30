@@ -10,8 +10,8 @@ NUM_IMAGES = 1
 NOISE = 'bayesian'
 exp_name = 'eval_exp_wo_step_50'
 # lis = ['infomax_5_32_opp', 'infomax_5_32_evals','infomax_5_32_opp_evals']
-lis = ['gpu_cpu', 'gpu']
-titles = ['CPU', 'GPU']
+lis = ['gpu_cpu', 'gpu', 'gpu2']
+titles = ['CPU', 'GPU', 'GPU2']
 image_path = 'adv/del_later.png'
 
 
@@ -28,9 +28,10 @@ def read_dump(path):
 raws = [read_dump(s) for s in lis]
 
 
-fig = plt.figure(figsize=(10, 14))
+fig = plt.figure(figsize=(10, 6*len(lis)))
 for i, raw in enumerate(raws):
     t_approx_grad, t_step_search, t_bin_search, t_total = 0, 0, 0, 0
+    t_num_evals = 0
     for iteration in range(NUM_ITERATIONS):
         for image in range(NUM_IMAGES):
             # if image != TARGET_IMAGE:
@@ -41,19 +42,22 @@ for i, raw in enumerate(raws):
             init_search = raw[image]['timing']['init_search'] - epoch
             details = raw[image]['timing']['iters']
             start = details[iteration]['start']
+            num_evals = details[iteration]['num_evals']
             approx_grad = details[iteration]['approx_grad']
             step_search = details[iteration]['step_search']
             bin_search = details[iteration]['bin_search']
             end = details[iteration]['end']
 
-            t_approx_grad += approx_grad - start
+            t_num_evals += num_evals - start
+            t_approx_grad += approx_grad - num_evals
             t_step_search += step_search - approx_grad
             t_bin_search += bin_search - step_search
             t_total += end - start
-    labels = ['Approx Grad', 'Step Search', 'Binary Search']
-    values = [t_approx_grad, t_step_search, t_bin_search]
+    labels = ['Num Evals', 'Approx Grad', 'Step Search', 'Binary Search']
+    values = [t_num_evals, t_approx_grad, t_step_search, t_bin_search]
     plt.subplot(len(raws), 1, i + 1)
     plt.pie(values, labels=labels)
+    plt.text(-2, 1.1, "Num Evals: {} secs".format(np.round(t_num_evals, 1)))
     plt.text(-2, 1, "Approx Grad: {} secs".format(np.round(t_approx_grad, 1)))
     plt.text(-2, 0.9, "Step Search: {} secs".format(np.round(t_step_search, 1)))
     plt.text(-2, 0.8, "Binary Search: {} secs".format(np.round(t_bin_search, 1)))
