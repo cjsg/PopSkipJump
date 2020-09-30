@@ -44,7 +44,7 @@ def create_attack(exp_name, dataset, params):
         models = [get_model(key='human', dataset=dataset, noise=params.noise)]
     else:
         models = [get_model(key='mnist_noman', dataset=dataset, noise=params.noise, flip_prob=params.flip_prob,
-                            beta=params.beta)]
+                            beta=params.beta, device=get_device())]
         # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     hyperparams.num_iterations = 32
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'gpu'
+    hyperparams.experiment_name = 'gpu2'
     hyperparams.num_samples = 1
     start = time.time()
     main(params=hyperparams)

@@ -11,6 +11,7 @@ NOISE = 'bayesian'
 exp_name = 'eval_exp_wo_step_50'
 # lis = ['infomax_5_32_opp', 'infomax_5_32_evals','infomax_5_32_opp_evals']
 lis = ['gpu_cpu', 'gpu']
+titles = ['CPU', 'GPU']
 image_path = 'adv/del_later.png'
 
 
@@ -57,13 +58,13 @@ for i, raw in enumerate(raws):
     plt.text(-2, 0.9, "Step Search: {} secs".format(np.round(t_step_search, 1)))
     plt.text(-2, 0.8, "Binary Search: {} secs".format(np.round(t_bin_search, 1)))
     plt.text(-2, 0.7, "Total: {} secs".format(np.round(t_total, 1)))
+    plt.title(titles[i])
     # plt.bar(['Approx Grad'], [t_approx_grad])
     # plt.bar(['Step Search'], [t_step_search])
     # plt.bar(['Binary Search'], [t_bin_search])
     # plt.bar(['Total'], [t_total])
     # ax1.plot(range(1, NUM_ITERATIONS+2), total_bin_calls, label='Total', color='grey')
 # ax1.grid()
-plt.title('Timing Analysis for one attack (32 iterations)')
 # plt.ylabel('Time (in seconds)')
 plt.savefig(image_path)
 pass
