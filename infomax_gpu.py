@@ -224,10 +224,7 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
     batch = (1 - xx) * unperturbed + xx * perturbed
     probs = model_interface.get_probs_(batch)
     probs = probs[:, true_label]
-    res = dict()
-    for i, xj in enumerate(xx):
-        res[float(xj)] = probs[i]
-    return res
+    return probs
 
 
 def bin_search(
@@ -467,7 +464,7 @@ def bin_search(
         j_amax = torch.argmax(a_x)
         xj = xx[j_amax].item()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
-        yj = int(torch.bernoulli(1-pp[xj]))
+        yj = int(torch.bernoulli(1-pp[j_amax]))
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()
 
