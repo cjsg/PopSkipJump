@@ -15,10 +15,13 @@ from model_interface import ModelInterface
 logging.root.setLevel(logging.WARNING)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-d", "--dataset",
+parser.add_argument("-d", "--dataset", type=str,
                     help="(Mandatory) supported: mnist, cifar10")
-parser.add_argument("-o", "--exp_name", default=None,
+parser.add_argument("-o", "--exp_name", type=str, default=None,
                     help="(Optional) path to the output directory")
+parser.add_argument("-pf", "--prior_frac", type=float, default=1.,
+                    help="(Optional) how much to reduce the bin-search "
+                    "interval after first round of bin-search")
 
 
 def validate_args(args):
@@ -29,7 +32,7 @@ def validate_args(args):
         exit()
 
 
-def create_attack(exp_name, dataset, params):
+def create_attack(exp_name, dataset, params, prior_frac):
     if exp_name is None:
         exp_name = '%s' % datetime.now().strftime("%b%d_%H%M%S")
 
@@ -47,9 +50,14 @@ def create_attack(exp_name, dataset, params):
                             beta=params.beta, device=get_device())]
         # models = [get_model(key='mnist_cw', dataset=args.dataset, noise=NOISE, flip_prob=flip_prob)]
 
-    model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
-                                     new_adv_def=params.new_adversarial_def, device=get_device())
-    return HopSkipJumpAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params, device=get_device())
+    model_interface = ModelInterface(
+        models, bounds=(0, 1), n_classes=10, slack=params.slack,
+        noise=params.noise, new_adv_def=params.new_adversarial_def,
+        device=get_device())
+
+    return HopSkipJumpAttack(
+        model_interface, get_shape(dataset), experiment=exp_name,
+        params=params, device=get_device(), prior_frac=prior_frac)
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
@@ -96,7 +104,7 @@ def main(params=None):
     exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
     dataset = args.dataset
 
-    attack = create_attack(exp_name, dataset, params)
+    attack = create_attack(exp_name, dataset, params, args.prior_frac)
     median_distance, additional = run_attack(attack, dataset, params)
     import  torch
     torch.save(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))

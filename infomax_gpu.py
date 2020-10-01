@@ -1,5 +1,5 @@
 import time
-from math import pi, sqrt
+from math import pi, sqrt, log10
 import torch
 from scipy.special import erf  # , xlogy
 from tqdm import tqdm
@@ -234,7 +234,8 @@ def bin_search(
         unperturbed, perturbed, model_interface,
         acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
-        eps_=.1, device=None, true_label=None, plot=False):
+        eps_=.1, device=None, true_label=None, plot=False, prev_t=None,
+        prev_s=None, prior_frac=1.):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -250,6 +251,10 @@ def bin_search(
         eps_        (float) noise level used
         device      (str)   which device to use ('cuda' or 'cpu')
         plot        (bool)  to plot or not to plot
+        prev_t      (float) previous estimate of the sigmoid center t (None)
+        prev_s      (float) previous estimate of the sigmoid inverse-scale s (None)
+        prior_frac  (float) how much to reduce the a priori search interval
+                            to the left and to the right of prev_t and prev_s
 
         Notation conventions in the code:
             * t     center of sigmoid
@@ -264,16 +269,33 @@ def bin_search(
 
     t_start = time.time()
 
-    Nx, Nt, Ns = grid_size + 1, grid_size + 1, 31  # Current code assumes Nx = Nt
+    if prev_t is None:
+        t_lo, t_hi = 0., 1.
+        Nt = grid_size + 1
+    else:
+        t_lo = max(prev_t - prior_frac, 0.)
+        t_hi = min(prev_t + prior_frac, 1.)
+        Nt = int(grid_size * 2 * prior_frac) + 1
+
+    Nx = grid_size + 1  # number sampling locations
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball
+
+    if prev_s is None:
+        s_lo, s_hi = -1., 2.
+        Ns = 31
+    else:
+        s_lo = log10(prev_s) - prior_frac * 3
+        s_hi = log10(prev_s) + prior_frac * 3
+        Ns = int(prior_frac * 30) + 1
+
 
     # discretize parameter (search) space
     dtype = torch.float32
-    tt = torch.linspace(0, 1, Nt, dtype=dtype, device=device)
-    xx = torch.linspace(0, 1, Nx, dtype=dtype, device=device)
-    zz = torch.linspace(0, 1, Nz, dtype=dtype, device=device)  # center of sampling ball
+    tt = torch.linspace(t_lo, t_hi, Nt, dtype=dtype, device=device)
+    zz = torch.linspace(t_lo, t_hi, Nz, dtype=dtype, device=device)  # center of sampling ball
+    xx = torch.linspace(0., 1., Nx, dtype=dtype, device=device)
     yy = torch.tensor([0, 1], dtype=dtype, device=device)
-    ss = torch.logspace(-1, 2, Ns, dtype=dtype, device=device)  # s \in [.01, 10.]
+    ss = torch.logspace(s_lo, s_hi, Ns, dtype=dtype, device=device)  # s \in [.01, 10.]
     # ss[-1] = float("Inf")   # xlogy may not work when s is infinite
     eeps = torch.tensor([eps_], dtype=dtype, device=device)  # torch.linspace(0., .1, 2)
 
