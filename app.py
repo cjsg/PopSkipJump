@@ -22,6 +22,9 @@ parser.add_argument("-o", "--exp_name", type=str, default=None,
 parser.add_argument("-pf", "--prior_frac", type=float, default=1.,
                     help="(Optional) how much to reduce the bin-search "
                     "interval after first round of bin-search")
+parser.add_argument("-q", "--queries_per_loc", type=int, default=1,
+                    help="(Optional) how many queries to compute per "
+                    "Bayesian optimization step in bin-search.")
 
 
 def validate_args(args):
@@ -32,7 +35,7 @@ def validate_args(args):
         exit()
 
 
-def create_attack(exp_name, dataset, params, prior_frac):
+def create_attack(exp_name, dataset, params, prior_frac, queries):
     if exp_name is None:
         exp_name = '%s' % datetime.now().strftime("%b%d_%H%M%S")
 
@@ -57,7 +60,8 @@ def create_attack(exp_name, dataset, params, prior_frac):
 
     return HopSkipJumpAttack(
         model_interface, get_shape(dataset), experiment=exp_name,
-        params=params, device=get_device(), prior_frac=prior_frac)
+        params=params, device=get_device(), prior_frac=prior_frac,
+        queries=queries)
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
@@ -104,7 +108,8 @@ def main(params=None):
     exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
     dataset = args.dataset
 
-    attack = create_attack(exp_name, dataset, params, args.prior_frac)
+    attack = create_attack(
+        exp_name, dataset, params, args.prior_frac, args.queries_per_loc)
     median_distance, additional = run_attack(attack, dataset, params)
     import  torch
     torch.save(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))

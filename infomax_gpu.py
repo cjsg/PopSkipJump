@@ -232,7 +232,7 @@ def bin_search(
         acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=.1, device=None, true_label=None, plot=False, prev_t=None,
-        prev_s=None, prior_frac=1.):
+        prev_s=None, prior_frac=1., queries=5):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -252,6 +252,7 @@ def bin_search(
         prev_s      (float) previous estimate of the sigmoid inverse-scale s (None)
         prior_frac  (float) how much to reduce the a priori search interval
                             to the left and to the right of prev_t and prev_s
+        queries (int) how many queries to perform in each iteration
 
         Notation conventions in the code:
             * t     center of sigmoid
@@ -351,7 +352,7 @@ def bin_search(
      tt_max_acquisition, tt_posterior) = 0.0, 0.0, 0.0, 0.0, 0.0
 
     stop_next = False
-    for k in tqdm(range(kmax), desc='bin-search'):
+    for k in tqdm(range(int(kmax / queries)), desc='bin-search'):
         if stop_next:
             break
 
@@ -462,24 +463,27 @@ def bin_search(
         tt_acq_func += time.time() - t_start
         t_start = time.time()
         j_amax = torch.argmax(a_x)
-        xj = xx[j_amax].item()
+        # xj = xx[j_amax].item()
+        j_amax = j_amax.repeat(queries)
+        xj = xx[j_amax]
+        # yj = int(torch.bernoulli(1-pp[j_amax]))
+        yj = torch.bernoulli(1-pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
-        yj = int(torch.bernoulli(1-pp[j_amax]))
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()
 
         # Update logs
         # vprint(f'E[n]_lim = {n_opt:.2e}\t E[n] = {n_z[j_amax]:.2e}')
-        output['xxj'].append(xj)
-        output['yyj'].append(yj)
-        output['tts_max'].append(ts_max)
-        output['tts_map'].append(ts_map)
-        output['zz_tmax'].append(z_tmax)
-        output['zz_tmap'].append(z_tmap)
-        output['zz_best'].append(z_best)
-        output['nn_best_est'].append(n_zbest_est)
-        output['nn_tmax_est'].append(n_ztmax_est)
-        output['nn_tmap_est'].append(n_ztmap_est)
+        output['xxj'].extend([x.item() for x in xj])
+        output['yyj'].extend([y.item() for y in yj])
+        output['tts_max'].extend([ts_max] * queries)
+        output['tts_map'].extend([ts_map] * queries)
+        output['zz_tmax'].extend([z_tmax] * queries)
+        output['zz_tmap'].extend([z_tmap] * queries)
+        output['zz_best'].extend([z_best] * queries)
+        output['nn_best_est'].extend([n_zbest_est] * queries)
+        output['nn_tmax_est'].extend([n_ztmax_est] * queries)
+        output['nn_tmap_est'].extend([n_ztmap_est] * queries)
 
         # Test stopping criterion
         if len(output['nn_tmap_est']) > window_size:
@@ -497,14 +501,15 @@ def bin_search(
             plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func)
 
         # Compute posterior (i.e. new prior) for t
-        pyj_txjs = py_txs[yj:(yj + 1), :, j_amax:(j_amax + 1), :]
-        pyj_xj = py_x[yj:(yj + 1), :, j_amax:(j_amax + 1), :]
+        pyj_txjs = py_txs[yj, :, j_amax, :]
+        pyj_txjs = pyj_txjs[:, :, None, :].prod(dim=0, keepdim=True)
+        pyj_xj = (pyj_txjs * pts_x).sum(axis=(1,3), keepdim=True)
         pts_xyj = pyj_txjs * pts_x / pyj_xj
 
         # New prior = previous posterior
         pts = pts_xyj
         pts_x = pts  # (t, s) independent of sampling point x
-        k += 1
+        k += len(xj)
         tt_posterior += time.time() - t_start
 
     end = time.time()

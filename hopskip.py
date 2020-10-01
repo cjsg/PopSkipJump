@@ -16,7 +16,7 @@ class HopSkipJumpAttack:
             max_num_evals=50000, distance="MSE",
             stepsize_search="geometric_progression", batch_size=256,
             internal_dtype=np.float32, bounds=(0, 1), experiment='default',
-            device=None, params=None, prior_frac=1.):
+            device=None, params=None, prior_frac=1., queries=1):
 
         self.model_interface = model_interface
         self.initial_num_evals = initial_num_evals
@@ -37,6 +37,7 @@ class HopSkipJumpAttack:
         self.prev_t = None
         self.prev_s = None
         self.prior_frac = prior_frac
+        self.queries = queries
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -292,10 +293,11 @@ class HopSkipJumpAttack:
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
-            output = bin_search(unperturbed, perturbed_input, self.model_interface, d=self.d,
-                                grid_size=grid_size, device=get_device(), true_label=true_label,
-                                prev_t=self.prev_t, prev_s=self.prev_s,
-                                prior_frac=self.prior_frac)
+            output = bin_search(
+                unperturbed, perturbed_input, self.model_interface, d=self.d,
+                grid_size=grid_size, device=get_device(),
+                true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
+                prior_frac=self.prior_frac, queries=self.queries)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
             # t_map, s_map = t_map.numpy(), s_map.numpy()
