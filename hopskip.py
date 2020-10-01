@@ -68,9 +68,9 @@ class HopSkipJumpAttack:
     def attack_one(self, a, iterations=64, average=False, flags=None):
         self.model_interface.model_calls = 0
         print(type(a.unperturbed))
-        if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
-            logging.error("Skipping image: Model Prediction of input does not match label")
-            return dict()
+        # if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
+        #     logging.error("Skipping image: Model Prediction of input does not match label")
+        #     return dict()
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
