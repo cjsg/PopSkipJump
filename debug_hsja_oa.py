@@ -5,7 +5,7 @@ from model_factory import get_model
 
 
 NUM_ITERATIONS = 32
-NUM_IMAGES = 1
+NUM_IMAGES = 20
 NOISE = 'bayesian'
 # exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25', 'our_gradstep_25',
 #              'hsja_on_det_model_ourtheta_25_v2', 'det_25_v2']
@@ -14,17 +14,21 @@ NOISE = 'bayesian'
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 # exp_names = [exp_names[i] for i in [0,1,2,4]]
 # labels = [labels[i] for i in [0,1,2,3,5]]
-exp_names = ['gpu_exp']
-labels = ['gpu']
-image_path = 'adv/debug_1.pdf'
+exp_names = ['gpu_20', 'gpu_cj_20']
+labels = ['Without Interval Reduction', "With Interval Reduction"]
+image_path = 'adv/debug_20.pdf'
 ALPHA = 0.4
 
 model = get_model(key='mnist_noman', dataset='mnist')
 
-
+import torch
 def read_dump(path):
     filepath = 'adv/{}/raw_data.pkl'.format(path)
-    return pickle.load(open(filepath, 'rb'))
+    if path in exp_names:
+        raw = torch.load(open(filepath, 'rb'), map_location='cpu')
+    else:
+        raw = pickle.load(open(filepath, 'rb'))
+    return raw
 
 
 raws = [read_dump(x) for x in exp_names]
@@ -54,11 +58,13 @@ for i, raw in enumerate(raws):
     bin_calls = np.zeros((NUM_ITERATIONS+1, NUM_IMAGES))
     for iteration in range(NUM_ITERATIONS):
         distances, distances2 = [], []
+        cn=0
         for image in range(NUM_IMAGES):
             if 'iterations' not in raw[image]:
+                cn+=1
                 continue
             x_star = raw[image]['original']
-            x_t = raw[image]['progression'][iteration]['binary']
+            x_t = raw[image]['progression'][iteration]['binary'].numpy()
             label = raw[image]['true_label']
             distance = np.linalg.norm(x_star - x_t) ** 2 / 784 / 1 ** 2
             probs = model.get_probs([x_t])
@@ -99,7 +105,7 @@ for i, raw in enumerate(raws):
     total_bin_calls = bin_calls.mean(axis=1)
 
     plot1series1.append(medians)
-    plot1series2.append(abs_error/NUM_IMAGES)
+    plot1series2.append(abs_error/(NUM_IMAGES-cn))
     plot2series.append(total_bin_calls)
     if i==2:
         plot1series1.append(medians2)
@@ -109,7 +115,7 @@ for i, raw in enumerate(raws):
 # labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 plt.figure(figsize=(12, 16))
-plt.suptitle('Debugging Attack on Deterministic Model with 25 random images')
+plt.suptitle(f'Debugging Attack on Deterministic Model with {NUM_IMAGES} random images')
 N = 3
 ax1 = plt.subplot(N, 1, 1)
 ax1.set_xlabel('Iterations of the Attack')

@@ -146,14 +146,15 @@ class HopSkipJumpAttack:
                 )
             else:
                 target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta / dist_post_update, d=self.d)
-                num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
+                num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/self.grid_size),
+                                                    delta=(np.sqrt(self.d)/self.grid_size), d=self.d))
                 additional['grad_num_evals'].append(num_evals_prob)
                 num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
                 logging.info('Approximating grad with %d evaluation...' % num_evals_det)
                 additional['timing']['iters'][-1]['num_evals'] = time.time()
 
                 gradf = self.approximate_gradient(
-                    decision_function, perturbed, num_evals_prob, dist_post_update*np.sqrt(self.d)/100, average
+                    decision_function, perturbed, num_evals_prob, dist_post_update*np.sqrt(self.d)/self.grid_size, average
                 )
             additional['timing']['iters'][-1]['approx_grad'] = time.time()
             additional['model_calls']['iters'][-1]['approx_grad'] = self.model_interface.model_calls
