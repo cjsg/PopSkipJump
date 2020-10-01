@@ -4,6 +4,7 @@ import time
 import logging
 from adversarial import Adversarial
 from numpy import dot
+import torch
 from infomax_gpu import bin_search, get_n_from_cos, get_cos_from_n
 from numpy.linalg import norm
 from img_utils import get_device
@@ -12,7 +13,7 @@ from img_utils import get_device
 class HopSkipJumpAttack:
     def __init__(self, model_interface, data_shape, initial_num_evals=100, max_num_evals=50000, distance="MSE",
                  stepsize_search="geometric_progression", batch_size=256, internal_dtype=np.float32, bounds=(0, 1),
-                 experiment='default', params=None):
+                 experiment='default', device=None, params=None):
         self.model_interface = model_interface
         self.initial_num_evals = initial_num_evals
         self.max_num_evals = max_num_evals
@@ -28,6 +29,7 @@ class HopSkipJumpAttack:
         self.search = params.search
         self.hsja = params.hopskipjumpattack
         self.remember = params.remember_all
+        self.device = device
 
         # Set constraint based on the distance.
         if distance == 'MSE':
@@ -51,7 +53,7 @@ class HopSkipJumpAttack:
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
             logging.warning("Attacking Image: {}".format(i))
-            a = Adversarial(image=image, label=label)
+            a = Adversarial(image=image, label=label, device=self.device)
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
             results = self.attack_one(a, iterations, average, flags=flags)
@@ -71,8 +73,8 @@ class HopSkipJumpAttack:
         if a.perturbed is None:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(a)
-        original = a.unperturbed.astype(self.internal_dtype)
-        perturbed = a.perturbed.astype(self.internal_dtype)
+        original = a.unperturbed
+        perturbed = a.perturbed
         additional = {'iterations': list(),  # Perturbed images and L2 distance for every iteration
                       'initial': perturbed,  # Starting point of the attack
                       'model_calls': {'initialization': self.model_interface.model_calls,
@@ -91,10 +93,10 @@ class HopSkipJumpAttack:
             num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
             for j in range(num_batchs):
                 current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-                out = self.model_interface.forward(images=current_batch.astype(self.internal_dtype),
+                out = self.model_interface.forward(images=current_batch,
                                                    a=a, freq=freq, average=average, remember=remember)
                 outs.append(out)
-            outs = np.concatenate(outs, axis=0)
+            outs = torch.cat(outs, dim=0)
             return outs
 
         if flags['stats_manifold']:
@@ -283,7 +285,7 @@ class HopSkipJumpAttack:
                                 grid_size=grid_size, device=get_device())
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
-            t_map, s_map = t_map.numpy(), s_map.numpy()
+            # t_map, s_map = t_map.numpy(), s_map.numpy()
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)
@@ -449,14 +451,17 @@ class HopSkipJumpAttack:
         # Generate random vectors.
         noise_shape = [num_evals] + list(self.shape)
         if self.constraint == "l2":
-            rv = np.random.randn(*noise_shape)
+            if torch.cuda.is_available():
+                rv = torch.cuda.FloatTensor(*noise_shape).normal_()
+            else:
+                rv = torch.FloatTensor(*noise_shape).normal_()
         elif self.constraint == "linf":
             rv = np.random.uniform(low=-1, high=1, size=noise_shape)
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
 
         axis = tuple(range(1, 1 + len(self.shape)))
-        rv = rv / np.sqrt(np.sum(rv ** 2, axis=axis, keepdims=True))
+        rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         perturbed = sample + delta * rv
         perturbed = np.clip(perturbed, self.clip_min, self.clip_max)
         rv = (perturbed - sample) / delta
@@ -465,17 +470,17 @@ class HopSkipJumpAttack:
         outputs = decision_function(perturbed, self.grad_sampling_freq, average, remember=self.remember)
         decisions = outputs[outputs != -1]
         decision_shape = [len(decisions)] + [1] * len(self.shape)
-        fval = 2 * decisions.astype(self.internal_dtype).reshape(decision_shape) - 1.0
+        fval = 2 * decisions.view(decision_shape) - 1.0
 
         # Baseline subtraction (when fval differs)
-        vals = fval if abs(np.mean(fval)) == 1.0 else fval - np.mean(fval)
+        vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
         rv = rv[outputs != -1]
-        gradf = np.mean(vals * rv, axis=0)
+        gradf = torch.mean(vals * rv, dim=0)
 
         # Get the gradient direction.
-        if np.sum(outputs != -1) == 0:
+        if torch.sum(outputs != -1) == 0:
             return None
-        gradf = gradf / np.linalg.norm(gradf)
+        gradf = gradf / torch.norm(gradf)
 
         return gradf
 

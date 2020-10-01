@@ -9,7 +9,7 @@ NUM_IMAGES = 1
 FF = [1, 32]
 FP = [0.5, 0.8]
 NOISE = 'bayesian'
-exp_name = 'del_later'
+exp_name = 'gpu_exp'
 image_path = 'adv/del_later.pdf'
 
 

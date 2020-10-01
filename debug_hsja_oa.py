@@ -5,17 +5,18 @@ from model_factory import get_model
 
 
 NUM_ITERATIONS = 32
-NUM_IMAGES = 25
+NUM_IMAGES = 1
 NOISE = 'bayesian'
 # exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25', 'our_gradstep_25',
 #              'hsja_on_det_model_ourtheta_25_v2', 'det_25_v2']
-exp_names = ['det_25_v2', 'hsja_on_det_model_ourtheta_25_v2', 'prob_25_deltainit_v2', 'prob_prior_25', 'our_gradstep_25']
-labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
-          'Our Attack (prior disabled)', 'Our Attack (grad step det)']
-exp_names = [exp_names[i] for i in [0,1,2,4]]
-labels = [labels[i] for i in [0,1,2,3,5]]
-
-image_path = 'adv/debug_25.pdf'
+# exp_names = ['det_25_v2', 'hsja_on_det_model_ourtheta_25_v2', 'prob_25_deltainit_v2', 'prob_prior_25', 'our_gradstep_25']
+# labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
+#           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
+# exp_names = [exp_names[i] for i in [0,1,2,4]]
+# labels = [labels[i] for i in [0,1,2,3,5]]
+exp_names = ['gpu_exp']
+labels = ['gpu']
+image_path = 'adv/debug_1.pdf'
 ALPHA = 0.4
 
 model = get_model(key='mnist_noman', dataset='mnist')

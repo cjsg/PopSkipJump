@@ -21,17 +21,17 @@ class Model:
                                                              [0.2023, 0.1994, 0.2010])])
         img_tr = [transform(i) for i in images]
         outs = self.model(torch.stack(img_tr).to(self.device))
-        return outs.detach().numpy()
+        return outs.detach()
 
     def ask_model(self, images):
         logits = self.predict(images)
         if self.noise == 'bayesian':
-            logits = logits - np.max(logits, axis=1, keepdims=True)
-            probs = np.exp(self.beta*logits).astype('float64')
-            probs = probs / np.sum(probs, axis=1, keepdims=True)
+            logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
+            probs = torch.exp(self.beta*logits)
+            probs = probs / torch.sum(probs, dim=1, keepdim=True)
             probs[probs < 1e-4] = 0
-            sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
-            return np.array(sample)
+            sample = torch.multinomial(probs, 1)
+            return sample.flatten()
         elif self.noise == 'stochastic':
             pred = np.argmax(logits, axis=1)
             rand = np.random.randint(self.n_classes, size=len(images))
@@ -43,6 +43,7 @@ class Model:
 
     def get_probs(self, images):
         logits = self.predict(images)
+        logits = logits.numpy()
         logits = logits - np.max(logits, axis=1, keepdims=True)
         probs = np.exp(self.beta*logits)
         probs = probs / np.sum(probs, axis=1, keepdims=True)
@@ -67,7 +68,7 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
         def predict(self, images):
             images = np.expand_dims(images, axis=1).astype(np.float32)
             outs = self.model(torch.tensor(images).to(self.device))
-            return outs.cpu().detach().numpy()
+            return outs.detach()
     if key == 'mnist_noman':
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
