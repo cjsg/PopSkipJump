@@ -219,10 +219,9 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
 
 
 def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label):
-    projections = []
-    for xj in xx:
-        projections.append((1 - xj) * unperturbed + xj * perturbed)
-    batch = torch.stack(projections)
+    dims = [-1] + [1] * unperturbed.ndim
+    xx = xx.view(dims)
+    batch = (1 - xx) * unperturbed + xx * perturbed
     probs = model_interface.get_probs_(batch)
     probs = probs[:, true_label]
     res = dict()
