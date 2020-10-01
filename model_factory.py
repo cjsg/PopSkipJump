@@ -42,6 +42,8 @@ class Model:
             return np.argmax(logits, axis=1)
 
     def get_probs(self, images):
+        if type(images) != torch.Tensor:
+            images = torch.tensor(images, dtype=torch.float64)
         logits = self.predict(images)
         logits = logits.numpy()
         logits = logits - np.max(logits, axis=1, keepdims=True)
@@ -66,8 +68,8 @@ class Model:
 def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
     class MNIST_Model(Model):
         def predict(self, images):
-            images = np.expand_dims(images, axis=1).astype(np.float32)
-            outs = self.model(torch.tensor(images).to(self.device))
+            images = images.unsqueeze(dim=1)
+            outs = self.model(images.float())
             return outs.detach()
     if key == 'mnist_noman':
         pytorch_model = MNIST_Net()

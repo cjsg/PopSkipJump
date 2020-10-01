@@ -62,11 +62,12 @@ class HopSkipJumpAttack:
             results['true_label'] = label
             results['original'] = image
             raw_results.append(results)
-        median = np.median(np.array(distances))
+        median = torch.median(torch.tensor(distances))
         return median, raw_results
 
     def attack_one(self, a, iterations=64, average=False, flags=None):
         self.model_interface.model_calls = 0
+        print(type(a.unperturbed))
         if self.model_interface.forward_one(a.unperturbed, a, self.sampling_freq) == 1:
             logging.error("Skipping image: Model Prediction of input does not match label")
             return dict()
@@ -167,7 +168,7 @@ class HopSkipJumpAttack:
                 additional['timing']['iters'][-1]['step_search'] = time.time()
 
                 # Update the sample.
-                perturbed = np.clip(perturbed + epsilon * update, self.clip_min, self.clip_max)
+                perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
                 additional['progression'][-1]['approx_grad'] = perturbed
                 if flags['stats_manifold']:
                     ss = self.screenshot_manifold(perturbed, original)
@@ -175,7 +176,7 @@ class HopSkipJumpAttack:
 
                 # Go in the opposite direction
                 if not self.hsja:
-                    perturbed = np.clip(2*perturbed - original, self.clip_min, self.clip_max)
+                    perturbed = torch.clamp(2*perturbed - original, self.clip_min, self.clip_max)
                 additional['progression'][-1]['opposite'] = perturbed
 
                 # Binary search to return to the boundary.
@@ -463,7 +464,7 @@ class HopSkipJumpAttack:
         axis = tuple(range(1, 1 + len(self.shape)))
         rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         perturbed = sample + delta * rv
-        perturbed = np.clip(perturbed, self.clip_min, self.clip_max)
+        perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
         rv = (perturbed - sample) / delta
 
         # query the model.
@@ -508,7 +509,7 @@ class HopSkipJumpAttack:
 
     def compute_distance(self, x1, x2):
         if self.constraint == "l2":
-            return np.linalg.norm(x1 - x2)
+            return torch.norm(x1 - x2)
         elif self.constraint == "linf":
             return np.max(abs(x1 - x2))
 

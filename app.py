@@ -49,7 +49,7 @@ def create_attack(exp_name, dataset, params):
 
     model_interface = ModelInterface(models, bounds=(0, 1), n_classes=10, slack=params.slack, noise=params.noise,
                                      new_adv_def=params.new_adversarial_def, device=get_device())
-    return HopSkipJumpAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
+    return HopSkipJumpAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params, device=get_device())
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
@@ -98,8 +98,8 @@ def main(params=None):
 
     attack = create_attack(exp_name, dataset, params)
     median_distance, additional = run_attack(attack, dataset, params)
-
-    pickle.dump(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))
+    import  torch
+    torch.save(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
 
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     hyperparams.num_iterations = 32
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'gpu_local'
+    hyperparams.experiment_name = 'gpu_approxgrad'
     hyperparams.num_samples = 1
     start = time.time()
     main(params=hyperparams)

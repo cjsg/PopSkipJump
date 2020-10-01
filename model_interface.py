@@ -25,7 +25,7 @@ class ModelInterface:
         m_id = random.choice(list(range(len(self.models))))
         if self.noise != 'deterministic':
             new_def_threshold = 0.6 if is_original else 0.5
-            batch = np.stack([image] * freq)
+            batch = torch.stack([image] * freq)
             outs = self.models[m_id].ask_model(batch)
             self.model_calls += freq
             label_freqs = torch.bincount(outs, minlength=self.n_classes)
@@ -85,7 +85,7 @@ class ModelInterface:
             outs = self.models[m_id].ask_model(inp_batch).reshape(freq, len(images)).T
             self.model_calls += (len(images) * freq)
             N = self.n_classes
-            id = outs + (N * np.arange(outs.shape[0]))[:, None]
+            id = outs + (N * torch.arange(outs.shape[0]).to(self.device))[:, None]
             freqs = torch.bincount(id.flatten(), minlength=N * outs.shape[0]).view(-1, N)
             true_freqs = freqs[:, a.true_label]
             r = list(range(self.n_classes))

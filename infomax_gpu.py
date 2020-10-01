@@ -222,7 +222,7 @@ def get_model_output(xj, unperturbed, perturbed, decision_function, memory):
     import numpy as np
     if xj not in memory or len(memory[xj]) == 0:
         projection = (1 - xj) * unperturbed + xj * perturbed
-        batch = np.tile(projection, (20, 1, 1))
+        batch = projection.repeat(20, 1, 1)
         memory[xj] = decision_function(batch, freq=1, remember=False)
     yj = memory[xj][0]
     memory[xj] = memory[xj][1:]
