@@ -218,22 +218,24 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
     plt.show()
 
 
-def get_model_output(xj, unperturbed, perturbed, decision_function, memory):
-    import numpy as np
-    if xj not in memory or len(memory[xj]) == 0:
-        projection = (1 - xj) * unperturbed + xj * perturbed
-        batch = projection.repeat(20, 1, 1)
-        memory[xj] = decision_function(batch, freq=1, remember=False)
-    yj = memory[xj][0]
-    memory[xj] = memory[xj][1:]
-    return yj, memory
+def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label):
+    projections = []
+    for xj in xx:
+        projections.append((1 - xj) * unperturbed + xj * perturbed)
+    batch = torch.stack(projections)
+    probs = model_interface.get_probs_(batch)
+    probs = probs[:, true_label]
+    res = dict()
+    for i, xj in enumerate(xx):
+        res[float(xj)] = probs[i]
+    return res
 
 
 def bin_search(
-        unperturbed, perturbed, decision_function,
+        unperturbed, perturbed, model_interface,
         acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
-        eps_=.1, device=None, plot=False):
+        eps_=.1, device=None, true_label=None, plot=False):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -262,7 +264,6 @@ def bin_search(
     '''
 
     t_start = time.time()
-    memory = dict()
 
     Nx, Nt, Ns = grid_size + 1, grid_size + 1, 31  # Current code assumes Nx = Nt
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball
@@ -283,6 +284,8 @@ def bin_search(
     lls = lls.reshape(Nz, Nt, Ns)  # Nx x Nt x Ns
     lss = lss.reshape(Nz, Nt, Ns)  # Nx x Nt x Ns
     ii_t = torch.arange(Nt, device=device)  # indeces of t (useful for later computations)
+
+    pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
 
     def vprint(string):
         if verbose:
@@ -442,9 +445,8 @@ def bin_search(
         t_start = time.time()
         j_amax = torch.argmax(a_x)
         xj = xx[j_amax].item()
-        yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
-
-        # yj = int(torch.bernoulli(get_py_txse(1, 0.2, xj, 10, eps_)))
+        # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
+        yj = int(torch.bernoulli(1-pp[xj]))
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()
 

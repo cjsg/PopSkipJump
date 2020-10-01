@@ -112,7 +112,7 @@ class HopSkipJumpAttack:
             )
         else:
             perturbed, dist_post_update, s_, _ = self.info_max_batch2(
-                original, perturbed[None], decision_function, self.grid_size
+                original, perturbed[None], decision_function, self.grid_size, a.true_label
             )
         additional['timing']['init_search'] = time.time()
         additional['progression'].append({'binary': perturbed, 'approx_grad':additional['initial']})
@@ -186,7 +186,7 @@ class HopSkipJumpAttack:
                     )
                 else:
                     perturbed, dist_post_update, s_, (tmap, xx) = self.info_max_batch2(
-                        original, perturbed[None], decision_function, self.grid_size
+                        original, perturbed[None], decision_function, self.grid_size, a.true_label
                     )
                     additional['progression'][-1]['tmap'] = tmap
                     additional['progression'][-1]['samples'] = xx
@@ -277,13 +277,13 @@ class HopSkipJumpAttack:
         #     else:
         #         low = mid
 
-    def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function, grid_size):
+    def info_max_batch2(self, unperturbed, perturbed_inputs, decision_function, grid_size, true_label):
         border_points = []
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
-            output = bin_search(unperturbed, perturbed_input, decision_function, d=self.d,
-                                grid_size=grid_size, device=get_device())
+            output = bin_search(unperturbed, perturbed_input, self.model_interface, d=self.d,
+                                grid_size=grid_size, device=get_device(), true_label=true_label)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map = output['tts_max'][-1]
             # t_map, s_map = t_map.numpy(), s_map.numpy()

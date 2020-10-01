@@ -43,14 +43,14 @@ class Model:
 
     def get_probs(self, images):
         if type(images) != torch.Tensor:
-            images = torch.tensor(images, dtype=torch.float64)
+            images = torch.tensor(images, dtype=torch.float32)
         logits = self.predict(images)
-        logits = logits.numpy()
-        logits = logits - np.max(logits, axis=1, keepdims=True)
-        probs = np.exp(self.beta*logits)
-        probs = probs / np.sum(probs, axis=1, keepdims=True)
+        # logits = logits.numpy()
+        logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
+        probs = torch.exp(self.beta*logits)
+        probs = probs / torch.sum(probs, dim=1, keepdim=True)
         # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
-        return np.array(probs)
+        return probs
 
     def get_grads(self, images, true_label):
         # TODO: this line will not work for noisy model.

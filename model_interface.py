@@ -50,6 +50,16 @@ class ModelInterface:
         else:
             return 0
 
+    def get_probs_(self, images):
+        """
+            WARNING
+            This function should only be used for capturing statistics.
+            It should not be a part of a decision based attack.
+        """
+        m_id = random.choice(list(range(len(self.models))))
+        outs = self.models[m_id].get_probs(images)
+        return outs
+
     def get_probs(self, image):
         """
             WARNING

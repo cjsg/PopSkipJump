@@ -4,15 +4,15 @@ import matplotlib.pylab as plt
 from model_factory import get_model
 
 
-NUM_ITERATIONS = 1
+NUM_ITERATIONS = 32
 NUM_IMAGES = 1
 # TARGET_IMAGE = 4
 NOISE = 'bayesian'
 exp_name = 'eval_exp_wo_step_50'
 # lis = ['infomax_5_32_opp', 'infomax_5_32_evals','infomax_5_32_opp_evals']
-lis = ['gpu_cpu', 'gpu', 'gpu_exp', 'gpu3', 'del_later']
-titles = ['CPU', 'GPU', 'GPU (in batches)', 'GPU (Approx Grad', 'Bla']
-lis, titles = lis[-1:], titles[-1:]
+lis = ['gpu_cpu', 'gpu', 'gpu_exp', 'gpu_approxgrad']
+titles = ['CPU', 'GPU', 'GPU (in batches)', 'GPU (Approx Grad)']
+# lis, titles = lis[-1:], titles[-1:]
 
 image_path = 'adv/del_later.png'
 
@@ -22,7 +22,10 @@ import torch
 
 def read_dump(path):
     filepath = 'adv/{}/raw_data.pkl'.format(path)
-    raw = torch.load(open(filepath, 'rb'), map_location='cpu')
+    if path == 'gpu_approxgrad':
+        raw = torch.load(open(filepath, 'rb'), map_location='cpu')
+    else:
+        raw = pickle.load(open(filepath, 'rb'))
     return raw
 
 
