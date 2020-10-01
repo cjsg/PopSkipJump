@@ -63,6 +63,8 @@ class HopSkipJumpAttack:
             a = Adversarial(image=image, label=label, device=self.device)
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
+            self.prev_t = None
+            self.prev_s = None
             results = self.attack_one(a, iterations, average, flags=flags)
             if len(results) > 0:
                 distances.append(a.distance)
