@@ -332,6 +332,7 @@ def bin_search(
 
     # Initialize logs
     output = {
+        'queries_per_loc': [],
         'xxj': [],
         'yyj': [],
         'tts_max': [],
@@ -352,11 +353,15 @@ def bin_search(
      tt_max_acquisition, tt_posterior) = 0.0, 0.0, 0.0, 0.0, 0.0
 
     stop_next = False
-    for k in tqdm(range(int(kmax / queries)), desc='bin-search'):
+    max_queries = queries
+
+    for k in tqdm(range(int(kmax / max_queries)), desc='bin-search'):
         if stop_next:
             break
 
         t_start = time.time()
+
+        queries = min(k // 2 + 1, max_queries)
 
         # Compute some probabilities / expectations
         pyts_x = py_txs * pts_x
@@ -462,11 +467,15 @@ def bin_search(
         # Maximize acquisition function over sampling loc x
         tt_acq_func += time.time() - t_start
         t_start = time.time()
-        j_amax = torch.argmax(a_x)
-        # xj = xx[j_amax].item()
-        j_amax = j_amax.repeat(queries)
+        a_max = torch.max(a_x)
+        jj_top = torch.where(a_x >= .9 * a_max)[0]
+        j_amax = jj_top[torch.randint(len(jj_top), size=[queries])]
+        
+        # # xj = xx[j_amax].item()
+        # # yj = int(torch.bernoulli(1-pp[j_amax]))
+        # j_amax = torch.argmax(a_x)
+        # j_amax = j_amax.repeat(queries)
         xj = xx[j_amax]
-        # yj = int(torch.bernoulli(1-pp[j_amax]))
         yj = torch.bernoulli(1-pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
@@ -474,23 +483,23 @@ def bin_search(
 
         # Update logs
         # vprint(f'E[n]_lim = {n_opt:.2e}\t E[n] = {n_z[j_amax]:.2e}')
+        output['queries_per_loc'].append(queries)
         output['xxj'].extend([x.item() for x in xj])
         output['yyj'].extend([y.item() for y in yj])
-        output['tts_max'].extend([ts_max] * queries)
-        output['tts_map'].extend([ts_map] * queries)
-        output['zz_tmax'].extend([z_tmax] * queries)
-        output['zz_tmap'].extend([z_tmap] * queries)
-        output['zz_best'].extend([z_best] * queries)
-        output['nn_best_est'].extend([n_zbest_est] * queries)
-        output['nn_tmax_est'].extend([n_ztmax_est] * queries)
-        output['nn_tmap_est'].extend([n_ztmap_est] * queries)
+        output['tts_max'].append(ts_max)
+        output['tts_map'].append(ts_map)
+        output['zz_tmax'].append(z_tmax)
+        output['zz_tmap'].append(z_tmap)
+        output['zz_best'].append(z_best)
+        output['nn_best_est'].append(n_zbest_est)
+        output['nn_tmax_est'].append(n_ztmax_est)
+        output['nn_tmap_est'].append(n_ztmap_est)
 
         # Test stopping criterion
-        if len(output['nn_tmap_est']) > window_size:
-            smoothing_kernel = torch.ones(10, ) / 10
-            exp_n = torch.tensor(output['nn_tmap_est'][-window_size:])
-            diffs = torch.abs(exp_n[1:] - exp_n[:-1])
-            if torch.mean(diffs) < 1.:
+        if len(output['nn_tmap_est']) > window_size + 1:
+            nn = torch.tensor(output['nn_tmap_est'][-(window_size+1):])
+            diffs = torch.abs(nn[1:] - nn[:-1])
+            if torch.mean(diffs) < queries:
                 stop_next = True
 
         # Plots
@@ -509,11 +518,15 @@ def bin_search(
         # New prior = previous posterior
         pts = pts_xyj
         pts_x = pts  # (t, s) independent of sampling point x
-        k += len(xj)
         tt_posterior += time.time() - t_start
 
     end = time.time()
     vprint(f'Time to finish: {end - start:.2f} s')
+    nn = torch.tensor(output['nn_tmap_est'])
+    diffs = torch.abs(nn[1:] - nn[:-1])[20:]
+    plt.plot(torch.arange(len(diffs)) * queries, torch.log10(diffs))
+    # plt.plot(torch.log10(torch.tensor(output['nn_tmap_est'])[20:]))
+    plt.savefig('diffs.png')
     return output
 
 
