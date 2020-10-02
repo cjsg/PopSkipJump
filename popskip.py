@@ -82,7 +82,7 @@ class PopSkipJump(Attack):
             probs.append(out)
         probs = torch.cat(probs, dim=0)
         probs = probs.repeat(grad_queries)
-        outs = torch.bernoulli(1-probs)
+        outs = self.model_interface.sample_bernoulli(1-probs)
         return outs
 
     def approximate_gradient(self, sample, num_evals, delta, average=False, grad_queries=1):

@@ -476,7 +476,7 @@ def bin_search(
         # j_amax = torch.argmax(a_x)
         # j_amax = j_amax.repeat(queries)
         xj = xx[j_amax]
-        yj = torch.bernoulli(1-pp[j_amax]).long()
+        yj = model_interface.sample_bernoulli(1-pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

@@ -50,6 +50,11 @@ class ModelInterface:
         else:
             return 0
 
+    def sample_bernoulli(self, probs):
+        self.model_calls += len(probs)
+        return torch.bernoulli(probs)
+
+
     def get_probs_(self, images):
         """
             WARNING
