@@ -86,40 +86,12 @@ class PopSkipJump(Attack):
         return outs
 
     def approximate_gradient(self, sample, num_evals, delta, average=False, grad_queries=1):
-        """ Gradient direction estimation """
+        """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         noise_shape = [int(num_evals/grad_queries)] + list(self.shape)
-        if self.constraint == "l2":
-            if torch.cuda.is_available():
-                rv = torch.cuda.FloatTensor(*noise_shape).normal_()
-            else:
-                rv = torch.FloatTensor(*noise_shape).normal_()
-        elif self.constraint == "linf":
-            rv = np.random.uniform(low=-1, high=1, size=noise_shape)
-        else:
-            raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
-
-        axis = tuple(range(1, 1 + len(self.shape)))
-        rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
-        perturbed = sample + delta * rv
-        perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-        rv = (perturbed - sample) / delta
-
+        perturbed, rv = self.generate_random_vectors(delta, noise_shape, sample)
         # query the model.
         outputs = self.approximate_decisions(perturbed, grad_queries)
         rv = rv.repeat(grad_queries, *([1]*(len(noise_shape)-1)))
-        decisions = outputs[outputs != -1]
-        decision_shape = [len(decisions)] + [1] * len(self.shape)
-        fval = 2 * decisions.view(decision_shape) - 1.0
+        return self.calculate_grad(outputs, rv)
 
-        # Baseline subtraction (when fval differs)
-        vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
-        rv = rv[outputs != -1]
-        gradf = torch.mean(vals * rv, dim=0)
-
-        # Get the gradient direction.
-        if torch.sum(outputs != -1) == 0:
-            return None
-        gradf = gradf / torch.norm(gradf)
-
-        return gradf

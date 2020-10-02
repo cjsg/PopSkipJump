@@ -198,10 +198,7 @@ class Attack:
             if num_evals > 1e4:
                 return
 
-    def approximate_gradient(self, sample, num_evals, delta, average=False):
-        """ Gradient direction estimation """
-        # Generate random vectors.
-        noise_shape = [num_evals] + list(self.shape)
+    def generate_random_vectors(self, delta, noise_shape, sample):
         if self.constraint == "l2":
             if torch.cuda.is_available():
                 rv = torch.cuda.FloatTensor(*noise_shape).normal_()
@@ -211,30 +208,21 @@ class Attack:
             rv = np.random.uniform(low=-1, high=1, size=noise_shape)
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
-
         axis = tuple(range(1, 1 + len(self.shape)))
         rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         perturbed = sample + delta * rv
         perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
         rv = (perturbed - sample) / delta
+        return perturbed, rv
 
+    def approximate_gradient(self, sample, num_evals, delta, average=False, grad_queries=1):
+        """ Gradient direction estimation """
+        # Generate random vectors.
+        noise_shape = [num_evals] + list(self.shape)
+        perturbed, rv = self.generate_random_vectors(delta, noise_shape, sample)
         # query the model.
         outputs = self.get_decision_in_batch(perturbed, self.grad_sampling_freq, average, remember=self.remember)
-        decisions = outputs[outputs != -1]
-        decision_shape = [len(decisions)] + [1] * len(self.shape)
-        fval = 2 * decisions.view(decision_shape) - 1.0
-
-        # Baseline subtraction (when fval differs)
-        vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
-        rv = rv[outputs != -1]
-        gradf = torch.mean(vals * rv, dim=0)
-
-        # Get the gradient direction.
-        if torch.sum(outputs != -1) == 0:
-            return None
-        gradf = gradf / torch.norm(gradf)
-
-        return gradf
+        return self.calculate_grad(outputs, rv)
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         """ Geometric progression to search for stepsize.
@@ -277,3 +265,17 @@ class Attack:
             else:
                 raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
+
+    def calculate_grad(self, outputs, rv):
+        decisions = outputs[outputs != -1]
+        decision_shape = [len(decisions)] + [1] * len(self.shape)
+        fval = 2 * decisions.view(decision_shape) - 1.0
+        # Baseline subtraction (when fval differs)
+        vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
+        rv = rv[outputs != -1]
+        gradf = torch.mean(vals * rv, dim=0)
+        # Get the gradient direction.
+        if torch.sum(outputs != -1) == 0:
+            return None
+        gradf = gradf / torch.norm(gradf)
+        return gradf
