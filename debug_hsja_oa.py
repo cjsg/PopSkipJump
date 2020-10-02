@@ -14,8 +14,8 @@ NOISE = 'bayesian'
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 # exp_names = [exp_names[i] for i in [0,1,2,4]]
 # labels = [labels[i] for i in [0,1,2,3,5]]
-exp_names = ['gpu_20', 'gpu_cj_20']
-labels = ['Without Interval Reduction', "With Interval Reduction"]
+exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_queries_v2_20']
+labels = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2"]
 image_path = 'adv/debug_20.pdf'
 ALPHA = 0.4
 
@@ -71,23 +71,23 @@ for i, raw in enumerate(raws):
             true_prob = probs[0][label]
             abs_error[iteration] += true_prob
             distances.append(distance)
-            if i == 2:
-                adv_prob = np.max(probs[0][np.arange(10) != label])
-                if (true_prob > adv_prob):
-                    x_tt = 2*x_t-x_star
-                    while True:
-                        res = search_boundary(x_t, x_tt,theta_det, label)
-                        if np.any(res != x_tt):
-                            x_tt = res
-                            break
-                        x_tt = res
-                else:
-                    x_tt = search_boundary(x_star, x_t, theta_det, label)
-                distance2 = np.linalg.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
-                probs = model.get_probs([x_tt])
-                true_prob2 = probs[0][label]
-                distances2.append(distance2)
-                abs_error2[iteration] += true_prob2
+            # if i == 2:
+            #     adv_prob = np.max(probs[0][np.arange(10) != label])
+            #     if (true_prob > adv_prob):
+            #         x_tt = 2*x_t-x_star
+            #         while True:
+            #             res = search_boundary(x_t, x_tt,theta_det, label)
+            #             if np.any(res != x_tt):
+            #                 x_tt = res
+            #                 break
+            #             x_tt = res
+            #     else:
+            #         x_tt = search_boundary(x_star, x_t, theta_det, label)
+            #     distance2 = np.linalg.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+            #     probs = model.get_probs([x_tt])
+            #     true_prob2 = probs[0][label]
+            #     distances2.append(distance2)
+            #     abs_error2[iteration] += true_prob2
 
             # Model Calls
             grad_calls[0][image] = raw[image]['model_calls']['initialization']
@@ -98,8 +98,8 @@ for i, raw in enumerate(raws):
             step_calls[iteration+1][image] = details[iteration]['step_search']
             bin_calls[iteration+1][image] = details[iteration]['binary']
         medians.append(np.median(distances))
-        if i==2:
-            medians2.append(np.median(distances2))
+        # if i==2:
+        #     medians2.append(np.median(distances2))
     total_grad_calls = grad_calls.mean(axis=1)
     total_step_calls = step_calls.mean(axis=1)
     total_bin_calls = bin_calls.mean(axis=1)
@@ -107,10 +107,10 @@ for i, raw in enumerate(raws):
     plot1series1.append(medians)
     plot1series2.append(abs_error/(NUM_IMAGES-cn))
     plot2series.append(total_bin_calls)
-    if i==2:
-        plot1series1.append(medians2)
-        plot1series2.append(abs_error2 / NUM_IMAGES)
-        plot2series.append(total_bin_calls)
+    # if i==2:
+    #     plot1series1.append(medians2)
+    #     plot1series2.append(abs_error2 / NUM_IMAGES)
+    #     plot2series.append(total_bin_calls)
 
 # labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
