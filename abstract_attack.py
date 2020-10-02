@@ -6,15 +6,16 @@ import numpy as np
 from tracker import Diary, DiaryPage, InfoMaxStats
 from defaultparams import DefaultParams
 from adversarial import Adversarial
+from model_interface import ModelInterface
 from infomax_gpu import bin_search, get_cos_from_n, get_n_from_cos
 
 
 class Attack:
     def __init__(
             self, model_interface, data_shape, internal_dtype=np.float32, bounds=(0, 1), device=None,
-            params: DefaultParams = None, prior_frac=1., queries=1):
+            params: DefaultParams = None, prior_frac=1., queries=1, grad_queries=1):
 
-        self.model_interface = model_interface
+        self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
         self.max_num_evals = params.max_num_evals
         self.stepsize_search = params.stepsize_search
@@ -33,6 +34,7 @@ class Attack:
         self.prev_s = None
         self.prior_frac = prior_frac
         self.queries = queries
+        self.grad_queries = grad_queries
 
         # Set constraint based on the distance.
         if params.distance == 'MSE':
@@ -51,7 +53,7 @@ class Attack:
         else:
             self.theta_det = self.gamma / (self.d * self.d)
 
-    def attack(self, images, labels, starts=None, iterations=64, average=False, flags=None):
+    def attack(self, images, labels, starts=None, iterations=64, average=False):
         raw_results = []
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
@@ -60,7 +62,7 @@ class Attack:
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
             self.reset_variables(a, image, label)
-            self.attack_one(a, iterations, average)
+            self.attack_one(iterations, average)
             if len(self.diary.iterations) > 0:
                 distances.append(a.distance)
             raw_results.append(self.diary)
@@ -82,7 +84,7 @@ class Attack:
     def perform_opposite_direction_movement(self, original, perturbed):
         raise NotImplementedError
 
-    def attack_one(self, a, iterations=64, average=False):
+    def attack_one(self, iterations=64, average=False):
         self.diary.epoch_start = time.time()
 
         self.perform_initialization()
@@ -196,107 +198,6 @@ class Attack:
             if num_evals > 1e4:
                 return
 
-    def info_max_batch(self, unperturbed, perturbed_inputs, grid_size, true_label):
-        border_points = []
-        dists = []
-        smaps = []
-        for perturbed_input in perturbed_inputs:
-            output = bin_search(
-                unperturbed, perturbed_input, self.model_interface, d=self.d,
-                grid_size=grid_size, device=self.device,
-                true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
-                prior_frac=self.prior_frac, queries=self.queries)
-            nn_tmap_est = output['nn_tmap_est']
-            t_map, s_map = output['tts_max'][-1]
-            border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
-            self.prev_t, self.prev_s = t_map, s_map
-            dist = self.compute_distance(unperturbed, border_point)
-            border_points.append(border_point)
-            dists.append(dist)
-            smaps.append(s_map)
-        idx = np.argmin(np.array(dists))
-        dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
-        if dist == 0:
-            print("Distance is zero in search")
-        out = border_points[idx]
-        dist_border = self.compute_distance(out, unperturbed)
-        if dist_border == 0:
-            print("Distance of border point is 0")
-        if self.hsja:
-            self.get_decision_in_batch(out[None], freq=1,
-                                       remember=True)  # this is to make the model remember the sample
-        else:
-            self.get_decision_in_batch(out[None], freq=self.sampling_freq * 32,
-                                       remember=True)  # this is to make the model remember the sample
-        return out, dist, smaps[idx], (nn_tmap_est, output['xxj'])
-
-    def binary_search_batch(self, unperturbed, perturbed_inputs, cosine=False):
-        """ Binary search to approach the boundary. """
-
-        # Compute distance between each of perturbed and unperturbed input.
-        dists_post_update = np.array(
-            [
-                self.compute_distance(unperturbed, perturbed_x)
-                for perturbed_x in perturbed_inputs
-            ]
-        )
-
-        # Choose upper thresholds in binary searchs based on constraint.
-        if self.constraint == "linf":
-            highs = dists_post_update
-            # Stopping criteria.
-            thresholds = dists_post_update * self.theta_det
-        else:
-            highs = np.ones(len(perturbed_inputs))
-            # thresholds = self.theta * 1000  # remove 1000 later
-            thresholds = self.theta_det  # remove 1000 later
-            if cosine:
-                thresholds /= self.d
-
-        lows = np.zeros(len(perturbed_inputs))
-
-        # Call recursive function.
-        while np.max((highs - lows) / thresholds) > 1:
-            # projection to mids.
-            mids = (highs + lows) / 2.0
-            mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
-
-            # Update highs and lows based on model decisions.
-            # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
-            decisions = self.get_decision_in_batch(mid_inputs, self.sampling_freq, remember=self.remember)
-            decisions[decisions == -1] = 0
-            lows = np.where(decisions == 0, mids, lows)
-            highs = np.where(decisions == 1, mids, highs)
-
-        out_inputs = self.project(unperturbed, perturbed_inputs, highs)
-
-        # Compute distance of the output to select the best choice.
-        # (only used when stepsize_search is grid_search.)
-        dists = np.array([self.compute_distance(unperturbed, out) for out in out_inputs])
-        idx = np.argmin(dists)
-
-        dist = dists_post_update[idx]
-        out = out_inputs[idx]
-        if self.hsja:
-            self.get_decision_in_batch(out[None], freq=1,
-                                       remember=True)  # this is to make the model remember the sample
-        else:
-            self.get_decision_in_batch(out[None], freq=self.sampling_freq * 32,
-                                       remember=True)  # this is to make the model remember the sample
-        return out, dist
-
-    def project(self, unperturbed, perturbed_inputs, alphas):
-        """ Projection onto given l2 / linf balls in a batch. """
-        alphas_shape = [len(alphas)] + [1] * len(self.shape)
-        alphas = alphas.reshape(alphas_shape)
-        if self.constraint == "l2":
-            projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
-        elif self.constraint == "linf":
-            projected = np.clip(
-                perturbed_inputs, unperturbed - alphas, unperturbed + alphas
-            )
-        return projected.astype(self.internal_dtype)
-
     def approximate_gradient(self, sample, num_evals, delta, average=False):
         """ Gradient direction estimation """
         # Generate random vectors.
@@ -335,9 +236,7 @@ class Attack:
 
         return gradf
 
-    def geometric_progression_for_stepsize(
-            self, x, update, dist, current_iteration, original=None
-    ):
+    def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         """ Geometric progression to search for stepsize.
           Keep decreasing stepsize by half until reaching
           the desired side of the boundary.
