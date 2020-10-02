@@ -2,7 +2,7 @@ import pickle
 import numpy as np
 import matplotlib.pylab as plt
 from model_factory import get_model
-
+from tracker import Diary
 
 NUM_ITERATIONS = 32
 NUM_IMAGES = 20
@@ -14,8 +14,11 @@ NOISE = 'bayesian'
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 # exp_names = [exp_names[i] for i in [0,1,2,4]]
 # labels = [labels[i] for i in [0,1,2,3,5]]
-exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_queries_v2_20']
-labels = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2"]
+# exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_queries_v2_20', 'gpu_gq_20']
+exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_q_v2_20', 'gpu_gq_20']
+labels = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2", "Grad Queries"]
+exp_names = exp_names[-2:]
+labels = labels[-2:]
 image_path = 'adv/debug_20.pdf'
 ALPHA = 0.4
 
@@ -60,12 +63,13 @@ for i, raw in enumerate(raws):
         distances, distances2 = [], []
         cn=0
         for image in range(NUM_IMAGES):
-            if 'iterations' not in raw[image]:
+            diary: Diary = raw[image]
+            if len(diary.iterations) is 0:
                 cn+=1
                 continue
-            x_star = raw[image]['original']
-            x_t = raw[image]['progression'][iteration]['binary'].numpy()
-            label = raw[image]['true_label']
+            x_star = diary.true_label
+            x_t = diary.iterations[iteration].bin_search.numpy()
+            label = diary.original
             distance = np.linalg.norm(x_star - x_t) ** 2 / 784 / 1 ** 2
             probs = model.get_probs([x_t])
             true_prob = probs[0][label]
@@ -90,13 +94,13 @@ for i, raw in enumerate(raws):
             #     abs_error2[iteration] += true_prob2
 
             # Model Calls
-            grad_calls[0][image] = raw[image]['model_calls']['initialization']
-            bin_calls[0][image] = raw[image]['model_calls']['projection']
+            grad_calls[0][image] = diary.calls_initialization
+            bin_calls[0][image] = diary.calls_initial_bin_search
             step_calls[0][image] = None
-            details = raw[image]['model_calls']['iters']
-            grad_calls[iteration+1][image] = details[iteration]['approx_grad']
-            step_calls[iteration+1][image] = details[iteration]['step_search']
-            bin_calls[iteration+1][image] = details[iteration]['binary']
+            details = diary.iterations
+            grad_calls[iteration+1][image] = details[iteration].calls.approx_grad
+            step_calls[iteration+1][image] = details[iteration].calls.step_search
+            bin_calls[iteration+1][image] = details[iteration].calls.bin_search
         medians.append(np.median(distances))
         # if i==2:
         #     medians2.append(np.median(distances2))

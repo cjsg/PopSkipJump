@@ -13,7 +13,7 @@ from infomax_gpu import bin_search, get_cos_from_n, get_n_from_cos
 class Attack:
     def __init__(
             self, model_interface, data_shape, internal_dtype=np.float32, bounds=(0, 1), device=None,
-            params: DefaultParams = None, prior_frac=1., queries=1, grad_queries=1):
+            params: DefaultParams = None):
 
         self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
@@ -32,9 +32,9 @@ class Attack:
         self.device = device
         self.prev_t = None
         self.prev_s = None
-        self.prior_frac = prior_frac
-        self.queries = queries
-        self.grad_queries = grad_queries
+        self.prior_frac = params.prior_frac
+        self.queries = params.queries
+        self.grad_queries = params.grad_queries
 
         # Set constraint based on the distance.
         if params.distance == 'MSE':
@@ -176,7 +176,7 @@ class Attack:
         outs = torch.cat(outs, dim=0)
         return outs
 
-    def reset_variables(self, a, label, image):
+    def reset_variables(self, a, image, label):
         self.model_interface.model_calls = 0
         self.a = a
         self.prev_t = None

@@ -29,7 +29,7 @@ class PopSkipJump(Attack):
         page.time.num_evals = time.time()
 
         gradf = self.approximate_gradient(
-            perturbed, num_evals_prob/self.grad_queries, dist_post_update * np.sqrt(self.d) / self.grid_size, average
+            perturbed, num_evals_prob, dist_post_update * np.sqrt(self.d) / self.grid_size, average
         )
         return gradf
 

@@ -51,7 +51,7 @@ class ModelInterface:
             return 0
 
     def sample_bernoulli(self, probs):
-        self.model_calls += len(probs)
+        self.model_calls += probs.numel()
         return torch.bernoulli(probs)
 
 

@@ -40,7 +40,7 @@ def validate_args(args):
         exit()
 
 
-def create_attack(exp_name, dataset, params, prior_frac, queries, grad_queries):
+def create_attack(exp_name, dataset, params):
     if exp_name is None:
         exp_name = '%s' % datetime.now().strftime("%b%d_%H%M%S")
 
@@ -65,8 +65,7 @@ def create_attack(exp_name, dataset, params, prior_frac, queries, grad_queries):
 
     # return HopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device(),
     #                          prior_frac=prior_frac, queries=queries)
-    return PopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device(),
-                             prior_frac=prior_frac, queries=queries, grad_queries=grad_queries)
+    return PopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device())
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
@@ -112,9 +111,15 @@ def main(params=None):
     exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
     dataset = args.dataset
 
-    attack = create_attack(
-        exp_name, dataset, params, args.prior_frac, args.queries_per_loc, args.grad_queries)
+    params.prior_frac = args.prior_frac
+    params.queries = args.queries_per_loc
+    params.grad_queries = args.grad_queries
+
+    attack = create_attack(exp_name, dataset, params)
     median_distance, additional = run_attack(attack, dataset, params)
+    print (additional[0].iterations[0].num_eval_prob)
+    print (additional[0].iterations[0].calls.bin_search)
+
     torch.save(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
@@ -123,7 +128,7 @@ def main(params=None):
 
 if __name__ == '__main__':
     hyperparams = DefaultParams()
-    hyperparams.num_iterations = 3
+    hyperparams.num_iterations = 1
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
     hyperparams.experiment_name = 'del_later'

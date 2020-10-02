@@ -39,5 +39,6 @@ class DefaultParams:
         self.num_samples = 3
         self.experiment_name = None  # If not none it will override the command line argument
 
-        # For book-keeping
-        self.flags = dict(stats_cosines=False, stats_manifold=False)
+        self.prior_frac = 1
+        self.queries = 1
+        self.grad_queries = 1
