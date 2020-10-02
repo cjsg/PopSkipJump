@@ -12,6 +12,12 @@ class DefaultParams:
         self.hopskipjumpattack = False
         self.remember_all = False  # This should be true for HSJA
 
+        self.initial_num_evals = 100  # B_0 (i.e. num of queries for first iteration of original HSJA)
+        self.max_num_evals = 50000  # Maximum queries allowed in Approximate Gradient Step
+        self.stepsize_search = "geometric_progression"
+        self.distance = "MSE"  # Distance metric
+        self.batch_size = 256
+
         # Hand-picking images
         self.orig_image_conf = 0.75
 

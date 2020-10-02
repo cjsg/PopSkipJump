@@ -1,13 +1,14 @@
 import argparse
 import logging
 import os
-import pickle
+import torch
 import time
 from datetime import datetime
 
 from defaultparams import DefaultParams
-from hopskip import HopSkipJumpAttack
-from our_attack import OurAttack
+# from hopskip import HopSkipJumpAttack
+from popskip import PopSkipJump
+# from our_attack import OurAttack
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device
 from model_factory import get_model
 from model_interface import ModelInterface
@@ -58,10 +59,10 @@ def create_attack(exp_name, dataset, params, prior_frac, queries):
         noise=params.noise, new_adv_def=params.new_adversarial_def,
         device=get_device())
 
-    return HopSkipJumpAttack(
-        model_interface, get_shape(dataset), experiment=exp_name,
-        params=params, device=get_device(), prior_frac=prior_frac,
-        queries=queries)
+    # return HopSkipJumpAttack(model_interface, get_shape(dataset), params=params, device=get_device(),
+    #                          prior_frac=prior_frac, queries=queries)
+    return PopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device(),
+                             prior_frac=prior_frac, queries=queries)
     # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
 
 
@@ -111,20 +112,21 @@ def main(params=None):
     attack = create_attack(
         exp_name, dataset, params, args.prior_frac, args.queries_per_loc)
     median_distance, additional = run_attack(attack, dataset, params)
-    import  torch
     torch.save(additional, open('adv/{}/raw_data.pkl'.format(exp_name), 'wb'))
     logging.warning('Saved output at "{}"'.format(exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
+    return median_distance
 
 
 if __name__ == '__main__':
     hyperparams = DefaultParams()
-    hyperparams.num_iterations = 32
+    hyperparams.num_iterations = 3
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
     hyperparams.experiment_name = 'del_later'
     hyperparams.num_samples = 1
     start = time.time()
-    main(params=hyperparams)
+    median = main(params=hyperparams)
+    assert 0.002 <= median <= 0.008
     print(time.time() - start)
     pass
