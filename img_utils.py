@@ -38,6 +38,23 @@ def get_device():
         device = torch.device('cpu')
     return device
 
+
+def find_adversarial_images(labels):
+    ii, ll = get_samples(n_samples=10)
+    cand_img, cand_lbl = [], []
+    for i, l in enumerate(ll):
+        if l != ll[0]:
+            cand_img = [ii[0], ii[i]]
+            cand_lbl = [ll[0], ll[i]]
+    starts = []
+    for l in labels:
+        if l != cand_lbl[0]:
+            starts.append(cand_img[0])
+        else:
+            starts.append(cand_img[1])
+    return starts
+
+
 def get_samples(n_samples=16, conf=None, model=None):
     np.random.seed(42)
     test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)

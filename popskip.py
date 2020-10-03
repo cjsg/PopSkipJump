@@ -18,8 +18,7 @@ class PopSkipJump(Attack):
             page.info_max_stats = InfoMaxStats(s_, tmap, xx)
         return perturbed, dist_post_update, {'s': s_}
 
-    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, average, dist_post_update, estimates,
-                                       page):
+    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta / dist_post_update,
                                     d=self.d)
         num_evals_prob = int(get_n_from_cos(target_cos, s=estimates['s'], theta=(1 / self.grid_size),
@@ -29,7 +28,7 @@ class PopSkipJump(Attack):
         page.time.num_evals = time.time()
 
         gradf = self.approximate_gradient(
-            perturbed, num_evals_prob, dist_post_update * np.sqrt(self.d) / self.grid_size, average
+            perturbed, num_evals_prob, dist_post_update * np.sqrt(self.d) / self.grid_size, self.average
         )
         return gradf
 

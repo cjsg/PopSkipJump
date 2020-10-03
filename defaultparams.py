@@ -4,7 +4,7 @@ class DefaultParams:
     """
     def __init__(self):
         self.attack = 'popskip'
-
+        self.model_keys: list = ['mnist_noman']
         self.num_iterations = 32
         self.gamma = 1.0
         self.input_image_path = None  # String

@@ -4,6 +4,13 @@ import torch
 
 
 class ModelInterface:
+    """
+        All queries to classifiers/models to should happend via this class.
+        It is a wrapper over a set of models that:
+            - tracks model calls
+            - implements the logic to pick a model
+            - implements the definition of an adversarial example
+    """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False,
                  device=None):
         self.models = models
@@ -20,40 +27,9 @@ class ModelInterface:
         for model in self.models:
             model.model = model.model.to(self.device)
 
-    def forward_one(self, image, a, freq, is_original=False):
-        slack = self.slack_prop * freq
-        m_id = random.choice(list(range(len(self.models))))
-        if self.noise != 'deterministic':
-            new_def_threshold = 0.6 if is_original else 0.5
-            batch = torch.stack([image] * freq)
-            outs = self.models[m_id].ask_model(batch)
-            self.model_calls += freq
-            label_freqs = torch.bincount(outs, minlength=self.n_classes)
-            true_freq = label_freqs[a.true_label]
-            adv_freq = torch.max(label_freqs[np.arange(self.n_classes) != a.true_label])
-            if self.new_adversarial_def and true_freq >= new_def_threshold * freq:
-                label = a.true_label
-            elif not self.new_adversarial_def and true_freq + slack >= adv_freq:
-                label = a.true_label
-            else:
-                label = -2
-        else:
-            batch = np.stack([image])
-            label = self.models[m_id].ask_model(batch)[0]
-            self.model_calls += 1
-        if label != a.true_label:
-            distance = a.calculate_distance(image, self.bounds)
-            if a.distance > distance:
-                a.distance = distance
-                a.perturbed = image
-            return 1
-        else:
-            return 0
-
     def sample_bernoulli(self, probs):
         self.model_calls += probs.numel()
         return torch.bernoulli(probs)
-
 
     def get_probs_(self, images):
         """

@@ -29,6 +29,7 @@ class Attack:
         self.search = params.search
         self.hsja = params.hopskipjumpattack
         self.remember = params.remember_all
+        self.average = params.average
         self.device = device
         self.prev_t = None
         self.prev_s = None
@@ -53,7 +54,7 @@ class Attack:
         else:
             self.theta_det = self.gamma / (self.d * self.d)
 
-    def attack(self, images, labels, starts=None, iterations=64, average=False):
+    def attack(self, images, labels, starts=None, iterations=64):
         raw_results = []
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
@@ -61,8 +62,8 @@ class Attack:
             a = Adversarial(image=image, label=label, device=self.device)
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
-            self.reset_variables(a, image, label)
-            self.attack_one(iterations, average)
+            self.reset_variables(a)
+            self.attack_one(iterations)
             if len(self.diary.iterations) > 0:
                 distances.append(a.distance)
             raw_results.append(self.diary)
@@ -77,14 +78,14 @@ class Attack:
     def perform_bin_search(self, original, perturbed, page=None):
         raise NotImplementedError
 
-    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, average, dist_post_update, estimates,
+    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, dist_post_update, estimates,
                                        page):
         raise NotImplementedError
 
     def perform_opposite_direction_movement(self, original, perturbed):
         raise NotImplementedError
 
-    def attack_one(self, iterations=64, average=False):
+    def attack_one(self, iterations=64):
         self.diary.epoch_start = time.time()
 
         self.perform_initialization()
@@ -108,7 +109,7 @@ class Attack:
 
             delta = self.select_delta(dist_post_update, step)
             num_evals_det = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
-            gradf = self.perform_gradient_approximation(perturbed, num_evals_det, delta, average, dist_post_update,
+            gradf = self.perform_gradient_approximation(perturbed, num_evals_det, delta, dist_post_update,
                                                         estimates, page)
             page.num_eval_det = num_evals_det
             page.time.approx_grad = time.time()
@@ -176,21 +177,18 @@ class Attack:
         outs = torch.cat(outs, dim=0)
         return outs
 
-    def reset_variables(self, a, image, label):
+    def reset_variables(self, a):
         self.model_interface.model_calls = 0
         self.a = a
         self.prev_t = None
         self.prev_s = None
-        self.diary = Diary(image, label)
+        self.diary = Diary(a.unperturbed, a.true_label)
 
     def initialize_starting_point(self, a):
         num_evals = 0
         while True:
-            random_noise = np.random.uniform(
-                self.clip_min, self.clip_max, size=self.shape
-            ).astype(self.internal_dtype)
-
-            success = self.model_interface.forward_one(random_noise, a, self.sampling_freq)
+            random_noise = torch.rand(size=self.shape) * (self.clip_max - self.clip_min) + self.clip_min
+            success = self.model_interface.forward(random_noise[None], a, self.sampling_freq)
             # when model is confused, it is not adversarial
             num_evals += 1
             if success == 1:

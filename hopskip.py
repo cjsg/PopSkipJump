@@ -10,9 +10,8 @@ class HopSkipJump(Attack):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
         return perturbed, dist_post_update, None
 
-    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, average, dist_post_update, estimates,
-                                       page):
-        return self.approximate_gradient(perturbed, num_evals_det, delta, average)
+    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        return self.approximate_gradient(perturbed, num_evals_det, delta, self.average)
 
     def perform_opposite_direction_movement(self, original, perturbed):
         # Do Nothing
