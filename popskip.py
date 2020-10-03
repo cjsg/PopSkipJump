@@ -1,6 +1,5 @@
 import time
 import math
-import numpy as np
 import torch
 
 from abstract_attack import Attack
@@ -22,13 +21,13 @@ class PopSkipJump(Attack):
         target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta / dist_post_update,
                                     d=self.d)
         num_evals_prob = int(get_n_from_cos(target_cos, s=estimates['s'], theta=(1 / self.grid_size),
-                                            delta=(np.sqrt(self.d) / self.grid_size), d=self.d))
+                                            delta=(math.sqrt(self.d) / self.grid_size), d=self.d))
         page.num_eval_prob = num_evals_prob
         num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
         page.time.num_evals = time.time()
 
         gradf = self.approximate_gradient(
-            perturbed, num_evals_prob, dist_post_update * np.sqrt(self.d) / self.grid_size, self.average
+            perturbed, num_evals_prob, dist_post_update * math.sqrt(self.d) / self.grid_size, self.average
         )
         return gradf
 
@@ -54,7 +53,7 @@ class PopSkipJump(Attack):
             border_points.append(border_point)
             dists.append(dist)
             smaps.append(s_map)
-        idx = np.argmin(np.array(dists))
+        idx = int(torch.argmin(torch.tensor(dists)))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
         if dist == 0:
             print("Distance is zero in search")

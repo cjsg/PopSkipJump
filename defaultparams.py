@@ -33,14 +33,18 @@ class DefaultParams:
         self.slack = 0.0
         self.flip_prob = 0.2  # Specific to Stochastic Noise
         self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
+
         # Specific to Info max procedure
         self.grid_size = 80
+        self.prior_frac = 1
+        self.queries = 1
+
+        # Specific to Approximate Gradient
+        self.grad_queries = 1
 
         # Specific to Experiment mode
         self.experiment_mode = True
         self.num_samples = 3
         self.experiment_name = None  # If not none it will override the command line argument
 
-        self.prior_frac = 1
-        self.queries = 1
-        self.grad_queries = 1
+

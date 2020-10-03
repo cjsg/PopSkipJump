@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 
 from abstract_attack import Attack
 
@@ -21,7 +20,7 @@ class HopSkipJump(Attack):
         """ Binary search to approach the boundary. """
 
         # Compute distance between each of perturbed and unperturbed input.
-        dists_post_update = np.array(
+        dists_post_update = torch.tensor(
             [
                 self.compute_distance(unperturbed, perturbed_x)
                 for perturbed_x in perturbed_inputs
@@ -34,16 +33,16 @@ class HopSkipJump(Attack):
             # Stopping criteria.
             thresholds = dists_post_update * self.theta_det
         else:
-            highs = np.ones(len(perturbed_inputs))
+            highs = torch.ones(len(perturbed_inputs))
             # thresholds = self.theta * 1000  # remove 1000 later
             thresholds = self.theta_det  # remove 1000 later
             if cosine:
                 thresholds /= self.d
 
-        lows = np.zeros(len(perturbed_inputs))
+        lows = torch.zeros(len(perturbed_inputs))
 
         # Call recursive function.
-        while np.max((highs - lows) / thresholds) > 1:
+        while torch.max((highs - lows) / thresholds) > 1:
             # projection to mids.
             mids = (highs + lows) / 2.0
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
@@ -52,15 +51,15 @@ class HopSkipJump(Attack):
             # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
             decisions = self.get_decision_in_batch(mid_inputs, self.sampling_freq, remember=self.remember)
             decisions[decisions == -1] = 0
-            lows = np.where(decisions == 0, mids, lows)
-            highs = np.where(decisions == 1, mids, highs)
+            lows = torch.where(decisions == 0, mids, lows)
+            highs = torch.where(decisions == 1, mids, highs)
 
         out_inputs = self.project(unperturbed, perturbed_inputs, highs)
 
         # Compute distance of the output to select the best choice.
         # (only used when stepsize_search is grid_search.)
-        dists = np.array([self.compute_distance(unperturbed, out) for out in out_inputs])
-        idx = np.argmin(dists)
+        dists = torch.tensor([self.compute_distance(unperturbed, out) for out in out_inputs])
+        idx = torch.argmin(dists)
 
         dist = dists_post_update[idx]
         out = out_inputs[idx]
@@ -81,7 +80,7 @@ class HopSkipJump(Attack):
         if self.constraint == "l2":
             projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
         elif self.constraint == "linf":
-            projected = np.clip(
+            projected = torch.clamp(
                 perturbed_inputs, unperturbed - alphas, unperturbed + alphas
             )
         return projected

@@ -2,17 +2,16 @@ import logging
 import torch
 import math
 import time
-import numpy as np
-from tracker import Diary, DiaryPage, InfoMaxStats
+# import numpy as np
+from tracker import Diary, DiaryPage
 from defaultparams import DefaultParams
 from adversarial import Adversarial
 from model_interface import ModelInterface
-from infomax_gpu import bin_search, get_cos_from_n, get_n_from_cos
 
 
 class Attack:
     def __init__(
-            self, model_interface, data_shape, internal_dtype=np.float32, bounds=(0, 1), device=None,
+            self, model_interface, data_shape, internal_dtype=torch.float32, bounds=(0, 1), device=None,
             params: DefaultParams = None):
 
         self.model_interface: ModelInterface = model_interface
@@ -45,11 +44,11 @@ class Attack:
 
         # Set binary search threshold.
         self.shape = data_shape
-        self.d = np.prod(self.shape)
+        self.d = int(torch.prod(torch.tensor(self.shape)))
         self.grid_size = params.grid_size
         self.theta_prob = 1.0 / self.grid_size
         if self.constraint == "l2":
-            self.theta_det = self.gamma / (np.sqrt(self.d) * self.d)
+            self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
             # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta_det = self.gamma / (self.d * self.d)
@@ -108,14 +107,14 @@ class Attack:
             page.calls.start = self.model_interface.model_calls
 
             delta = self.select_delta(dist_post_update, step)
-            num_evals_det = int(min([self.initial_num_evals * np.sqrt(step), self.max_num_evals]))
+            num_evals_det = int(min([self.initial_num_evals * math.sqrt(step), self.max_num_evals]))
             gradf = self.perform_gradient_approximation(perturbed, num_evals_det, delta, dist_post_update,
                                                         estimates, page)
             page.num_eval_det = num_evals_det
             page.time.approx_grad = time.time()
             page.calls.approx_grad = self.model_interface.model_calls
 
-            update = gradf if self.constraint == 'l2' else np.sign(gradf)
+            update = gradf if self.constraint == 'l2' else torch.sign(gradf)
 
             if self.stepsize_search == "geometric_progression":
                 # find step size.
@@ -139,10 +138,10 @@ class Attack:
             elif self.stepsize_search == "grid_search":
                 # TODO: Can we use this search for probabilistic models?
                 # Grid search for stepsize.
-                epsilons = np.logspace(-4, 0, num=20, endpoint=True) * dist
+                epsilons = torch.logspace(-4, 0, 20) * dist
                 epsilons_shape = [20] + len(self.shape) * [1]
                 perturbeds = perturbed + epsilons.reshape(epsilons_shape) * update
-                perturbeds = np.clip(perturbeds, self.clip_min, self.clip_max)
+                perturbeds = torch.clamp(perturbeds, self.clip_min, self.clip_max)
                 idx_perturbed = self.get_decision_in_batch(perturbeds, self.sampling_freq)
 
                 if (idx_perturbed == 1).any():
@@ -203,7 +202,7 @@ class Attack:
             else:
                 rv = torch.FloatTensor(*noise_shape).normal_()
         elif self.constraint == "linf":
-            rv = np.random.uniform(low=-1, high=1, size=noise_shape)
+            rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         axis = tuple(range(1, 1 + len(self.shape)))
@@ -227,13 +226,13 @@ class Attack:
           Keep decreasing stepsize by half until reaching
           the desired side of the boundary.
         """
-        epsilon = dist / np.sqrt(current_iteration)
+        epsilon = dist / math.sqrt(current_iteration)
         if self.hsja:
             count = 1
             while True:
                 if count % 200 == 0:
                     logging.warning("Decreased epsilon {} times".format(count))
-                updated = np.clip(x + epsilon * update, self.clip_min, self.clip_max)
+                updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
                 success = (self.get_decision_in_batch(updated[None], self.sampling_freq, remember=self.remember))[0]
                 if success:
                     break
@@ -246,7 +245,7 @@ class Attack:
         if self.constraint == "l2":
             return torch.norm(x1 - x2)
         elif self.constraint == "linf":
-            return np.max(abs(x1 - x2))
+            return torch.max(abs(x1 - x2))
 
     def select_delta(self, dist_post_update, current_iteration):
         """
@@ -257,7 +256,7 @@ class Attack:
             delta = 0.1 * (self.clip_max - self.clip_min)
         else:
             if self.constraint == "l2":
-                delta = np.sqrt(self.d) * self.theta_det * dist_post_update
+                delta = math.sqrt(self.d) * self.theta_det * dist_post_update
             elif self.constraint == "linf":
                 delta = self.d * self.theta_det * dist_post_update
             else:
