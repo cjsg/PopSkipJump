@@ -67,9 +67,9 @@ for i, raw in enumerate(raws):
             if len(diary.iterations) is 0:
                 cn+=1
                 continue
-            x_star = diary.true_label
+            x_star = diary.original
             x_t = diary.iterations[iteration].bin_search.numpy()
-            label = diary.original
+            label = diary.true_label
             distance = np.linalg.norm(x_star - x_t) ** 2 / 784 / 1 ** 2
             probs = model.get_probs([x_t])
             true_prob = probs[0][label]

@@ -6,10 +6,8 @@ import time
 from datetime import datetime
 
 from defaultparams import DefaultParams
-# from hopskip import HopSkipJumpAttack
 from popskip import PopSkipJump
 from hopskip import HopSkipJump
-# from our_attack import OurAttack
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device
 from model_factory import get_model
 from model_interface import ModelInterface
@@ -63,10 +61,12 @@ def create_attack(exp_name, dataset, params):
         noise=params.noise, new_adv_def=params.new_adversarial_def,
         device=get_device())
 
-    # return HopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device(),
-    #                          prior_frac=prior_frac, queries=queries)
-    return PopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device())
-    # return OurAttack(model_interface, get_shape(dataset), experiment=exp_name, params=params)
+    if params.attack == 'hopskip':
+        return HopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device())
+    elif params.attack == 'popskip':
+        return PopSkipJump(model_interface, get_shape(dataset), params=params, device=get_device())
+    else:
+        raise RuntimeError(f"Attack not found: {params.attack}")
 
 
 def run_attack(attack, dataset, params):
@@ -101,19 +101,21 @@ def run_attack(attack, dataset, params):
     return attack.attack(imgs, labels, starts, iterations=params.num_iterations, average=params.average)
 
 
-def main(params=None):
-    args = parser.parse_args()
-    validate_args(args)
-
-    logging.warning(params)
+def merge_params(params, args):
     if params.sampling_freq_approxgrad is None:
         params.sampling_freq_approxgrad = params.sampling_freq_binsearch
-    exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
-    dataset = args.dataset
-
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc
     params.grad_queries = args.grad_queries
+    return params
+
+
+def main(params=None):
+    args = parser.parse_args()
+    validate_args(args)
+    params = merge_params(params, args)
+    exp_name = args.exp_name if params.experiment_name is None else params.experiment_name
+    dataset = args.dataset
 
     attack = create_attack(exp_name, dataset, params)
     median_distance, additional = run_attack(attack, dataset, params)
@@ -128,13 +130,13 @@ def main(params=None):
 
 if __name__ == '__main__':
     hyperparams = DefaultParams()
-    hyperparams.num_iterations = 1
+    hyperparams.num_iterations = 32
+    hyperparams.attack = 'popskip'
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'del_later'
+    # hyperparams.experiment_name = 'del_later'
     hyperparams.num_samples = 1
     start = time.time()
     median = main(params=hyperparams)
-    # assert 0.002 <= median <= 0.008
     print(time.time() - start)
     pass

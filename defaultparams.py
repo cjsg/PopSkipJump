@@ -3,6 +3,8 @@ class DefaultParams:
     Do not change the default values. if you want different values, create a new instance and override
     """
     def __init__(self):
+        self.attack = 'popskip'
+
         self.num_iterations = 32
         self.gamma = 1.0
         self.input_image_path = None  # String
