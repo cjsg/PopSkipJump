@@ -28,6 +28,8 @@ parser.add_argument("-q", "--queries_per_loc", type=int, default=1,
 parser.add_argument("-gq", "--grad_queries", type=int, default=1,
                     help="(Optional) how many queries to compute per "
                     "point in Gradient Approximation step.")
+parser.add_argument("-ns", "--num_samples", type=int, default=1,
+                    help="(Optional) Number of images to attack")
 
 
 def validate_args(args):
@@ -78,6 +80,7 @@ def merge_params(params, args):
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc
     params.grad_queries = args.grad_queries
+    params.num_samples = args.num_samples
     return params
 
 
