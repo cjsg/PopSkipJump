@@ -46,7 +46,6 @@ class Attack:
         self.shape = data_shape
         self.d = int(torch.prod(torch.tensor(self.shape)))
         self.grid_size = params.grid_size
-        self.theta_prob = 1.0 / self.grid_size
         if self.constraint == "l2":
             self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
             # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
@@ -74,14 +73,36 @@ class Attack:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(self.a)
 
-    def perform_bin_search(self, original, perturbed, page=None):
+    def bin_search_step(self, original, perturbed, page=None):
+        """
+        Performs Binary Search between original and perturbed to find the closest point to the adversarial boundary
+        :param original: x_star (The original image)
+        :param perturbed: \tilde{x}_t (Result of Initialization or Opposite Movement step)
+        :param page: Data Structure for remembering statistics for plotting later
+        :return: x_t (Closest image to boundary)
+        """
         raise NotImplementedError
 
-    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, dist_post_update, estimates,
-                                       page):
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        """
+        Estimates the direction of gradient by doing random sampling in the sphere and then observing model decisions
+        :param perturbed: Point at which the gradient direction is being estimated
+        :param num_evals_det: HSJA's estimate of num of samples to use in gradient estimation
+        :param delta: HSJA's estimate of the radius of the sphere
+        :param dist_post_update: Distance between perturbed and original image
+        :param estimates: Statistics regarding the sigmoid approximation of probability manifold
+        :param page: Book-keeping data structure
+        :return:
+        """
         raise NotImplementedError
 
-    def perform_opposite_direction_movement(self, original, perturbed):
+    def opposite_movement_step(self, original, perturbed):
+        """
+        This is step performed by PSJA where we move the current point in the direction opposite to original image
+        :param original: x_star
+        :param perturbed: \tilde{x_t}
+        :return:
+        """
         raise NotImplementedError
 
     def attack_one(self, iterations=64):
@@ -94,7 +115,7 @@ class Attack:
         self.diary.initialization_calls = self.model_interface.model_calls
         self.diary.epoch_initialization = time.time()
 
-        perturbed, dist_post_update, estimates = self.perform_bin_search(original, perturbed)
+        perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed)
         self.diary.epoch_initial_bin_search = time.time()
         self.diary.initial_projection = perturbed
         self.diary.calls_initial_bin_search = self.model_interface.model_calls
@@ -108,8 +129,8 @@ class Attack:
 
             delta = self.select_delta(dist_post_update, step)
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step), self.max_num_evals]))
-            gradf = self.perform_gradient_approximation(perturbed, num_evals_det, delta, dist_post_update,
-                                                        estimates, page)
+            gradf = self.gradient_approximation_step(perturbed, num_evals_det, delta, dist_post_update,
+                                                     estimates, page)
             page.num_eval_det = num_evals_det
             page.time.approx_grad = time.time()
             page.calls.approx_grad = self.model_interface.model_calls
@@ -126,11 +147,11 @@ class Attack:
                 perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
                 page.approx_grad = perturbed
 
-                perturbed = self.perform_opposite_direction_movement(original, perturbed)
+                perturbed = self.opposite_movement_step(original, perturbed)
                 page.opposite = perturbed
 
                 # Binary search to return to the boundary.
-                perturbed, dist_post_update, estimates = self.perform_bin_search(original, perturbed, page)
+                perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page)
                 page.time.bin_search = time.time()
                 page.calls.bin_search = self.model_interface.model_calls
                 page.bin_search = perturbed
@@ -195,7 +216,8 @@ class Attack:
             if num_evals > 1e4:
                 return
 
-    def generate_random_vectors(self, delta, noise_shape, sample):
+    def generate_random_vectors(self, batch_size):
+        noise_shape = [int(batch_size)] + list(self.shape)
         if self.constraint == "l2":
             if torch.cuda.is_available():
                 rv = torch.cuda.FloatTensor(*noise_shape).normal_()
@@ -207,19 +229,35 @@ class Attack:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         axis = tuple(range(1, 1 + len(self.shape)))
         rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
-        perturbed = sample + delta * rv
-        perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-        rv = (perturbed - sample) / delta
-        return perturbed, rv
+        return rv
 
-    def approximate_gradient(self, sample, num_evals, delta, average=False, grad_queries=1):
-        """ Gradient direction estimation """
+    def _gradient_estimator(self, sample, num_evals, delta):
+        """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
-        noise_shape = [num_evals] + list(self.shape)
-        perturbed, rv = self.generate_random_vectors(delta, noise_shape, sample)
-        # query the model.
-        outputs = self.get_decision_in_batch(perturbed, self.grad_sampling_freq, average, remember=self.remember)
-        return self.calculate_grad(outputs, rv)
+        num_rvs = int(num_evals/self.grad_queries)
+        sum_directions = torch.zeros(self.shape)
+        num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
+        for j in range(num_batchs):
+            batch_size = min(self.batch_size, num_rvs - j*self.batch_size)
+            rv = self.generate_random_vectors(batch_size)
+            perturbed = sample + delta * rv
+            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            rv = (perturbed - sample) / delta
+            decisions = self.model_interface.decision(self.grad_queries, perturbed, self.a.true_label)
+            decisions = decisions.sum(dim=1)
+            decision_shape = [len(decisions)] + [1] * len(self.shape)
+            # Map (0, 1) -> (-1, +1)
+            fval = 2 * decisions.view(decision_shape) - self.grad_queries
+            # Baseline subtraction (when fval differs)
+            if torch.abs(torch.mean(fval/self.grad_queries)) == 1.0:
+                vals = fval
+            else:
+                vals = fval - torch.mean(fval)
+            sum_directions = sum_directions + torch.sum(vals * rv, dim=0)
+        # Get the gradient direction.
+        gradf = sum_directions / (num_rvs*self.grad_queries)
+        gradf = gradf / torch.norm(gradf)
+        return gradf
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         """ Geometric progression to search for stepsize.
@@ -263,16 +301,12 @@ class Attack:
                 raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
 
-    def calculate_grad(self, outputs, rv):
-        decisions = outputs[outputs != -1]
+    def calculate_grad(self, decisions, rv):
         decision_shape = [len(decisions)] + [1] * len(self.shape)
         fval = 2 * decisions.view(decision_shape) - 1.0
         # Baseline subtraction (when fval differs)
         vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
-        rv = rv[outputs != -1]
         gradf = torch.mean(vals * rv, dim=0)
         # Get the gradient direction.
-        if torch.sum(outputs != -1) == 0:
-            return None
         gradf = gradf / torch.norm(gradf)
         return gradf

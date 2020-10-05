@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from torchvision import transforms
 from cifar10_models import *
 from pytorchmodels import MNIST_Net, CWMNISTNetwork
@@ -33,13 +32,13 @@ class Model:
             sample = torch.multinomial(probs, 1)
             return sample.flatten()
         elif self.noise == 'stochastic':
-            pred = np.argmax(logits, axis=1)
-            rand = np.random.randint(self.n_classes, size=len(images))
-            flip_prob = np.random.uniform(0, 1, len(images))
+            pred = torch.argmax(logits, dim=1)
+            rand = torch.randint(self.n_classes, size=[images.shape[0]])
+            flip_prob = torch.rand(len(images))
             pred[flip_prob < self.flip_prob] = rand[flip_prob < self.flip_prob]
             return pred
         else:
-            return np.argmax(logits, axis=1)
+            return torch.argmax(logits, dim=1)
 
     def get_probs(self, images):
         if type(images) != torch.Tensor:
@@ -55,7 +54,7 @@ class Model:
     def get_grads(self, images, true_label):
         # TODO: this line will not work for noisy model.
         wrong_labels = self.ask_model(images)
-        images = np.expand_dims(images, axis=1).astype(np.float32)
+        images = images.unsqueeze(1).type(torch.float32)
         t_images = torch.tensor(images, requires_grad=True)
         t_outs = self.model(t_images)
         grad = torch.zeros(t_images.shape)
@@ -64,6 +63,7 @@ class Model:
             _grad_wrong = torch.autograd.grad(t_outs[i, wrong_labels[i]], t_images, create_graph=True)[0]
             grad[i] = _grad_true[i] - _grad_wrong[i]
         return grad.detach().numpy()
+
 
 def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
     class MNIST_Model(Model):
@@ -91,6 +91,6 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
                     show_image(image, dataset=dataset)
                     res = int(input("Whats the class?: ").strip())
                     results.append(res)
-                return np.array(results)
+                return torch.tensor(results)
 
         return Human(model=None)

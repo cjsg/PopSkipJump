@@ -30,6 +30,19 @@ class ModelInterface:
         self.model_calls += probs.numel()
         return torch.bernoulli(probs)
 
+    def decision(self, num_queries, batch, true_label):
+        """
+        :param true_label: True labels of the original image being attacked
+        :param num_queries: Number of times to query each image
+        :param batch: A batch of images
+        :return: decisions of shape = (len(batch), num_queries)
+        """
+        probs = self.get_probs_(images=batch)
+        probs = probs[:, true_label]
+        probs = probs.view(-1, 1).repeat(1, num_queries)
+        decisions = self.sample_bernoulli(1 - probs)
+        return decisions
+
     def get_probs_(self, images):
         """
             WARNING

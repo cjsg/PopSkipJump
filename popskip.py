@@ -9,7 +9,7 @@ from tracker import InfoMaxStats
 
 class PopSkipJump(Attack):
 
-    def perform_bin_search(self, original, perturbed, page=None):
+    def bin_search_step(self, original, perturbed, page=None):
         perturbed, dist_post_update, s_, (tmap, xx) = self.info_max_batch(
             original, perturbed[None], self.grid_size, self.a.true_label
         )
@@ -17,21 +17,20 @@ class PopSkipJump(Attack):
             page.info_max_stats = InfoMaxStats(s_, tmap, xx)
         return perturbed, dist_post_update, {'s': s_}
 
-    def perform_gradient_approximation(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta / dist_post_update,
-                                    d=self.d)
-        num_evals_prob = int(get_n_from_cos(target_cos, s=estimates['s'], theta=(1 / self.grid_size),
-                                            delta=(math.sqrt(self.d) / self.grid_size), d=self.d))
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        theta_prob = 1 / self.grid_size  # Theta for Info-max procedure
+        delta_det_unit = delta / dist_post_update  # HSJA's delta in unit scale
+        delta_prob_unit = theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
+
+        target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=delta_det_unit, d=self.d)
+        num_evals_prob = get_n_from_cos(target_cos, s=estimates['s'], theta=theta_prob, delta=delta_prob_unit, d=self.d)
         page.num_eval_prob = num_evals_prob
         num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
         page.time.num_evals = time.time()
+        return self._gradient_estimator(perturbed, num_evals_prob, delta_prob)
 
-        gradf = self.approximate_gradient(
-            perturbed, num_evals_prob, dist_post_update * math.sqrt(self.d) / self.grid_size, self.average
-        )
-        return gradf
-
-    def perform_opposite_direction_movement(self, original, perturbed):
+    def opposite_movement_step(self, original, perturbed):
         # Go in the opposite direction
         return torch.clamp(2 * perturbed - original, self.clip_min, self.clip_max)
 
@@ -68,28 +67,3 @@ class PopSkipJump(Attack):
             self.get_decision_in_batch(out[None], freq=self.sampling_freq * 32,
                                        remember=True)  # this is to make the model remember the sample
         return out, dist, smaps[idx], (nn_tmap_est, output['xxj'])
-
-    def approximate_decisions(self, x, grad_queries):
-        # returns 1 if adversarial
-        probs = []
-        num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
-        for j in range(num_batchs):
-            current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-            out = self.model_interface.get_probs_(images=current_batch)
-            out = out[:, self.a.true_label]
-            probs.append(out)
-        probs = torch.cat(probs, dim=0)
-        probs = probs.repeat(grad_queries)
-        outs = self.model_interface.sample_bernoulli(1-probs)
-        return outs
-
-    def approximate_gradient(self, sample, num_evals, delta, average=False, grad_queries=1):
-        """ Computes an approximation by querying every point `grad_queries` times"""
-        # Generate random vectors.
-        noise_shape = [int(num_evals/grad_queries)] + list(self.shape)
-        perturbed, rv = self.generate_random_vectors(delta, noise_shape, sample)
-        # query the model.
-        outputs = self.approximate_decisions(perturbed, grad_queries)
-        rv = rv.repeat(grad_queries, *([1]*(len(noise_shape)-1)))
-        return self.calculate_grad(outputs, rv)
-
