@@ -235,7 +235,7 @@ class Attack:
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals/self.grad_queries)
-        sum_directions = torch.zeros(self.shape)
+        sum_directions = torch.zeros(self.shape, device=self.device)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j*self.batch_size)

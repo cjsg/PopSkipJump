@@ -15,7 +15,7 @@ exp_name = 'eval_exp_wo_step_50'
 # titles = ['CPU', 'GPU', 'GPU (in batches)', 'Approximate Gradient on GPU now',
 #           'Bernoulli instead of model calls inside bin_search',
 #           'CJ Optimization (Interval)', 'CJ Optimization (Queries=5)']
-lis = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_q_v2_20', 'gpu_gq_20']
+lis = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_q', 'gpu_q_gq']
 titles = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2", "Grad Queries"]
 lis = lis[-2:]
 titles = titles[-2:]
@@ -63,6 +63,7 @@ for i, raw in enumerate(raws):
             t_total += end - start
     labels = ['Approx Grad', 'Step Search', 'Binary Search']
     values = [t_approx_grad, t_step_search, t_bin_search]
+    print(values, t_total)
     plt.subplot(len(raws) / 2 + 1, 2, i + 1)
     plt.pie(values, labels=labels)
     # plt.text(-2, 1.1, "Num Evals: {} secs".format(np.round(t_num_evals, 1)))
