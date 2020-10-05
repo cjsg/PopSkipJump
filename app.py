@@ -110,7 +110,7 @@ if __name__ == '__main__':
     hyperparams.attack = 'popskip'
     # hyperparams.noise = 'deterministic'
     # hyperparams.hopskipjumpattack = True
-    hyperparams.experiment_name = 'del_later'
+    # hyperparams.experiment_name = 'del_later'
     hyperparams.num_samples = 20
     start = time.time()
     median = main(params=hyperparams)
