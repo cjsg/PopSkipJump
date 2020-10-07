@@ -35,7 +35,7 @@ class DefaultParams:
         self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
 
         # Specific to Info max procedure
-        self.grid_size = 80
+        self.grid_size = 100
         self.prior_frac = 1
         self.queries = 1
 

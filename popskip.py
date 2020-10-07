@@ -11,8 +11,7 @@ class PopSkipJump(Attack):
 
     def bin_search_step(self, original, perturbed, page=None):
         perturbed, dist_post_update, s_, (tmap, xx) = self.info_max_batch(
-            original, perturbed[None], self.grid_size, self.a.true_label
-        )
+            original, perturbed[None], self.a.true_label)
         if page is not None:
             page.info_max_stats = InfoMaxStats(s_, tmap, xx)
         return perturbed, dist_post_update, {'s': s_}
@@ -34,14 +33,14 @@ class PopSkipJump(Attack):
         # Go in the opposite direction
         return torch.clamp(2 * perturbed - original, self.clip_min, self.clip_max)
 
-    def info_max_batch(self, unperturbed, perturbed_inputs, grid_size, true_label):
+    def info_max_batch(self, unperturbed, perturbed_inputs, true_label):
         border_points = []
         dists = []
         smaps = []
         for perturbed_input in perturbed_inputs:
             output = bin_search(
                 unperturbed, perturbed_input, self.model_interface, d=self.d,
-                grid_size=grid_size, device=self.device,
+                grid_size=self.grid_size, device=self.device,
                 true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
                 prior_frac=self.prior_frac, queries=self.queries)
             nn_tmap_est = output['nn_tmap_est']

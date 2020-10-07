@@ -293,7 +293,7 @@ def bin_search(
     zz = torch.linspace(t_lo, t_hi, Nz, dtype=dtype, device=device)  # center of sampling ball
     xx = torch.linspace(0., 1., Nx, dtype=dtype, device=device)
     yy = torch.tensor([0, 1], dtype=dtype, device=device)
-    ss = torch.logspace(s_lo, s_hi, Ns, dtype=dtype, device=device)  # s \in [.01, 10.]
+    ss = torch.logspace(s_lo, s_hi, Ns, dtype=dtype, device=device)  # s \in [.01, 100.]
     # ss[-1] = float("Inf")   # xlogy may not work when s is infinite
     eeps = torch.tensor([eps_], dtype=dtype, device=device)  # torch.linspace(0., .1, 2)
 
@@ -503,11 +503,11 @@ def bin_search(
                 stop_next = True
 
         # Plots
-        sq_k = sqrt(k)
-        if (plot and (
-                (int(sq_k) % 5 == 0 and int(sq_k) - sq_k == 0.)
-                or stop_next)):
-            plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func)
+        # sq_k = sqrt(k)
+        # if (plot and (
+        #         (int(sq_k) % 5 == 0 and int(sq_k) - sq_k == 0.)
+        #         or stop_next)):
+        #     plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func)
 
         # Compute posterior (i.e. new prior) for t
         pyj_txjs = py_txs[yj, :, j_amax, :]
@@ -522,11 +522,7 @@ def bin_search(
 
     end = time.time()
     vprint(f'Time to finish: {end - start:.2f} s')
-    nn = torch.tensor(output['nn_tmap_est'])
-    diffs = torch.abs(nn[1:] - nn[:-1])[20:]
-    plt.plot(torch.arange(len(diffs)) * queries, torch.log10(diffs))
-    # plt.plot(torch.log10(torch.tensor(output['nn_tmap_est'])[20:]))
-    plt.savefig('diffs.png')
+    print(tt_compute_probs, tt_setting_stats, tt_acq_func, tt_max_acquisition, tt_posterior)
     return output
 
 
