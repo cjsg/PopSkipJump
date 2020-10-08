@@ -17,7 +17,6 @@ class Attack:
         self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
         self.max_num_evals = params.max_num_evals
-        self.stepsize_search = params.stepsize_search
         self.gamma = params.gamma
         self.batch_size = params.batch_size
         self.internal_dtype = internal_dtype
@@ -137,38 +136,23 @@ class Attack:
 
             update = gradf if self.constraint == 'l2' else torch.sign(gradf)
 
-            if self.stepsize_search == "geometric_progression":
-                # find step size.
-                epsilon = self.geometric_progression_for_stepsize(perturbed, update, dist, step, original)
-                page.time.step_search = time.time()
-                page.calls.step_search = self.model_interface.model_calls
+            # find step size.
+            epsilon = self.geometric_progression_for_stepsize(perturbed, update, dist, step, original)
+            page.time.step_search = time.time()
+            page.calls.step_search = self.model_interface.model_calls
 
-                # Update the sample.
-                perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
-                page.approx_grad = perturbed
+            # Update the sample.
+            perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+            page.approx_grad = perturbed
 
-                perturbed = self.opposite_movement_step(original, perturbed)
-                page.opposite = perturbed
+            perturbed = self.opposite_movement_step(original, perturbed)
+            page.opposite = perturbed
 
-                # Binary search to return to the boundary.
-                perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page)
-                page.time.bin_search = time.time()
-                page.calls.bin_search = self.model_interface.model_calls
-                page.bin_search = perturbed
-
-            elif self.stepsize_search == "grid_search":
-                # TODO: Can we use this search for probabilistic models?
-                # Grid search for stepsize.
-                epsilons = torch.logspace(-4, 0, 20) * dist
-                epsilons_shape = [20] + len(self.shape) * [1]
-                perturbeds = perturbed + epsilons.reshape(epsilons_shape) * update
-                perturbeds = torch.clamp(perturbeds, self.clip_min, self.clip_max)
-                idx_perturbed = self.get_decision_in_batch(perturbeds, self.sampling_freq)
-
-                if (idx_perturbed == 1).any():
-                    # Select the perturbation that yields the minimum distance after binary search.
-                    perturbed, dist_post_update = self.binary_search_batch(
-                        original, perturbeds[idx_perturbed])
+            # Binary search to return to the boundary.
+            perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page)
+            page.time.bin_search = time.time()
+            page.calls.bin_search = self.model_interface.model_calls
+            page.bin_search = perturbed
 
             # compute new distance.
             dist = self.compute_distance(perturbed, original)
@@ -284,7 +268,7 @@ class Attack:
         if self.constraint == "l2":
             return torch.norm(x1 - x2)
         elif self.constraint == "linf":
-            return torch.max(abs(x1 - x2))
+            return torch.max(torch.abs(x1 - x2))
 
     def select_delta(self, dist_post_update, current_iteration):
         """

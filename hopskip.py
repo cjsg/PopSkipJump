@@ -50,7 +50,6 @@ class HopSkipJump(Attack):
             # Update highs and lows based on model decisions.
             # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
             decisions = self.get_decision_in_batch(mid_inputs, self.sampling_freq, remember=self.remember)
-            decisions[decisions == -1] = 0
             lows = torch.where(decisions == 0, mids, lows)
             highs = torch.where(decisions == 1, mids, highs)
 
@@ -63,12 +62,6 @@ class HopSkipJump(Attack):
 
         dist = dists_post_update[idx]
         out = out_inputs[idx]
-        if self.hsja:
-            self.get_decision_in_batch(out[None], freq=1,
-                                       remember=True)  # this is to make the model remember the sample
-        else:
-            self.get_decision_in_batch(out[None], freq=self.sampling_freq * 32,
-                                       remember=True)  # this is to make the model remember the sample
         return out, dist
 
     def project(self, unperturbed, perturbed_inputs, alphas):
@@ -83,4 +76,6 @@ class HopSkipJump(Attack):
             projected = torch.clamp(
                 perturbed_inputs, unperturbed - alphas, unperturbed + alphas
             )
+        else:
+            raise RuntimeError(f"Unknown constraint type: {self.constraint}")
         return projected

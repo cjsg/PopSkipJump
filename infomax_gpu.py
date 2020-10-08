@@ -522,7 +522,7 @@ def bin_search(
 
     end = time.time()
     vprint(f'Time to finish: {end - start:.2f} s')
-    print(tt_compute_probs, tt_setting_stats, tt_acq_func, tt_max_acquisition, tt_posterior)
+    # print(tt_compute_probs, tt_setting_stats, tt_acq_func, tt_max_acquisition, tt_posterior)
     return output
 
 

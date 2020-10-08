@@ -5,7 +5,7 @@ from model_factory import get_model
 from tracker import Diary
 
 NUM_ITERATIONS = 32
-NUM_IMAGES = 20
+NUM_IMAGES = 100
 NOISE = 'bayesian'
 # exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25', 'our_gradstep_25',
 #              'hsja_on_det_model_ourtheta_25_v2', 'det_25_v2']
@@ -15,11 +15,9 @@ NOISE = 'bayesian'
 # exp_names = [exp_names[i] for i in [0,1,2,4]]
 # labels = [labels[i] for i in [0,1,2,3,5]]
 # exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_queries_v2_20', 'gpu_gq_20']
-exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_q_v2_20', 'gpu_gq_20']
-labels = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2", "Grad Queries"]
-exp_names = exp_names[-2:]
-labels = labels[-2:]
-image_path = 'adv/debug_20.pdf'
+exp_names = ['gpu', 'gpu_pf', 'gpu_pf_q', 'gpu_pf_q_gq']
+labels = ['PF=1.0, Q=1, GQ=1', 'PF=0.1, Q=1, GQ=1', 'PF=0.1, Q=5, GQ=1', 'PF=0.1, Q=5, GQ=5']
+image_path = 'adv/debug_100.pdf'
 ALPHA = 0.4
 
 model = get_model(key='mnist_noman', dataset='mnist')
