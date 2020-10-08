@@ -2,28 +2,36 @@ import pickle
 import numpy as np
 import matplotlib.pylab as plt
 from model_factory import get_model
-
+from tracker import Diary
 
 NUM_ITERATIONS = 32
-NUM_IMAGES = 25
+NUM_IMAGES = 20
 NOISE = 'bayesian'
 # exp_names = ['det_25', 'hsja_on_det_model_ourtheta_25', 'prob_25', 'prob_prior_25', 'our_gradstep_25',
 #              'hsja_on_det_model_ourtheta_25_v2', 'det_25_v2']
-exp_names = ['det_25_v2', 'hsja_on_det_model_ourtheta_25_v2', 'prob_25_deltainit_v2', 'prob_prior_25', 'our_gradstep_25']
-labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
-          'Our Attack (prior disabled)', 'Our Attack (grad step det)']
-exp_names = [exp_names[i] for i in [0,1,2,4]]
-labels = [labels[i] for i in [0,1,2,3,5]]
-
-image_path = 'adv/debug_25.pdf'
+# exp_names = ['det_25_v2', 'hsja_on_det_model_ourtheta_25_v2', 'prob_25_deltainit_v2', 'prob_prior_25', 'our_gradstep_25']
+# labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
+#           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
+# exp_names = [exp_names[i] for i in [0,1,2,4]]
+# labels = [labels[i] for i in [0,1,2,3,5]]
+# exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_queries_v2_20', 'gpu_gq_20']
+exp_names = ['gpu_20', 'gpu_cj_20', 'gpu_queries_20', 'gpu_q_v2_20', 'gpu_gq_20']
+labels = ['Without Interval Reduction', "With Interval Reduction", "Queries = 5", "Queries v2", "Grad Queries"]
+exp_names = exp_names[-2:]
+labels = labels[-2:]
+image_path = 'adv/debug_20.pdf'
 ALPHA = 0.4
 
 model = get_model(key='mnist_noman', dataset='mnist')
 
-
+import torch
 def read_dump(path):
     filepath = 'adv/{}/raw_data.pkl'.format(path)
-    return pickle.load(open(filepath, 'rb'))
+    if path in exp_names:
+        raw = torch.load(open(filepath, 'rb'), map_location='cpu')
+    else:
+        raw = pickle.load(open(filepath, 'rb'))
+    return raw
 
 
 raws = [read_dump(x) for x in exp_names]
@@ -53,62 +61,65 @@ for i, raw in enumerate(raws):
     bin_calls = np.zeros((NUM_ITERATIONS+1, NUM_IMAGES))
     for iteration in range(NUM_ITERATIONS):
         distances, distances2 = [], []
+        cn=0
         for image in range(NUM_IMAGES):
-            if 'iterations' not in raw[image]:
+            diary: Diary = raw[image]
+            if len(diary.iterations) is 0:
+                cn+=1
                 continue
-            x_star = raw[image]['original']
-            x_t = raw[image]['progression'][iteration]['binary']
-            label = raw[image]['true_label']
+            x_star = diary.original
+            x_t = diary.iterations[iteration].bin_search.numpy()
+            label = diary.true_label
             distance = np.linalg.norm(x_star - x_t) ** 2 / 784 / 1 ** 2
             probs = model.get_probs([x_t])
             true_prob = probs[0][label]
             abs_error[iteration] += true_prob
             distances.append(distance)
-            if i == 2:
-                adv_prob = np.max(probs[0][np.arange(10) != label])
-                if (true_prob > adv_prob):
-                    x_tt = 2*x_t-x_star
-                    while True:
-                        res = search_boundary(x_t, x_tt,theta_det, label)
-                        if np.any(res != x_tt):
-                            x_tt = res
-                            break
-                        x_tt = res
-                else:
-                    x_tt = search_boundary(x_star, x_t, theta_det, label)
-                distance2 = np.linalg.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
-                probs = model.get_probs([x_tt])
-                true_prob2 = probs[0][label]
-                distances2.append(distance2)
-                abs_error2[iteration] += true_prob2
+            # if i == 2:
+            #     adv_prob = np.max(probs[0][np.arange(10) != label])
+            #     if (true_prob > adv_prob):
+            #         x_tt = 2*x_t-x_star
+            #         while True:
+            #             res = search_boundary(x_t, x_tt,theta_det, label)
+            #             if np.any(res != x_tt):
+            #                 x_tt = res
+            #                 break
+            #             x_tt = res
+            #     else:
+            #         x_tt = search_boundary(x_star, x_t, theta_det, label)
+            #     distance2 = np.linalg.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+            #     probs = model.get_probs([x_tt])
+            #     true_prob2 = probs[0][label]
+            #     distances2.append(distance2)
+            #     abs_error2[iteration] += true_prob2
 
             # Model Calls
-            grad_calls[0][image] = raw[image]['model_calls']['initialization']
-            bin_calls[0][image] = raw[image]['model_calls']['projection']
+            grad_calls[0][image] = diary.calls_initialization
+            bin_calls[0][image] = diary.calls_initial_bin_search
             step_calls[0][image] = None
-            details = raw[image]['model_calls']['iters']
-            grad_calls[iteration+1][image] = details[iteration]['approx_grad']
-            step_calls[iteration+1][image] = details[iteration]['step_search']
-            bin_calls[iteration+1][image] = details[iteration]['binary']
+            details = diary.iterations
+            grad_calls[iteration+1][image] = details[iteration].calls.approx_grad
+            step_calls[iteration+1][image] = details[iteration].calls.step_search
+            bin_calls[iteration+1][image] = details[iteration].calls.bin_search
         medians.append(np.median(distances))
-        if i==2:
-            medians2.append(np.median(distances2))
+        # if i==2:
+        #     medians2.append(np.median(distances2))
     total_grad_calls = grad_calls.mean(axis=1)
     total_step_calls = step_calls.mean(axis=1)
     total_bin_calls = bin_calls.mean(axis=1)
 
     plot1series1.append(medians)
-    plot1series2.append(abs_error/NUM_IMAGES)
+    plot1series2.append(abs_error/(NUM_IMAGES-cn))
     plot2series.append(total_bin_calls)
-    if i==2:
-        plot1series1.append(medians2)
-        plot1series2.append(abs_error2 / NUM_IMAGES)
-        plot2series.append(total_bin_calls)
+    # if i==2:
+    #     plot1series1.append(medians2)
+    #     plot1series2.append(abs_error2 / NUM_IMAGES)
+    #     plot2series.append(total_bin_calls)
 
 # labels = ['HSJA', 'HSJA (Our Theta)', 'Our Attack', 'Our Attack (with x_t projected to boundary)',
 #           'Our Attack (prior disabled)', 'Our Attack (grad step det)']
 plt.figure(figsize=(12, 16))
-plt.suptitle('Debugging Attack on Deterministic Model with 25 random images')
+plt.suptitle(f'Debugging Attack on Deterministic Model with {NUM_IMAGES} random images')
 N = 3
 ax1 = plt.subplot(N, 1, 1)
 ax1.set_xlabel('Iterations of the Attack')

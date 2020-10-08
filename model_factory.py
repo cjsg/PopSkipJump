@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from torchvision import transforms
 from cifar10_models import *
 from pytorchmodels import MNIST_Net, CWMNISTNetwork
@@ -7,51 +6,55 @@ from img_utils import show_image
 
 
 class Model:
-    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0):
+    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0, device=None):
         self.model = model
         self.noise = noise
         self.n_classes = n_classes
         self.flip_prob = flip_prob
         self.beta = beta
+        self.device = device
 
     def predict(self, images):
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize([0.4914, 0.4822, 0.4465],
                                                              [0.2023, 0.1994, 0.2010])])
         img_tr = [transform(i) for i in images]
-        outs = self.model(torch.stack(img_tr))
-        return outs.detach().numpy()
+        outs = self.model(torch.stack(img_tr).to(self.device))
+        return outs.detach()
 
     def ask_model(self, images):
         logits = self.predict(images)
         if self.noise == 'bayesian':
-            logits = logits - np.max(logits, axis=1, keepdims=True)
-            probs = np.exp(self.beta*logits).astype('float64')
-            probs = probs / np.sum(probs, axis=1, keepdims=True)
+            logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
+            probs = torch.exp(self.beta*logits)
+            probs = probs / torch.sum(probs, dim=1, keepdim=True)
             probs[probs < 1e-4] = 0
-            sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
-            return np.array(sample)
+            sample = torch.multinomial(probs, 1)
+            return sample.flatten()
         elif self.noise == 'stochastic':
-            pred = np.argmax(logits, axis=1)
-            rand = np.random.randint(self.n_classes, size=len(images))
-            flip_prob = np.random.uniform(0, 1, len(images))
+            pred = torch.argmax(logits, dim=1)
+            rand = torch.randint(self.n_classes, size=[images.shape[0]])
+            flip_prob = torch.rand(len(images))
             pred[flip_prob < self.flip_prob] = rand[flip_prob < self.flip_prob]
             return pred
         else:
-            return np.argmax(logits, axis=1)
+            return torch.argmax(logits, dim=1)
 
     def get_probs(self, images):
+        if type(images) != torch.Tensor:
+            images = torch.tensor(images, dtype=torch.float32)
         logits = self.predict(images)
-        logits = logits - np.max(logits, axis=1, keepdims=True)
-        probs = np.exp(self.beta*logits)
-        probs = probs / np.sum(probs, axis=1, keepdims=True)
+        # logits = logits.numpy()
+        logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
+        probs = torch.exp(self.beta*logits)
+        probs = probs / torch.sum(probs, dim=1, keepdim=True)
         # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
-        return np.array(probs)
+        return probs
 
     def get_grads(self, images, true_label):
         # TODO: this line will not work for noisy model.
         wrong_labels = self.ask_model(images)
-        images = np.expand_dims(images, axis=1).astype(np.float32)
+        images = images.unsqueeze(1).type(torch.float32)
         t_images = torch.tensor(images, requires_grad=True)
         t_outs = self.model(t_images)
         grad = torch.zeros(t_images.shape)
@@ -61,17 +64,18 @@ class Model:
             grad[i] = _grad_true[i] - _grad_wrong[i]
         return grad.detach().numpy()
 
-def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0):
+
+def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
     class MNIST_Model(Model):
         def predict(self, images):
-            images = np.expand_dims(images, axis=1).astype(np.float32)
-            outs = self.model(torch.tensor(images))
-            return outs.detach().numpy()
+            images = images.unsqueeze(dim=1)
+            outs = self.model(images.float())
+            return outs.detach()
     if key == 'mnist_noman':
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()
-        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta)
+        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device)
     if key == 'mnist_cw':
         pytorch_model = CWMNISTNetwork()
         pytorch_model.load_state_dict(torch.load('mnist_models/cw_mnist_cnn.pt', map_location='cpu'))
@@ -87,6 +91,6 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0):
                     show_image(image, dataset=dataset)
                     res = int(input("Whats the class?: ").strip())
                     results.append(res)
-                return np.array(results)
+                return torch.tensor(results)
 
         return Human(model=None)

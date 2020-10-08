@@ -1,9 +1,17 @@
-import numpy as np
 import random
+import torch
 
 
 class ModelInterface:
-    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False):
+    """
+        All queries to classifiers/models to should happend via this class.
+        It is a wrapper over a set of models that:
+            - tracks model calls
+            - implements the logic to pick a model
+            - implements the definition of an adversarial example
+    """
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False,
+                 device=None):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -11,36 +19,44 @@ class ModelInterface:
         self.slack_prop = slack
         self.noise = noise
         self.new_adversarial_def = new_adv_def
+        self.device = device
+        self.send_models_to_device()
 
-    def forward_one(self, image, a, freq, is_original=False):
-        slack = self.slack_prop * freq
+    def send_models_to_device(self):
+        for model in self.models:
+            model.model = model.model.to(self.device)
+
+    def sample_bernoulli(self, probs):
+        self.model_calls += probs.numel()
+        return torch.bernoulli(probs)
+
+    def decision(self, num_queries, batch, true_label):
+        """
+        :param true_label: True labels of the original image being attacked
+        :param num_queries: Number of times to query each image
+        :param batch: A batch of images
+        :return: decisions of shape = (len(batch), num_queries)
+        """
+        probs = self.get_probs_(images=batch)
+        if self.noise == 'deterministic':
+            self.model_calls += batch.shape[0] * num_queries
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            return (prediction != true_label) * 1.0
+        else:
+            probs = probs[:, true_label]
+            probs = probs.view(-1, 1).repeat(1, num_queries)
+            decisions = self.sample_bernoulli(1 - probs)
+            return decisions
+
+    def get_probs_(self, images):
+        """
+            WARNING
+            This function should only be used for capturing statistics.
+            It should not be a part of a decision based attack.
+        """
         m_id = random.choice(list(range(len(self.models))))
-        if self.noise != 'deterministic':
-            new_def_threshold = 0.6 if is_original else 0.5
-            batch = np.stack([image] * freq)
-            outs = self.models[m_id].ask_model(batch)
-            self.model_calls += freq
-            label_freqs = np.bincount(outs, minlength=self.n_classes)
-            true_freq = label_freqs[a.true_label]
-            adv_freq = np.max(label_freqs[np.arange(self.n_classes) != a.true_label])
-            if self.new_adversarial_def and true_freq >= new_def_threshold * freq:
-                label = a.true_label
-            elif not self.new_adversarial_def and true_freq + slack >= adv_freq:
-                label = a.true_label
-            else:
-                label = -2
-        else:
-            batch = np.stack([image])
-            label = self.models[m_id].ask_model(batch)[0]
-            self.model_calls += 1
-        if label != a.true_label:
-            distance = a.calculate_distance(image, self.bounds)
-            if a.distance > distance:
-                a.distance = distance
-                a.perturbed = image
-            return 1
-        else:
-            return 0
+        outs = self.models[m_id].get_probs(images)
+        return outs
 
     def get_probs(self, image):
         """
@@ -63,23 +79,25 @@ class ModelInterface:
         return outs
 
     def forward(self, images, a, freq, average=False, remember=True):
+        if type(images) != torch.Tensor:
+            images = torch.tensor(images).to(self.device)
         slack = self.slack_prop * freq
-        batch = np.stack(images)
+        batch = torch.stack(tuple(images))
         m_id = random.choice(list(range(len(self.models))))
         if self.noise == 'deterministic':
             labels = self.models[m_id].ask_model(batch)
             ans = (labels != a.true_label) * 1
             self.model_calls += len(images)
         else:
-            inp_batch = np.tile(batch, (freq, 1, 1))
+            inp_batch = batch.repeat(freq, 1, 1)
             outs = self.models[m_id].ask_model(inp_batch).reshape(freq, len(images)).T
             self.model_calls += (len(images) * freq)
             N = self.n_classes
-            id = outs + (N * np.arange(outs.shape[0]))[:, None]
-            freqs = np.bincount(id.ravel(), minlength=N * outs.shape[0]).reshape(-1, N)
+            id = outs + (N * torch.arange(outs.shape[0]).to(self.device))[:, None]
+            freqs = torch.bincount(id.flatten(), minlength=N * outs.shape[0]).view(-1, N)
             true_freqs = freqs[:, a.true_label]
             r = list(range(self.n_classes))
-            false_freqs = np.max(freqs[:, r[:a.true_label] + r[a.true_label + 1:]], axis=1)
+            false_freqs = torch.max(freqs[:, r[:a.true_label] + r[a.true_label + 1:]], dim=1)[0]
 
             if self.new_adversarial_def:
                 ans = (true_freqs < 0.5 * freq) * 1
