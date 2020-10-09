@@ -10,8 +10,8 @@ class ModelInterface:
             - implements the logic to pick a model
             - implements the definition of an adversarial example
     """
-    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic', new_adv_def=False,
-                 device=None):
+    def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
+                 new_adv_def=False, device=None):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -30,7 +30,7 @@ class ModelInterface:
         self.model_calls += probs.numel()
         return torch.bernoulli(probs)
 
-    def decision(self, num_queries, batch, true_label):
+    def decision(self, batch, true_label, num_queries=1):
         """
         :param true_label: True labels of the original image being attacked
         :param num_queries: Number of times to query each image
@@ -78,6 +78,7 @@ class ModelInterface:
         outs = self.models[m_id].get_grads(images, true_label)
         return outs
 
+    # TODO: Will be deprecated soon
     def forward(self, images, a, freq, average=False, remember=True):
         if type(images) != torch.Tensor:
             images = torch.tensor(images).to(self.device)

@@ -59,10 +59,7 @@ class PopSkipJump(Attack):
         dist_border = self.compute_distance(out, unperturbed)
         if dist_border == 0:
             print("Distance of border point is 0")
-        if self.hsja:
-            self.get_decision_in_batch(out[None], freq=1,
-                                       remember=True)  # this is to make the model remember the sample
-        else:
-            self.get_decision_in_batch(out[None], freq=self.sampling_freq * 32,
-                                       remember=True)  # this is to make the model remember the sample
         return out, dist, smaps[idx], (nn_tmap_est, output['xxj'])
+
+    def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
+        return dist / math.sqrt(current_iteration)

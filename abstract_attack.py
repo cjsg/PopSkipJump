@@ -2,7 +2,6 @@ import logging
 import torch
 import math
 import time
-# import numpy as np
 from tracker import Diary, DiaryPage
 from defaultparams import DefaultParams
 from adversarial import Adversarial
@@ -10,24 +9,16 @@ from model_interface import ModelInterface
 
 
 class Attack:
-    def __init__(
-            self, model_interface, data_shape, internal_dtype=torch.float32, bounds=(0, 1), device=None,
-            params: DefaultParams = None):
-
+    def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
         self.max_num_evals = params.max_num_evals
         self.gamma = params.gamma
         self.batch_size = params.batch_size
-        self.internal_dtype = internal_dtype
-        self.bounds = bounds
-        self.clip_min, self.clip_max = bounds
+        self.internal_dtype = params.internal_dtype
+        self.bounds = params.bounds
+        self.clip_min, self.clip_max = params.bounds
         self.sampling_freq = params.sampling_freq_binsearch
-        self.grad_sampling_freq = params.sampling_freq_approxgrad
-        self.search = params.search
-        self.hsja = params.hopskipjumpattack
-        self.remember = params.remember_all
-        self.average = params.average
         self.device = device
         self.prev_t = None
         self.prev_s = None
@@ -169,21 +160,9 @@ class Attack:
             self.diary.iterations.append(page)
         return self.diary
 
-    def get_decision_in_batch(self, x, freq, average=False, remember=True):
-        # returns 1 if adversarial
-        outs = []
-        num_batchs = int(math.ceil(len(x) * 1.0 / self.batch_size))
-        for j in range(num_batchs):
-            current_batch = x[self.batch_size * j: self.batch_size * (j + 1)]
-            out = self.model_interface.forward(images=current_batch, a=self.a, freq=freq, average=average,
-                                               remember=remember)
-            outs.append(out)
-        outs = torch.cat(outs, dim=0)
-        return outs
-
     def reset_variables(self, a):
         self.model_interface.model_calls = 0
-        self.a = a
+        self.a: Adversarial = a
         self.prev_t = None
         self.prev_s = None
         self.diary = Diary(a.unperturbed, a.true_label)
@@ -228,7 +207,7 @@ class Attack:
             perturbed = sample + delta * rv
             perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
-            decisions = self.model_interface.decision(self.grad_queries, perturbed, self.a.true_label)
+            decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
             decisions = decisions.sum(dim=1)
             decision_shape = [len(decisions)] + [1] * len(self.shape)
             # Map (0, 1) -> (-1, +1)
@@ -245,24 +224,10 @@ class Attack:
         return gradf
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
-        """ Geometric progression to search for stepsize.
-          Keep decreasing stepsize by half until reaching
-          the desired side of the boundary.
         """
-        epsilon = dist / math.sqrt(current_iteration)
-        if self.hsja:
-            count = 1
-            while True:
-                if count % 200 == 0:
-                    logging.warning("Decreased epsilon {} times".format(count))
-                updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
-                success = (self.get_decision_in_batch(updated[None], self.sampling_freq, remember=self.remember))[0]
-                if success:
-                    break
-                else:
-                    epsilon = epsilon / 2.0  # pragma: no cover
-                count += 1
-        return epsilon
+            Decides the appropriate step-size in the estimated gradient direction
+        """
+        raise NotImplementedError
 
     def compute_distance(self, x1, x2):
         if self.constraint == "l2":

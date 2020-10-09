@@ -1,9 +1,21 @@
+import math
 import torch
+import logging
 
 from abstract_attack import Attack
+from defaultparams import DefaultParams
 
 
 class HopSkipJump(Attack):
+    """
+        Implements Original HSJA.
+        When repeat_queries=1, it is same as vanilla HSJA.
+    """
+
+    def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
+        super().__init__(model_interface, data_shape, device, params)
+        self.grad_queries = 1  # Original HSJA does not perform multiple queries
+        self.repeat_queries = 1
 
     def bin_search_step(self, original, perturbed, page=None):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
@@ -20,12 +32,10 @@ class HopSkipJump(Attack):
         """ Binary search to approach the boundary. """
 
         # Compute distance between each of perturbed and unperturbed input.
-        dists_post_update = torch.tensor(
-            [
-                self.compute_distance(unperturbed, perturbed_x)
-                for perturbed_x in perturbed_inputs
-            ]
-        )
+        dists_post_update = torch.tensor([
+            self.compute_distance(unperturbed, perturbed_x)
+            for perturbed_x in perturbed_inputs
+        ])
 
         # Choose upper thresholds in binary searchs based on constraint.
         if self.constraint == "linf":
@@ -48,8 +58,7 @@ class HopSkipJump(Attack):
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
 
             # Update highs and lows based on model decisions.
-            # decisions = decision_function(mid_inputs, self.sampling_freq, remember=not cosine)
-            decisions = self.get_decision_in_batch(mid_inputs, self.sampling_freq, remember=self.remember)
+            decisions = self.decision_by_repetition(mid_inputs)
             lows = torch.where(decisions == 0, mids, lows)
             highs = torch.where(decisions == 1, mids, highs)
 
@@ -79,3 +88,72 @@ class HopSkipJump(Attack):
         else:
             raise RuntimeError(f"Unknown constraint type: {self.constraint}")
         return projected
+
+    def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
+        """ Geometric progression to search for stepsize.
+          Keep decreasing stepsize by half until reaching
+          the desired side of the boundary.
+        """
+        epsilon = dist / math.sqrt(current_iteration)
+        count = 1
+        while True:
+            if count % 200 == 0:
+                logging.warning("Decreased epsilon {} times".format(count))
+            updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
+            success = (self.decision_by_repetition(updated[None]))[0]
+            if success:
+                break
+            else:
+                epsilon = epsilon / 2.0  # pragma: no cover
+                count += 1
+        return epsilon
+
+    def _gradient_estimator(self, sample, num_evals, delta):
+        """ Computes an approximation by querying every point `grad_queries` times"""
+        # Generate random vectors.
+        num_rvs = int(num_evals)
+        sum_directions = torch.zeros(self.shape, device=self.device)
+        num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
+        for j in range(num_batchs):
+            batch_size = min(self.batch_size, num_rvs - j * self.batch_size)
+            rv = self.generate_random_vectors(batch_size)
+            perturbed = sample + delta * rv
+            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            rv = (perturbed - sample) / delta
+            decisions = self.decision_by_repetition(perturbed)
+            decision_shape = [len(decisions)] + [1] * len(self.shape)
+            # Map (0, 1) to (-1, +1)
+            fval = 2 * decisions.view(decision_shape) - 1.0
+            # Baseline subtraction (when fval differs)
+            if torch.abs(torch.mean(fval)) == 1.0:
+                vals = fval
+            else:
+                vals = fval - torch.mean(fval)
+            sum_directions = sum_directions + torch.sum(vals * rv, dim=0)
+        # Get the gradient direction.
+        gradf = sum_directions / num_rvs
+        gradf = gradf / torch.norm(gradf)
+        return gradf
+
+    def decision_by_repetition(self, perturbed):
+        decisions = self.model_interface.decision(perturbed, self.a.true_label, self.repeat_queries)
+        decisions = decisions.sum(dim=1) / self.repeat_queries
+        decisions = (decisions > 0.5) * 1
+        for i in range(perturbed.shape[0]):
+            if decisions[i] == 1:
+                distance = self.a.calculate_distance(perturbed[i], self.bounds)
+                if self.a.distance > distance:
+                    self.a.distance = distance
+                    self.a.perturbed = perturbed[i]
+        return decisions
+
+
+class HopSkipJumpRepeated(HopSkipJump):
+    """
+        Implements Original HSJA with repeated queries at every point.
+        When repeat_queries=1, it is same as vanilla HSJA.
+    """
+
+    def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
+        super().__init__(model_interface, data_shape, device, params)
+        self.repeat_queries = params.hsja_repeat_queries
