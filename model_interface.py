@@ -44,10 +44,10 @@ class ModelInterface:
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             return (prediction != true_label) * 1.0
         elif self.noise == 'stochastic':
-            rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries))
+            rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)
             rand_pred[rand_pred == true_label] = self.n_classes-1
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
-            indices_to_flip = torch.rand(size=(len(batch), num_queries)) < self.flip_prob
+            indices_to_flip = torch.rand(size=(len(batch), num_queries), device=self.device) < self.flip_prob
             prediction[indices_to_flip] = rand_pred[indices_to_flip]
             return (prediction != true_label) * 1.0
         else:
