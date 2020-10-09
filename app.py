@@ -4,7 +4,6 @@ import os
 import torch
 import time
 from datetime import datetime
-
 from defaultparams import DefaultParams
 from popskip import PopSkipJump
 from hopskip import HopSkipJump, HopSkipJumpRepeated
