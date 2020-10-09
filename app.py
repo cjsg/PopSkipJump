@@ -31,10 +31,15 @@ parser.add_argument("-q", "--queries_per_loc", type=int, default=1,
 parser.add_argument("-gq", "--grad_queries", type=int, default=1,
                     help="(Optional) how many queries to compute per "
                     "point in Gradient Approximation step.")
+parser.add_argument("-r", "--hsja_repeat_queries", type=int, default=1,
+                    help="(Optional) how many queries to compute per "
+                    "point in HSJ Attack")
 parser.add_argument("-ns", "--num_samples", type=int, default=1,
                     help="(Optional) Number of images to attack")
 parser.add_argument("-b", "--beta", type=int, default=1,
                     help="(Optional) Beta parameter used in Gibbs Distribution")
+parser.add_argument("-sf", "--samples_from", type=int, default=0,
+                    help="(Optional) Number of images to skip during sampling")
 
 
 def validate_args(args):
@@ -66,7 +71,8 @@ def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
         det_model = get_model(key=params.model_keys[0], dataset=dataset, noise='deterministic')
-        imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf, model=det_model)
+        imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf,
+                                   model=det_model, samples_from=params.samples_from)
         starts = find_adversarial_images(labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
@@ -87,7 +93,9 @@ def merge_params(params: DefaultParams, args):
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc
     params.grad_queries = args.grad_queries
+    params.hsja_repeat_queries = args.hsja_repeat_queries
     params.num_samples = args.num_samples
+    params.samples_from = args.samples_from
     return params
 
 

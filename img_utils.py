@@ -55,7 +55,7 @@ def find_adversarial_images(labels):
     return starts
 
 
-def get_samples(n_samples=16, conf=None, model=None):
+def get_samples(n_samples=16, conf=None, model=None, samples_from=0):
     np.random.seed(42)
     test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
     if conf is None:
@@ -64,7 +64,7 @@ def get_samples(n_samples=16, conf=None, model=None):
         indices = []
         i = 0
         candidates = np.random.choice(len(test_data), len(test_data), replace=False)
-        while len(indices) != n_samples:
+        while len(indices) != n_samples+samples_from:
             probs = model.get_probs(test_data.data[candidates[i]].numpy()[None]/255.0)
             if probs[0][test_data.test_labels[candidates[i]]] > conf:
                 indices.append(candidates[i])
@@ -72,6 +72,8 @@ def get_samples(n_samples=16, conf=None, model=None):
 
     images = test_data.data[indices].numpy() / 255.0
     labels = test_data.test_labels[indices].numpy()
+    images = images[samples_from:]
+    labels = labels[samples_from:]
     print("Images indices: ", indices)
     return images, labels
 

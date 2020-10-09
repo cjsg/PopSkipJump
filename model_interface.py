@@ -38,8 +38,8 @@ class ModelInterface:
         :return: decisions of shape = (len(batch), num_queries)
         """
         probs = self.get_probs_(images=batch)
+        self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
-            self.model_calls += batch.shape[0] * num_queries
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             return (prediction != true_label) * 1.0
         else:

@@ -47,4 +47,5 @@ class DefaultParams:
         # Specific to Experiment mode
         self.experiment_mode = True
         self.num_samples = 3
+        self.samples_from = 0  # Number of sample to skip. This is for merging
         self.experiment_name = None  # If not none it will override the command line argument
