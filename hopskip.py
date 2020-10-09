@@ -43,13 +43,13 @@ class HopSkipJump(Attack):
             # Stopping criteria.
             thresholds = dists_post_update * self.theta_det
         else:
-            highs = torch.ones(len(perturbed_inputs))
+            highs = torch.ones(len(perturbed_inputs), device=self.device)
             # thresholds = self.theta * 1000  # remove 1000 later
             thresholds = self.theta_det  # remove 1000 later
             if cosine:
                 thresholds /= self.d
 
-        lows = torch.zeros(len(perturbed_inputs))
+        lows = torch.zeros(len(perturbed_inputs), device=self.device)
 
         # Call recursive function.
         while torch.max((highs - lows) / thresholds) > 1:

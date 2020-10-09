@@ -11,7 +11,7 @@ class ModelInterface:
             - implements the definition of an adversarial example
     """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
-                 new_adv_def=False, device=None):
+                 new_adv_def=False, device=None, flip_prob=0.0):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -21,6 +21,7 @@ class ModelInterface:
         self.new_adversarial_def = new_adv_def
         self.device = device
         self.send_models_to_device()
+        self.flip_prob = flip_prob
 
     def send_models_to_device(self):
         for model in self.models:
@@ -41,6 +42,13 @@ class ModelInterface:
         self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            return (prediction != true_label) * 1.0
+        elif self.noise == 'stochastic':
+            rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries))
+            rand_pred[rand_pred == true_label] = self.n_classes-1
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            indices_to_flip = torch.rand(size=(len(batch), num_queries)) < self.flip_prob
+            prediction[indices_to_flip] = rand_pred[indices_to_flip]
             return (prediction != true_label) * 1.0
         else:
             probs = probs[:, true_label]
