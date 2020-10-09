@@ -40,6 +40,8 @@ parser.add_argument("-b", "--beta", type=int, default=1,
                     help="(Optional) Beta parameter used in Gibbs Distribution")
 parser.add_argument("-sf", "--samples_from", type=int, default=0,
                     help="(Optional) Number of images to skip during sampling")
+parser.add_argument("-fp", "--flip_prob", type=float, default=0,
+                    help="(Optional) Number of images to skip during sampling")
 
 
 def validate_args(args):
@@ -96,6 +98,7 @@ def merge_params(params: DefaultParams, args):
     params.hsja_repeat_queries = args.hsja_repeat_queries
     params.num_samples = args.num_samples
     params.samples_from = args.samples_from
+    params.flip_prob = args.flip_prob
     return params
 
 
