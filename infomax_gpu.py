@@ -282,8 +282,8 @@ def bin_search(
         s_lo, s_hi = -1., 2.
         Ns = 31
     else:
-        s_lo = log10(prev_s) - prior_frac * 3
-        s_hi = log10(prev_s) + prior_frac * 3
+        s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
+        s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
         Ns = int(prior_frac * 30) + 1
 
 
