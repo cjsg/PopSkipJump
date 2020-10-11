@@ -1,6 +1,7 @@
 # import numpy as np
 import torch
 
+
 class Adversarial:
     def __init__(self, image, label, device=None, distance='MSE'):
         self.unperturbed = torch.tensor(image).type(torch.float32).to(device)

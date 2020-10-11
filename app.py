@@ -60,7 +60,7 @@ def create_attack(exp_name, dataset, params):
     models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
               for k in params.model_keys]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
-                                     noise=params.noise, device=get_device())
+                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,

@@ -12,7 +12,7 @@ from tracker import Diary
 OUT_DIR = 'aistats'
 device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 5
+NUM_IMAGES = 1
 eps = list(range(1, 6))
 
 
@@ -27,7 +27,9 @@ exps = {
     'bayesian': 'all_bay',
     'deterministic': 'all_det',
     'stochastic': 'all_sto',
-    'temperature': 'bay_temp',
+    'stochastic_0.10': 'all_sto_0.10',
+    'temperature': 'psj_temp',
+    'delta': 'hsj_delta',
     'dummy': 'dummy'
 }
 
@@ -38,15 +40,22 @@ dumps = {
     'stochastic': [('hsj_b_1_stochastic_ns_100', 'HSJ'),
                    ('hsj_rep_b_1_stochastic_ns_100', 'HSJ-r'),
                    ('psj_b_1_stochastic_ns_100', 'PSJ')],
+    'stochastic_0.10': [('hsj_b_1_stochastic_ns_100_fp_0.10', 'HSJ'),
+                        ('hsj_rep_b_1_stochastic_ns_100_fp_0.10', 'HSJ-r'),
+                        ('psj_b_1_stochastic_ns_100_fp_0.10', 'PSJ')],
     'bayesian': [('hsj_b_1_bayesian_ns_100', 'HSJ'),
                  ('hsj_rep_b_1_bayesian_ns_100', 'HSJ-r'),
                  ('psj_b_1_bayesian_ns_100', 'PSJ')],
+    'delta': [('hsj_rep_psj_delta_b_1_bayesian_ns_100', "HSJ's delta (bayesian)"),
+              ('hsj_rep_psj_delta_b_1_deterministic_ns_100', "HSJ's delta (deterministic)"),
+              ('hsj_rep_b_1_bayesian_ns_100', "PSJ's delta (bayesian)"),
+              ('hsj_rep_b_1_deterministic_ns_100', "PSJ's delta (deterministic)")],
     'temperature': [('psj_b_1_bayesian_ns_100', 'PSJ(beta=1)'),
                     ('psj_b_5_bayesian_ns_100', 'PSJ(beta=5)'),
                     ('psj_b_50_bayesian_ns_100', 'PSJ(beta=50)'),
                     ('psj_b_1_deterministic_ns_100', 'PSJ(deterministic)'),
                     ('hsj_b_1_deterministic_ns_100', 'HSJ(deterministic)')],
-    'dummy': [('hsj_b_1_bayesian_ns_100', 'HSJ')]
+    'dummy': [('del_later', 'HSJ')]
 }
 
 noise = sys.argv[1]
@@ -92,6 +101,7 @@ def project(x_star, x_t, label, theta_det):
 
 
 D = torch.zeros(size=(len(raws), NUM_ITERATIONS, NUM_IMAGES), device=device)
+D_OUT = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(raws), len(eps), NUM_ITERATIONS, NUM_IMAGES), device=device)
 MC = torch.zeros_like(D, device=device)
 for i, raw in enumerate(raws):
@@ -106,8 +116,12 @@ for i, raw in enumerate(raws):
             x_t = details[iteration].bin_search
             x_tt = project(x_star, x_t, label, theta_det)
             p_tt = model.get_probs(x_tt[None])[0][label]
-
             D[i, iteration, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+            if dumps[noise][i][0].startswith('psj'):
+                d_output = D[i, iteration, image]
+            else:
+                d_output = details[iteration].distance
+            D_OUT[i, iteration, image] = d_output
             MC[i, iteration, image] = calls
             for j in range(len(eps)):
                 x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
@@ -123,6 +137,7 @@ for i, raw in enumerate(raws):
                     AA[i, j, iteration, image] = p_temp[label]
 
 D = D.cpu().numpy()
+D_OUT = D_OUT.cpu().numpy()
 MC = MC.cpu().numpy()
 AA = AA.cpu().numpy()
 
@@ -146,9 +161,18 @@ plt.grid()
 plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
 plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
+plt.figure(figsize=(10, 7))
+image_path = f'{PLOTS_DIR}/distance_output'
+for i in range(len(raws)):
+    plt.plot(np.median(D_OUT[i], axis=1), label=dumps[noise][i][1])
+plt.legend()
+plt.grid()
+plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+
 for j in range(len(eps)):
     plt.figure(figsize=(10, 7))
-    image_path = f'{PLOTS_DIR}/risk'
+    image_path = f'{PLOTS_DIR}/adv_acc'
     for i in range(len(raws)):
         plt.plot(np.mean(AA[i, j], axis=1), label=dumps[noise][i][1])
     plt.legend()
