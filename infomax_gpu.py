@@ -223,8 +223,17 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
     xx = xx.view(dims)
     batch = (1 - xx) * unperturbed + xx * perturbed
     probs = model_interface.get_probs_(batch)
-    probs = probs[:, true_label]
-    return probs
+    if model_interface.noise == "deterministic":
+        pred = probs.argmax(dim=1)
+        res = torch.zeros(xx.shape[0], device=batch.device)
+        res[pred == true_label] = 1.
+    elif model_interface.noise == "stochastic":
+        pred = probs.argmax(dim=1)
+        res = torch.ones(xx.shape[0], device=batch.device) * model_interface.flip_prob / (model_interface.n_classes - 1)
+        res[pred == true_label] = 1 - model_interface.flip_prob
+    else:
+        res = probs[:, true_label]
+    return res
 
 
 def bin_search(

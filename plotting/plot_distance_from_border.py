@@ -7,7 +7,7 @@ from tracker import Diary
 
 OUT_DIR = 'aistats'
 NUM_ITERATIONS = 32
-NUM_IMAGES = 100
+NUM_IMAGES = 5
 
 
 def read_dump(path):
@@ -16,13 +16,23 @@ def read_dump(path):
     return raw
 
 
+dumps = [
+            # ('hsj_b_20_deterministic_ns_100', 'hsj'),
+            # ('hsj_rep_b_20_deterministic_ns_100', 'hsjr'),
+            # ('psj_b_20_deterministic_ns_100', 'psj'),
+            ('hsj_b_1_stochastic_ns_5', 'hsj'),
+            ('hsj_rep_b_1_stochastic_ns_5', 'hsjr'),
+            ('psj_b_1_stochastic_ns_5', 'psj'),
+            # ('hsj_b_1_bayesian_ns_100', 'hsj'),
+            # ('hsj_rep_b_1_bayesian_ns_100', 'hsjr'),
+            # ('psj_b_1_bayesian_ns_100', 'psj')
+        ]
+
 theta_det = 1 / (28 * 28 * 28)
-attacks = ['hsj', 'hsj_rep', 'psj']
 beta = 1
-# betas = [1, 5, 10]
-# reps = [1, 2, 4, 8, 16]
+
 # raws = [read_dump(f'{attack}_{rep}_b_{beta}_bayesian_ns_5') for beta in betas]
-raws = [read_dump(f'{attack}_b_{beta}_bayesian_ns_100') for attack in attacks]
+raws = [read_dump(s) for (s,_) in dumps]
 model = get_model(key='mnist_noman', dataset='mnist')
 
 
@@ -77,27 +87,27 @@ for i, raw in enumerate(raws):
 
 
 plt.figure(figsize=(10, 7))
-image_path = f'{OUT_DIR}/allattacks_distance'
+image_path = f'{OUT_DIR}/all_sto_distance'
 for i in range(len(raws)):
-    plt.plot(np.median(D[i], axis=1), label=f'beta={attacks[i]}')
+    plt.plot(np.median(D[i], axis=1), label=dumps[i][1])
 plt.legend()
 plt.grid()
 plt.savefig(f'{image_path}.png')
 plt.savefig(f'{image_path}.pdf')
 
 plt.figure(figsize=(10, 7))
-image_path = f'{OUT_DIR}/allattacks_risk'
+image_path = f'{OUT_DIR}/all_sto_risk'
 for i in range(len(raws)):
-    plt.plot(np.mean(AR[i], axis=1), label=f'beta={attacks[i]}')
+    plt.plot(np.mean(AR[i], axis=1), label=dumps[i][1])
 plt.legend()
 plt.grid()
 plt.savefig(f'{image_path}.png')
 plt.savefig(f'{image_path}.pdf')
 
 plt.figure(figsize=(10, 7))
-image_path = f'{OUT_DIR}/allattacks_calls'
+image_path = f'{OUT_DIR}/all_sto_calls'
 for i in range(len(raws)):
-    plt.plot(np.mean(MC[i], axis=1), label=f'beta={attacks[i]}')
+    plt.plot(np.mean(MC[i], axis=1), label=dumps[i][1])
 plt.legend()
 plt.grid()
 plt.yscale('log')
