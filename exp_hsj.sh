@@ -13,7 +13,7 @@ for noise in $noises; do
     fixed_params="-d mnist -pf 0.1 -q 5 -ns $num_samples -r 90 -fp $flip"
     command="python app.py -o $exp_name -n $noise -a $attack -b $beta $fixed_params"
     echo "Command: $command"
-    device=$(( device + 1 ))
+    device=$(( (device + 1) % 4 ))
     nohup $command > logs/$exp_name.txt &
   done
 done
