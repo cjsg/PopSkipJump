@@ -1,22 +1,25 @@
+import os
 import sys
 import numpy as np
 import torch
 import matplotlib.pylab as plt
+from matplotlib import rc, rcParams
 from tqdm import tqdm
 from model_factory import get_model
 from img_utils import get_device
 from tracker import Diary
 
 OUT_DIR = 'aistats'
+device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 100
+NUM_IMAGES = 5
 eps = list(range(1, 6))
 
 
 def read_dump(path):
     filepath = f'{OUT_DIR}/{path}/raw_data.pkl'
-    # raw = torch.load(open(filepath, 'rb'), map_location='cpu')
-    raw = torch.load(open(filepath, 'rb'))
+    raw = torch.load(open(filepath, 'rb'), map_location=device)
+    # raw = torch.load(open(filepath, 'rb'))
     return raw
 
 
@@ -24,22 +27,26 @@ exps = {
     'bayesian': 'all_bay',
     'deterministic': 'all_det',
     'stochastic': 'all_sto',
-    'temperature': 'bay_temp'
+    'temperature': 'bay_temp',
+    'dummy': 'dummy'
 }
 
 dumps = {
-    'deterministic': [('hsj_b_1_deterministic_ns_100', 'hsj'),
-                      ('hsj_rep_b_1_deterministic_ns_100', 'hsjr'),
-                      ('psj_b_1_deterministic_ns_100', 'psj')],
-    'stochastic': [('hsj_b_1_stochastic_ns_100', 'hsj'),
-                   ('hsj_rep_b_1_stochastic_ns_100', 'hsjr'),
-                   ('psj_b_1_stochastic_ns_100', 'psj')],
-    'bayesian': [('hsj_b_1_bayesian_ns_100', 'hsj'),
-                 ('hsj_rep_b_1_bayesian_ns_100', 'hsjr'),
-                 ('psj_b_1_bayesian_ns_100', 'psj')],
-    'temperature': [('psj_b_1_bayesian_ns_100', 'beta=1'),
-                    ('psj_b_5_bayesian_ns_100', 'beta=5'),
-                    ('psj_b_10_bayesian_ns_100', 'beta=10')],
+    'deterministic': [('hsj_b_1_deterministic_ns_100', 'HSJ'),
+                      ('hsj_rep_b_1_deterministic_ns_100', 'HSJ-r'),
+                      ('psj_b_1_deterministic_ns_100', 'PSJ')],
+    'stochastic': [('hsj_b_1_stochastic_ns_100', 'HSJ'),
+                   ('hsj_rep_b_1_stochastic_ns_100', 'HSJ-r'),
+                   ('psj_b_1_stochastic_ns_100', 'PSJ')],
+    'bayesian': [('hsj_b_1_bayesian_ns_100', 'HSJ'),
+                 ('hsj_rep_b_1_bayesian_ns_100', 'HSJ-r'),
+                 ('psj_b_1_bayesian_ns_100', 'PSJ')],
+    'temperature': [('psj_b_1_bayesian_ns_100', 'PSJ(beta=1)'),
+                    ('psj_b_5_bayesian_ns_100', 'PSJ(beta=5)'),
+                    ('psj_b_50_bayesian_ns_100', 'PSJ(beta=50)'),
+                    ('psj_b_1_deterministic_ns_100', 'PSJ(deterministic)'),
+                    ('hsj_b_1_deterministic_ns_100', 'HSJ(deterministic)')],
+    'dummy': [('hsj_b_1_bayesian_ns_100', 'HSJ')]
 }
 
 noise = sys.argv[1]
@@ -50,7 +57,6 @@ beta = 1
 
 # raws = [read_dump(f'{attack}_{rep}_b_{beta}_bayesian_ns_5') for beta in betas]
 raws = [read_dump(s) for (s, _) in dumps[noise]]
-device = get_device()
 model = get_model(key='mnist_noman', dataset='mnist')
 model.model = model.model.to(device)
 
@@ -116,31 +122,46 @@ for i, raw in enumerate(raws):
                     p_temp[pred] = 1 - flip_prob
                     AA[i, j, iteration, image] = p_temp[label]
 
+D = D.cpu().numpy()
+MC = MC.cpu().numpy()
+AA = AA.cpu().numpy()
+
+PLOTS_DIR = f'{OUT_DIR}/plots_{exp}'
+if not os.path.exists(PLOTS_DIR):
+    os.makedirs(PLOTS_DIR)
+
+rc('text', usetex=True)
+rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+rc('font', size=14)  # default: 10 -> choose size depending on figsize
+rc('font', family='STIXGeneral')
+rc('legend', fontsize=16)
+plt.tight_layout(h_pad=0, w_pad=.5)
+
 plt.figure(figsize=(10, 7))
-image_path = f'{OUT_DIR}/{exp}_distance'
+image_path = f'{PLOTS_DIR}/distance'
 for i in range(len(raws)):
     plt.plot(np.median(D[i], axis=1), label=dumps[noise][i][1])
 plt.legend()
 plt.grid()
-plt.savefig(f'{image_path}.png')
-plt.savefig(f'{image_path}.pdf')
+plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
 for j in range(len(eps)):
     plt.figure(figsize=(10, 7))
-    image_path = f'{OUT_DIR}/{exp}_risk'
+    image_path = f'{PLOTS_DIR}/risk'
     for i in range(len(raws)):
         plt.plot(np.mean(AA[i, j], axis=1), label=dumps[noise][i][1])
     plt.legend()
     plt.grid()
-    plt.savefig(f'{image_path}_{eps[j]}.png')
-    plt.savefig(f'{image_path}_{eps[j]}.pdf')
+    plt.savefig(f'{image_path}_{eps[j]}.png', bbox_inches='tight', pad_inches=.02)
+    plt.savefig(f'{image_path}_{eps[j]}.pdf', bbox_inches='tight', pad_inches=.02)
 
 plt.figure(figsize=(10, 7))
-image_path = f'{OUT_DIR}/{exp}_calls'
+image_path = f'{PLOTS_DIR}/calls'
 for i in range(len(raws)):
     plt.plot(np.mean(MC[i], axis=1), label=dumps[noise][i][1])
 plt.legend()
 plt.grid()
 plt.yscale('log')
-plt.savefig(f'{image_path}.png')
-plt.savefig(f'{image_path}.pdf')
+plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
