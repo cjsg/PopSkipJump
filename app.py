@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from defaultparams import DefaultParams
 from popskip import PopSkipJump
-from hopskip import HopSkipJump, HopSkipJumpRepeated
+from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
 from model_factory import get_model
 from model_interface import ModelInterface
@@ -64,6 +64,7 @@ def create_attack(exp_name, dataset, params):
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
+        'hsj_rep_psj_delta': HopSkipJumpRepeatedWithPSJDelta,
         'psj': PopSkipJump
     }
     return attacks_factory.get(params.attack)(model_interface, get_shape(dataset), get_device(), params)

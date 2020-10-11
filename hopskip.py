@@ -17,6 +17,7 @@ class HopSkipJump(Attack):
         self.grad_queries = 1  # Original HSJA does not perform multiple queries
         self.repeat_queries = 1
 
+
     def bin_search_step(self, original, perturbed, page=None):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
         return perturbed, dist_post_update, None
@@ -157,3 +158,19 @@ class HopSkipJumpRepeated(HopSkipJump):
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
         self.repeat_queries = params.hsja_repeat_queries
+
+
+class HopSkipJumpRepeatedWithPSJDelta(HopSkipJump):
+    """
+        Implements Original HSJA with repeated queries at every point.
+        When repeat_queries=1, it is same as vanilla HSJA.
+    """
+
+    def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
+        super().__init__(model_interface, data_shape, device, params)
+        self.repeat_queries = params.hsja_repeat_queries
+        self.theta_det = 1. / self.grid_size
+
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        delta = dist_post_update * math.sqrt(self.d) / self.grid_size
+        return self._gradient_estimator(perturbed, num_evals_det, delta)
