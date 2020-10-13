@@ -1,4 +1,4 @@
-class Diary:
+class Diary(object):
     def __init__(self, image, label):
         self.true_label = label
         self.original = image
@@ -16,7 +16,7 @@ class Diary:
         self.iterations = list()
 
 
-class DiaryPage:
+class DiaryPage(object):
     def __init__(self):
         self.distance = None
         self.num_eval_det = None
@@ -29,14 +29,15 @@ class DiaryPage:
         self.time: Time = Time()
 
 
-class InfoMaxStats:
-    def __init__(self, s, tmap, samples):
+class InfoMaxStats(object):
+    def __init__(self, s, tmap, samples, e):
         self.s = s
+        self.e = e
         self.tmap = tmap
         self.samples = samples
 
 
-class Time:
+class Time(object):
     def __init__(self):
         self.start = None
         self.num_evals = None
@@ -46,7 +47,7 @@ class Time:
         self.end = None
 
 
-class Calls:
+class Calls(object):
     def __init__(self):
         self.start = None
         self.initial_projection = None

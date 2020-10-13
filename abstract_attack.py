@@ -22,6 +22,7 @@ class Attack:
         self.device = device
         self.prev_t = None
         self.prev_s = None
+        self.prev_e = None
         self.prior_frac = params.prior_frac
         self.queries = params.queries
         self.grad_queries = params.grad_queries
@@ -165,6 +166,7 @@ class Attack:
         self.a: Adversarial = a
         self.prev_t = None
         self.prev_s = None
+        self.prev_e = None
         self.diary = Diary(a.unperturbed, a.true_label)
 
     def initialize_starting_point(self, a):

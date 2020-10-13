@@ -200,21 +200,20 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
 
     vmin = max(pts_x.min(), 1e-7)  # alternatively, fix 1e-7
     vmax = pts_x.max()  # alternatively, fix 1.
-    fig1 = axs[1].pcolor(ttss[0], ttss[1], pts_x[0, :, 0, :],
+    fig1 = axs[1].pcolor(ttss[0], ttss[1], pts_x[0, :, 0, :, 0],
                          norm=LogNorm(vmin=vmin, vmax=vmax))
     axs[1].set_yscale('log')
     axs[1].set_xlabel('t')
     axs[1].set_ylabel('s')
     f.colorbar(fig1, ax=axs[1])
 
-    ts_map = output['tts_map'][-1]
-    ts_max = output['tts_max'][-1]
+    tse_map = output['ttse_map'][-1]
+    tse_max = output['ttse_max'][-1]
     n_zbest = output['nn_best_est'][-1]
     f.suptitle('k=%d    En=%.1e    '
-               'map=(%4.2f, %4.2f)   '
-               'max=(%4.2f, %4.2f)' % (
-                   k, n_zbest, ts_map[0],
-                   ts_map[1], ts_max[0], ts_max[1]))
+               'map=(%4.2f, %4.2f, %4.2f)   '
+               'max=(%4.2f, %4.2f, %4.2f)' % (
+                   k, n_zbest, *tse_map, *tse_max))
     plt.show()
 
 
@@ -238,10 +237,11 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
 
 def bin_search(
         unperturbed=None, perturbed=None, model_interface=None,
-        acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
+        acq_func='I(y,t,s,e)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
-        eps_=.1, device=None, true_label=None, plot=False, prev_t=None,
-        prev_s=None, prior_frac=1., queries=5):
+        eps_=None, device=None, true_label=None, plot=False, prev_t=None,
+        prev_s=None, prev_e=None, prior_frac=1., queries=5,
+        tt=None, ss=None, ee=None):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -254,19 +254,25 @@ def bin_search(
         verbose     (bool)  print log info
         window_size (int)   size of smoothing window for stopping criterium
         grid_size   (int)   grid size used for discretization of t
-        eps_        (float) noise level used
+        eps_        (float) noise level used (DEPRECATED!!)
         device      (str)   which device to use ('cuda' or 'cpu')
         plot        (bool)  to plot or not to plot
         prev_t      (float) previous estimate of the sigmoid center t (None)
         prev_s      (float) previous estimate of the sigmoid inverse-scale s (None)
+        prev_e      (float) previous estimate of the noise eps or nu (None)
         prior_frac  (float) how much to reduce the a priori search interval
                             to the left and to the right of prev_t and prev_s
-        queries (int) how many queries to perform in each iteration
+        queries     (int)   how many queries to perform in each iteration
+        tt          (ten)   linear grid where to search the center
+        ss          (ten)   logspace grid where to search the inverse-scale s
+        ee          (ten)   linear grid where to search the noie level eps
+
+        Using tt, ss or ee disables prev_t, prev_s, prev_e resp.
 
         Notation conventions in the code:
             * t     center of sigmoid
             * s     inverse scale of sigmoid
-            * eps   noise levels at +-infty
+            * e     noise levels at +-infty
             * z     centering point for gradient sampling
             * pt_x, pts_x, ...
                     p(t|x), p(t,s|x), ...
@@ -275,6 +281,9 @@ def bin_search(
     '''
 
     t_start = time.time()
+
+    if eps_ is not None:
+        raise DeprecationWarning
 
     if prev_t is None:
         t_lo, t_hi = 0., 1.
@@ -295,23 +304,41 @@ def bin_search(
         s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
         Ns = int(prior_frac * 30) + 1
 
+    if prev_e is None:
+        e_lo, e_hi = 0., .3
+        Ne = 7
+    else:
+        e_lo = prev_e
+        e_hi = prev_e
+        Ne = 1
+        # e_lo = max(prev_e - prior_frac*.5, 0.)
+        # e_hi = min(prev_e + prior_frac*.5, .5)
+        # Ne = max(int(prior_frac*9) + 1, 3)
+
 
     # discretize parameter (search) space
     dtype = torch.float32
-    tt = torch.linspace(t_lo, t_hi, Nt, dtype=dtype, device=device)
-    zz = torch.linspace(t_lo, t_hi, Nz, dtype=dtype, device=device)  # center of sampling ball
+    if tt is None:
+        tt = torch.linspace(t_lo, t_hi, Nt, dtype=dtype, device=device)
+    zz = tt.clone()  # center of sampling ball
     xx = torch.linspace(0., 1., Nx, dtype=dtype, device=device)
     yy = torch.tensor([0, 1], dtype=dtype, device=device)
-    ss = torch.logspace(s_lo, s_hi, Ns, dtype=dtype, device=device)  # s \in [.01, 100.]
-    # ss[-1] = float("Inf")   # xlogy may not work when s is infinite
-    eeps = torch.tensor([eps_], dtype=dtype, device=device)  # torch.linspace(0., .1, 2)
+    if ss is None:
+        ss = torch.logspace(s_lo, s_hi, Ns, dtype=dtype, device=device)  # s \in [.01, 100.]
+        # ss[-1] = float("Inf")   # xlogy may not work when s is infinite
+    if ee is None:
+        ee = torch.linspace(e_lo, e_hi, Ne, dtype=dtype, device=device)
 
-    ttss = torch.stack(torch.meshgrid(tt, ss))  # 2 x Nt x Ns  (numpy indexing='ij')
+    ttssee = torch.stack(torch.meshgrid(tt, ss, ee))  # 2 x Nt x Ns  (numpy indexing='ij')
     ll = zz[:, None] - tt[None, :]  # distance matrix: Nz x Nt
-    lls, lss = torch.meshgrid(ll.flatten(), ss)
-    lls = lls.reshape(Nz, Nt, Ns)  # Nx x Nt x Ns
-    lss = lss.reshape(Nz, Nt, Ns)  # Nx x Nt x Ns
+    llse, lsse, lsee = torch.meshgrid(ll.flatten(), ss, ee)
+    llse = llse.reshape(Nz, Nt, Ns, Ne)  # Nx x Nt x Ns x Ne
+    lsse = lsse.reshape(Nz, Nt, Ns, Ne)  # Nx x Nt x Ns x Ne
+    lsee = lsee.reshape(Nz, Nt, Ns, Ne)  # Nx x Nt x Ns x Ne
     ii_t = torch.arange(Nt, device=device)  # indeces of t (useful for later computations)
+    if plot:
+        ttss = torch.stack(torch.meshgrid(tt, ss))  # 2 x Nt x Ns  (numpy indexing='ij')
+
 
     if unperturbed is None:
         pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
@@ -325,19 +352,19 @@ def bin_search(
     start = time.time()
 
     # Compute likelihood P(y|t,x)
-    Y, T, X, S, E = torch.meshgrid(yy, tt, xx, ss, eeps)
+    Y, T, X, S, E = torch.meshgrid(yy, tt, xx, ss, ee)
     py_txse = get_py_txse(Y, T, X, S, E)  # [y, t, x, s, eps] axis always in this order
-    py_txs = py_txse.sum(axis=4)  # marginalizing out eps
-    pt = torch.ones((1, Nt, 1, 1), device=device) / Nt  # prior on t
-    ps = torch.ones((1, 1, 1, Ns), device=device) / Ns  # prior on s
-    pts = pt * ps  # prior on (t,s)
-    pts_x = pts  # X and (T, S) are independent
+    pt = torch.ones((1, Nt, 1, 1, 1), device=device) / Nt  # prior on t
+    ps = torch.ones((1, 1, 1, Ns, 1), device=device) / Ns  # prior on s
+    pe = torch.ones((1, 1, 1, 1, Ne), device=device) / Ne  # prior on e
+    ptse = pt * ps * pe # prior on (t,s)
+    ptse_x = ptse  # X and (T, S) are independent
 
     # E[n] given that sigmoid parameters are (t,s) and sampling centered on  z
-    n_tsz = get_n_from_cos(
-        s=lss, theta=lls, target_cos=target_cos,
-        delta=delta, d=d).permute(1, 2, 0)
-    n_tsz = torch.clamp(n_tsz, max=1e8)  # for numerical stability
+    n_tsez = get_n_from_cos(
+        s=lsse, theta=llse, eps=lsee, target_cos=target_cos,
+        delta=delta, d=d).permute(1, 2, 3, 0)  # Nt x Ns x Ne x Nz
+    n_tsez = torch.clamp(n_tsez, max=1e8)  # for numerical stability
 
     if acq_func == '-E[n]':
         n_ytxsz = n_tsz.reshape(1, Nt, 1, Ns, Nz)
@@ -347,8 +374,8 @@ def bin_search(
         'queries_per_loc': [],
         'xxj': [],
         'yyj': [],
-        'tts_max': [],
-        'tts_map': [],
+        'ttse_max': [],
+        'ttse_map': [],
         'zz_best': [],
         'zz_tmax': [],
         'zz_tmap': [],
@@ -366,27 +393,32 @@ def bin_search(
 
     stop_next = False
     max_queries = queries
+    krepeat = int(kmax / max_queries)
 
-    for k in tqdm(range(int(kmax / max_queries)), desc='bin-search'):
+    for k in tqdm(range(krepeat), desc='bin-search'):
         if stop_next:
             break
+        if k == krepeat - 1:
+            stop_next = True
 
         t_start = time.time()
 
         queries = min(k // 2 + 1, max_queries)
 
         # Compute some probabilities / expectations
-        pyts_x = py_txs * pts_x
-        py_x = pyts_x.sum(axis=(1, 3), keepdim=True)
+        pytse_x = py_txse * ptse_x
+        py_x = pytse_x.sum(axis=(1, 3, 4), keepdim=True)
+        pts_x = ptse_x.sum(axis=4, keepdim=True)
         pt_x = pts_x.sum(axis=3, keepdim=True)
-        n_z = (pts_x.reshape(Nt, Ns, 1) * n_tsz).sum(axis=(0, 1))  # E[n | z]
+        n_z = (ptse_x.reshape(Nt, Ns, Ne, 1) * n_tsez).sum(axis=(0, 1, 2))  # E[n | z]
         tt_compute_probs += (time.time() - t_start)
         t_start = time.time()
 
+
         # Compute new stats for logs and stopping criterium
-        i_ts_max, j_ts_max = unravel_index(pts_x.argmax(), (Nt, Ns))
-        ts_max = ttss[:, i_ts_max, j_ts_max].cpu()  # Maximum a posteriori (or prior max)
-        ts_map = (pts_x.squeeze() * ttss).sum(axis=(1, 2)).cpu()  # Mean a posteriori (or prior mean)
+        i_tse_max, j_tse_max, h_tse_max = unravel_index(ptse_x.argmax(), (Nt, Ns, Ne))
+        tse_max = ttssee[:, i_tse_max, j_tse_max, h_tse_max].cpu()  # Maximum a posteriori (or prior max)
+        tse_map = (ptse_x.reshape(Nt, Ns, Ne) * ttssee).sum(axis=(1, 2, 3)).cpu()  # Mean a posteriori (or prior mean)
         iz_tmax = pt_x.argmax().item()
         iz_tmap = int(torch.round((pt_x.squeeze() * ii_t).sum()))  # assumes lin-spaced tt
         iz_best = torch.argmin(n_z).item()
@@ -401,30 +433,39 @@ def bin_search(
         # n_ztmap_tru = n_tsz[it_true, is_true, iz_tmax].item()  # get_n_from_cos(s_, z_tmap-t_, target_cos, delta, d)
         tt_setting_stats += time.time() - t_start
 
+
         t_start = time.time()
         # Compute acquisition function a(x), x = next sample loc
-        if acq_func == 'I(y,t,s)':
-            # Compute mutual information I(y, (t, s) | {(xi,yi) : i})
-            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3))
-            Hts = -xlogy(pts_x, pts_x).sum(axis=(0, 1, 3))
-            Hyts = -xlogy(pyts_x, pyts_x).sum(axis=(0, 1, 3))
+        if acq_func == 'I(y,t,s,e)':
+            # Compute mutual information I(y, (t, s, e) | {(xi,yi) : i})
+            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3, 4))
+            Htse = -xlogy(ptse_x, ptse_x).sum(axis=(0, 1, 3, 4))
+            Hytse = -xlogy(pytse_x, pytse_x).sum(axis=(0, 1, 3, 4))
+            a_x = Hy + Htse - Hytse  # acquisition = mutual info
+
+        elif acq_func == 'I(y,t,s)':
+            pyts_x = pytse_x.sum(axis=4, keepdim=True)
+            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3, 4))
+            Hts = -xlogy(pts_x, pts_x).sum(axis=(0, 1, 3, 4))
+            Hyts = -xlogy(pyts_x, pyts_x).sum(axis=(0, 1, 3, 4))
             a_x = Hy + Hts - Hyts  # acquisition = mutual info
 
         elif acq_func == 'I(y,t)':
-            pyt_x = pyts_x.sum(axis=3, keepdim=True)
-            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3))
-            Ht = -xlogy(pt_x, pt_x).sum(axis=(0, 1, 3))
-            Hyt = -xlogy(pyt_x, pyt_x).sum(axis=(0, 1, 3))
+            pyt_x = pytse_x.sum(axis=(3,4), keepdim=True)
+            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3, 4))
+            Ht = -xlogy(pt_x, pt_x).sum(axis=(0, 1, 3, 4))
+            Hyt = -xlogy(pyt_x, pyt_x).sum(axis=(0, 1, 3, 4))
             a_x = Hy + Ht - Hyt  # acqui = mutual info
 
         elif acq_func == 'I(y,s)':
-            pys_x = pyts_x.sum(axis=1, keepdim=True)
+            pys_x = pytse_x.sum(axis=(1,4), keepdim=True)
             ps_x = pts_x.sum(axis=1, keepdim=True)
-            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3))
-            Hs = -xlogy(ps_x, ps_x).sum(axis=(0, 1, 3))
-            Hys = -xlogy(pys_x, pys_x).sum(axis=(0, 1, 3))
+            Hy = -xlogy(py_x, py_x).sum(axis=(0, 1, 3, 4))
+            Hs = -xlogy(ps_x, ps_x).sum(axis=(0, 1, 3, 4))
+            Hys = -xlogy(pys_x, pys_x).sum(axis=(0, 1, 3, 4))
             a_x = Hy + Hs - Hys  # acqui = mutual info
 
+        # TODO: make changes for  eps here!
         elif (acq_func == '-E[n]' and
               center_on in {'best', 'near_best'}):
             # a(x) = min_z E[n | x, z] = n | y, x, z
@@ -451,6 +492,7 @@ def bin_search(
             n_x = (n_yx * py_x).sum(axis=0).squeeze()  # E[n | x]
             a_x = - n_x
 
+        # TODO: make changes for  eps here!
         elif (acq_func == '-E[n]' and
               center_on in {'mode', 'mean'}):
             # a(x) = E_n[n | zj, x]
@@ -480,7 +522,8 @@ def bin_search(
         tt_acq_func += time.time() - t_start
         t_start = time.time()
         a_max = torch.max(a_x)
-        jj_top = torch.where(a_x >= .9 * a_max)[0]
+        a_min_to_sample = .9 * a_max if queries > 1 else a_max
+        jj_top = torch.where(a_x >= a_min_to_sample)[0]
         j_amax = jj_top[torch.randint(len(jj_top), size=[queries])]
         
         # # xj = xx[j_amax].item()
@@ -501,8 +544,8 @@ def bin_search(
         output['queries_per_loc'].append(queries)
         output['xxj'].extend([x.item() for x in xj])
         output['yyj'].extend([y.item() for y in yj])
-        output['tts_max'].append(ts_max)
-        output['tts_map'].append(ts_map)
+        output['ttse_max'].append(tse_max)
+        output['ttse_map'].append(tse_map)
         output['zz_tmax'].append(z_tmax)
         output['zz_tmap'].append(z_tmap)
         output['zz_best'].append(z_best)
@@ -518,21 +561,21 @@ def bin_search(
                 stop_next = True
 
         # Plots
-        # sq_k = sqrt(k)
-        # if (plot and (
-        #         (int(sq_k) % 5 == 0 and int(sq_k) - sq_k == 0.)
-        #         or stop_next)):
-        #     plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func)
+        sq_k = sqrt(k)
+        if (plot and (
+                (int(sq_k) % 5 == 0 and int(sq_k) - sq_k == 0.)
+                or stop_next)):
+            plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func)
 
         # Compute posterior (i.e. new prior) for t
-        pyj_txjs = py_txs[yj, :, j_amax, :]
-        pyj_txjs = pyj_txjs[:, :, None, :].prod(dim=0, keepdim=True)
-        pyj_xj = (pyj_txjs * pts_x).sum(axis=(1,3), keepdim=True)
-        pts_xyj = pyj_txjs * pts_x / pyj_xj
+        pyj_txjse = py_txse[yj, :, j_amax, :, :]
+        pyj_txjse = pyj_txjse[:, :, None, :, :].prod(dim=0, keepdim=True)
+        pyj_xj = (pyj_txjse * ptse_x).sum(axis=(1,3,4), keepdim=True)
+        ptse_xyj = pyj_txjse * ptse_x / pyj_xj
 
         # New prior = previous posterior
-        pts = pts_xyj
-        pts_x = pts  # (t, s) independent of sampling point x
+        ptse = ptse_xyj
+        ptse_x = ptse  # (t, s, e) independent of sampling point x
         tt_posterior += time.time() - t_start
 
     end = time.time()
@@ -541,23 +584,23 @@ def bin_search(
     return output
 
 
-output = bin_search(
-    acq_func='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
-    center_on='best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode'
-    kmax=1000,  # max number of bin search steps
-    target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
-    delta=.5,  # radius of sphere
-    d=1000,  # input dimension
-    verbose=False,  # print log info
-    eps_=.1,
-    plot=False,
-    grid_size=100)
-
-print()
-print(output['tts_map'][-1])
-print(output['tts_max'][-1])
-
-plt.hist(output['xxj'][:], bins=100)
-plt.xlim(0., 1.)
-plt.show()
+# output = bin_search(
+#     acq_func='I(y,t,s,e)',  # 'I(y,t,s,e)', 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
+#     center_on='best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode'
+#     kmax=1000,  # max number of bin search steps
+#     target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
+#     delta=.5,  # radius of sphere
+#     d=1000,  # input dimension
+#     verbose=False,  # print log info
+#     plot=True,  # True,
+#     grid_size=101,
+#     queries=5)
+# 
+# print()
+# print(output['tts_map'][-1])
+# print(output['tts_max'][-1])
+# 
+# plt.hist(output['xxj'][:], bins=100)
+# plt.xlim(0., 1.)
+# plt.show()
 
