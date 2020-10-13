@@ -53,7 +53,7 @@ class ModelInterface:
         else:
             probs = probs[:, true_label]
             probs = probs.view(-1, 1).repeat(1, num_queries)
-            decisions = self.sample_bernoulli(1 - probs)
+            decisions = torch.bernoulli(1 - probs)
             return decisions
 
     def get_probs_(self, images):

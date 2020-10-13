@@ -170,15 +170,15 @@ plt.grid()
 plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
 plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
-for j in range(len(eps)):
-    plt.figure(figsize=(10, 7))
-    image_path = f'{PLOTS_DIR}/adv_acc'
-    for i in range(len(raws)):
-        plt.plot(np.mean(AA[i, j], axis=1), label=dumps[noise][i][1])
-    plt.legend()
-    plt.grid()
-    plt.savefig(f'{image_path}_{eps[j]}.png', bbox_inches='tight', pad_inches=.02)
-    plt.savefig(f'{image_path}_{eps[j]}.pdf', bbox_inches='tight', pad_inches=.02)
+# for j in range(len(eps)):
+#     plt.figure(figsize=(10, 7))
+#     image_path = f'{PLOTS_DIR}/adv_acc'
+#     for i in range(len(raws)):
+#         plt.plot(np.mean(AA[i, j], axis=1), label=dumps[noise][i][1])
+#     plt.legend()
+#     plt.grid()
+#     plt.savefig(f'{image_path}_{eps[j]}.png', bbox_inches='tight', pad_inches=.02)
+#     plt.savefig(f'{image_path}_{eps[j]}.pdf', bbox_inches='tight', pad_inches=.02)
 
 plt.figure(figsize=(10, 7))
 image_path = f'{PLOTS_DIR}/calls'

@@ -22,7 +22,8 @@ def read_dump(path):
 
 
 def estimate_repeat_in_hsj(beta=10):
-    repeats = "1 3 5 9 17 33 65 129 257 513".split()
+    repeats = "200 500 1000 2000 4000 8000 16000 32000 64000 128000".split()
+    repeats = [int(x) for x in repeats]
     attack = 'hsj_rep'
     noise = 'bayesian'
     flip = "0.00"
@@ -33,15 +34,20 @@ def estimate_repeat_in_hsj(beta=10):
         raw = read_dump(exp_name)
         D = raw['border_distance']
         dists.append(np.median(D[-1]))
+    dists = np.array(dists)
     raw = read_dump(f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
     D = raw['border_distance']
-    dist = np.median(D[-1])
+    medians = np.array([np.median(D[-1])] * len(repeats))
+    perc40 = np.array([np.percentile(D[-1], 40)] * len(repeats))
+    perc60 = np.array([np.percentile(D[-1], 60)] * len(repeats))
     plt.figure(figsize=(10, 7))
     image_path = f'{PLOTS_DIR}/repeat_beta_{beta}'
     plt.plot(repeats, dists, label='HSJ-R')
-    plt.plot(repeats, [dist]*len(repeats), label='PSJ')
+    plt.plot(repeats, medians, label='PSJ')
+    plt.fill_between(repeats, perc40, perc60, alpha=0.2)
     plt.plot()
     plt.legend()
+    plt.xscale('log')
     plt.grid()
     plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
     plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
@@ -66,4 +72,4 @@ def plot_distance():
 
 
 estimate_repeat_in_hsj(beta=10)
-plot_distance()
+# plot_distance()
