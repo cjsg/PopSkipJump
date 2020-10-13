@@ -33,7 +33,7 @@ class PopSkipJump(Attack):
 
     def opposite_movement_step(self, original, perturbed):
         # Go in the opposite direction
-        return torch.clamp(2 * perturbed - original, self.clip_min, self.clip_max)
+        return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
 
     def info_max_batch(self, unperturbed, perturbed_inputs, true_label):
         border_points = []
