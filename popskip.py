@@ -46,7 +46,7 @@ class PopSkipJump(Attack):
                 grid_size=self.grid_size, device=self.device,
                 true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
                 prev_e=self.prev_e, prior_frac=self.prior_frac,
-                queries=self.queries, plot=True)
+                queries=self.queries, plot=False)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map, e_map = output['ttse_max'][-1]
             border_point = (1 - t_map) * unperturbed + t_map * perturbed_input
