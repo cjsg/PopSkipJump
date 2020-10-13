@@ -56,7 +56,7 @@ class PopSkipJump(Attack):
             dists.append(dist)
             smaps.append(s_map)
             emaps.append(e_map)
-        print('e_map=', e_map)
+        # print('e_map=', e_map)
         idx = int(torch.argmin(torch.tensor(dists)))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
         if dist == 0:
