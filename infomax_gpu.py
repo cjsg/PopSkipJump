@@ -311,9 +311,9 @@ def bin_search(
         e_lo = prev_e
         e_hi = prev_e
         Ne = 1
-        # e_lo = max(prev_e - prior_frac*.5, 0.)
-        # e_hi = min(prev_e + prior_frac*.5, .5)
-        # Ne = max(int(prior_frac*9) + 1, 3)
+        # e_lo = max(prev_e - prior_frac*.3, 0.)
+        # e_hi = min(prev_e + prior_frac*.3, .5)
+        # Ne = max(int(prior_frac*7) + 1, 3)
 
 
     # discretize parameter (search) space
