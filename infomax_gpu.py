@@ -71,7 +71,7 @@ def get_alpha_(s, theta=0.):  # TODO: include dependence on epsilon
     return y
 
 
-def get_alpha(s, theta, delta, d):
+def get_alpha(s, theta, delta, d, eps):
     """
         Computes the same as get_alpha_, but when X follows a Gaussian
         distribution centered on 0 with standard deviation delta / sqrt(d):
@@ -92,10 +92,10 @@ def get_alpha(s, theta, delta, d):
 
     s_ = s * delta / torch.sqrt(d)
     theta_ = theta * torch.sqrt(d) / delta
-    return get_alpha_(s_, theta_)
+    return (1. - 2. * eps) * get_alpha_(s_, theta_)
 
 
-def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10):
+def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10, eps=0.):
     """
         Computes
 
@@ -119,7 +119,7 @@ def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10):
     if type(n) != torch.Tensor:
         n = torch.tensor(n, dtype=torch.float32)
 
-    alpha = get_alpha(s, theta, delta, d)
+    alpha = get_alpha(s, theta, delta, d, eps)
     n = n.to(alpha.device)
     alpha, n = torch.broadcast_tensors(alpha, n)
     ix_nul = (alpha ** 2) == 0.
@@ -132,7 +132,7 @@ def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10):
 
 
 # Nbr of queries n needed to achieve E[cos(est_grad, true_grad)] = target_cos
-def get_n_from_cos(target_cos, s=float('Inf'), theta=0., delta=1., d=10):
+def get_n_from_cos(target_cos, s=float('Inf'), theta=0., delta=1., d=10, eps=0.):
     """
         Computes the number of samples needed to reach a prescribed value
         target_cos of the expected cosine between true and estimated gradient
@@ -146,7 +146,7 @@ def get_n_from_cos(target_cos, s=float('Inf'), theta=0., delta=1., d=10):
     if type(target_cos) != torch.Tensor:
         target_cos = torch.tensor(target_cos, dtype=torch.float32)
 
-    alpha = get_alpha(s, theta, delta, d)  # returns a tensor
+    alpha = get_alpha(s, theta, delta, d, eps)  # returns a tensor
     target_cos = target_cos.to(alpha.device)
     alpha, target_cos = torch.broadcast_tensors(alpha, target_cos)
     ix_nul = (alpha ** 2) == 0.
@@ -237,7 +237,7 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
 
 
 def bin_search(
-        unperturbed, perturbed, model_interface,
+        unperturbed=None, perturbed=None, model_interface=None,
         acq_func='I(y,t,s)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=.1, device=None, true_label=None, plot=False, prev_t=None,
@@ -313,7 +313,10 @@ def bin_search(
     lss = lss.reshape(Nz, Nt, Ns)  # Nx x Nt x Ns
     ii_t = torch.arange(Nt, device=device)  # indeces of t (useful for later computations)
 
-    pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
+    if unperturbed is None:
+        pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
+    else:
+        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
 
     def vprint(string):
         if verbose:
@@ -485,7 +488,10 @@ def bin_search(
         # j_amax = torch.argmax(a_x)
         # j_amax = j_amax.repeat(queries)
         xj = xx[j_amax]
-        yj = model_interface.sample_bernoulli(1-pp[j_amax]).long()
+        if model_interface is None:
+            yj = torch.bernoulli(pp[j_amax]).long()
+        else:
+            yj = model_interface.sample_bernoulli(1-pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()
@@ -535,23 +541,23 @@ def bin_search(
     return output
 
 
-# output = bin_search(
-#     acq_func='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
-#     center_on='best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode'
-#     kmax=1000,  # max number of bin search steps
-#     target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
-#     delta=.5,  # radius of sphere
-#     d=1000,  # input dimension
-#     verbose=False,  # print log info
-#     eps_=.1,
-#     plot=False,
-#     grid_size=100)
-#
-# print()
-# print(output['tts_map'][-1])
-# print(output['tts_max'][-1])
-#
-# plt.hist(output['xxj'][:], bins=100)
-# plt.xlim(0., 1.)
-# plt.show()
+output = bin_search(
+    acq_func='I(y,t,s)',  # 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
+    center_on='best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode'
+    kmax=1000,  # max number of bin search steps
+    target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
+    delta=.5,  # radius of sphere
+    d=1000,  # input dimension
+    verbose=False,  # print log info
+    eps_=.1,
+    plot=False,
+    grid_size=100)
+
+print()
+print(output['tts_map'][-1])
+print(output['tts_max'][-1])
+
+plt.hist(output['xxj'][:], bins=100)
+plt.xlim(0., 1.)
+plt.show()
 
