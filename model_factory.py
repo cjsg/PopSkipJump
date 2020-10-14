@@ -15,11 +15,13 @@ class Model:
         self.device = device
 
     def predict(self, images):
-        transform = transforms.Compose([transforms.ToTensor(),
+        images = images.permute(0, 3, 1, 2)
+        transform = transforms.Compose([
                                         transforms.Normalize([0.4914, 0.4822, 0.4465],
                                                              [0.2023, 0.1994, 0.2010])])
-        img_tr = [transform(i) for i in images]
-        outs = self.model(torch.stack(img_tr).to(self.device))
+        for i in range(images.shape[0]):
+            images[i] = transform(images[i])
+        outs = self.model(images)
         return outs.detach()
 
     def ask_model(self, images):

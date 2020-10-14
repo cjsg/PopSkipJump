@@ -8,7 +8,7 @@ class DefaultParams:
 
     def __init__(self):
         self.attack = 'popskip'
-        self.model_keys: list = ['mnist_noman']
+        self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
         self.num_iterations = 32
         self.internal_dtype = torch.float32
         self.bounds = (0, 1)

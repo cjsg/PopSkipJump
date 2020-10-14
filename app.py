@@ -58,7 +58,7 @@ def create_attack(exp_name, dataset, params):
         os.makedirs(exp_path)
 
     models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
-              for k in params.model_keys]
+              for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
                                      noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
     attacks_factory = {
@@ -73,10 +73,10 @@ def create_attack(exp_name, dataset, params):
 def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
-        det_model = get_model(key=params.model_keys[0], dataset=dataset, noise='deterministic')
-        imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf,
+        det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
+        imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
                                    model=det_model, samples_from=params.samples_from)
-        starts = find_adversarial_images(labels)
+        starts = find_adversarial_images(dataset, labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=dataset, index=0)

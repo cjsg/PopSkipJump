@@ -39,8 +39,8 @@ def get_device():
     return device
 
 
-def find_adversarial_images(labels):
-    ii, ll = get_samples(n_samples=10)
+def find_adversarial_images(dataset, labels):
+    ii, ll = get_samples(dataset, n_samples=10)
     cand_img, cand_lbl = [], []
     for i, l in enumerate(ll):
         if l != ll[0]:
@@ -55,9 +55,18 @@ def find_adversarial_images(labels):
     return starts
 
 
-def get_samples(n_samples=16, conf=None, model=None, samples_from=0):
+def get_samples(dataset, n_samples=16, conf=None, model=None, samples_from=0):
     np.random.seed(42)
-    test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+    if dataset == 'mnist':
+        test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+        samples = test_data.data
+        targets = test_data.test_labels
+    elif dataset == 'cifar10':
+        test_data = datasets.CIFAR10(root="data", train=False, download=True, transform=None)
+        samples = test_data.data
+        targets = test_data.targets
+    else:
+        raise RuntimeError('Unknown Dataset: {}'.format(dataset))
     if conf is None:
         indices = np.random.choice(len(test_data), n_samples, replace=False)
     else:
@@ -65,13 +74,16 @@ def get_samples(n_samples=16, conf=None, model=None, samples_from=0):
         i = 0
         candidates = np.random.choice(len(test_data), len(test_data), replace=False)
         while len(indices) != n_samples+samples_from:
-            probs = model.get_probs(test_data.data[candidates[i]].numpy()[None]/255.0)
-            if probs[0][test_data.test_labels[candidates[i]]] > conf:
+            probs = model.get_probs(samples[candidates[i]][None]/255.0)
+            if probs[0][targets[candidates[i]]] > conf:
                 indices.append(candidates[i])
             i += 1
 
-    images = test_data.data[indices].numpy() / 255.0
-    labels = test_data.test_labels[indices].numpy()
+    if type(samples) is not np.ndarray:
+        samples = samples.numpy()
+    targets = np.array(targets)
+    images = samples[indices] / 255.0
+    labels = targets[indices]
     images = images[samples_from:]
     labels = labels[samples_from:]
     print("Images indices: ", indices)
