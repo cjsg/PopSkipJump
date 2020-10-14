@@ -6,6 +6,7 @@ import torch
 from matplotlib import rc
 
 from img_utils import get_device
+from exp3_constants import beta_vs_repeats, best_repeat
 
 OUT_DIR = 'aistats'
 PLOTS_DIR = f'{OUT_DIR}/plots_aistats/'
@@ -21,37 +22,46 @@ def read_dump(path):
     return raw
 
 
-def estimate_repeat_in_hsj(beta, repeats):
-    repeats = [int(x) for x in repeats.split()]
-    attack = 'hsj_rep'
+def estimate_repeat_in_hsj(beta_vs_repeats, dataset):
+    attacks = ['hsj_rep']
+    labels = ['HSJ-R', 'HSJ-Delta']
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "100"
-    dists, dists_low, dists_high = list(), list(), list()
-    for repeat in repeats:
-        exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
-        raw = read_dump(exp_name)
+    for beta in [2, 5, 10, 20, 50, 100, 200]:
+        plt.figure(figsize=(10, 7))
+        image_path = f'{PLOTS_DIR}/repeat_beta_{beta}'
+        min_tick, max_tick = 10**9, 0
+        for j, attack in enumerate(attacks):
+            if beta not in beta_vs_repeats[attack][dataset]:
+                continue
+            repeats = beta_vs_repeats[attack][dataset][beta]
+            repeats = [int(x) for x in repeats.split()]
+            min_tick, max_tick = min(min_tick, repeats[0]), max(max_tick, repeats[-1])
+            dists, dists_low, dists_high = list(), list(), list()
+            for repeat in repeats:
+                exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+                raw = read_dump(exp_name)
+                D = raw['border_distance']
+                dists.append(np.median(D[-1]))
+                dists_low.append(np.percentile(D[-1], 40))
+                dists_high.append(np.percentile(D[-1], 60))
+            plt.plot(repeats, dists, label=labels[j])
+            plt.fill_between(repeats, dists_low, dists_high, alpha=0.2)
+        raw = read_dump(f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
         D = raw['border_distance']
-        dists.append(np.median(D[-1]))
-        dists_low.append(np.percentile(D[-1], 40))
-        dists_high.append(np.percentile(D[-1], 60))
-    raw = read_dump(f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
-    D = raw['border_distance']
-    medians = np.array([np.median(D[-1])] * len(repeats))
-    perc40 = np.array([np.percentile(D[-1], 40)] * len(repeats))
-    perc60 = np.array([np.percentile(D[-1], 60)] * len(repeats))
-    plt.figure(figsize=(10, 7))
-    image_path = f'{PLOTS_DIR}/repeat_beta_{beta}'
-    plt.plot(repeats, dists, label='HSJ-R')
-    plt.fill_between(repeats, dists_low, dists_high, alpha=0.2)
-    plt.plot(repeats, medians, label='PSJ')
-    plt.fill_between(repeats, perc40, perc60, alpha=0.2)
-    plt.plot()
-    plt.legend()
-    plt.xscale('log')
-    plt.grid()
-    plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
-    plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+        ticks = np.logspace(np.log10(min_tick), np.log10(max_tick))
+        medians = np.array([np.median(D[-1])] * len(ticks))
+        perc40 = np.array([np.percentile(D[-1], 40)] * len(ticks))
+        perc60 = np.array([np.percentile(D[-1], 60)] * len(ticks))
+        plt.plot(ticks, medians, label='PSJ')
+        plt.fill_between(ticks, perc40, perc60, alpha=0.2)
+        plt.plot()
+        plt.legend()
+        plt.xscale('log')
+        plt.grid()
+        plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+        plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
 
 def psj_vs_hsjr(R):
@@ -168,26 +178,7 @@ def hsj_failure():
 
 
 # estimate_repeat_in_hsj(beta=10)
-beta_vs_repeats = {
-    1: "3072000 4096000 6144000 8192000",
-    2: "256000 384000 512000 640000 1024000 2048000 3072000 4096000 6144000 8192000 12288000",
-    5: "16000 32000 64000 128000 256000 384000 512000 640000 1024000 2048000 4096000",
-    10: "200 500 1000 2000 4000 8000 16000 32000 64000 80000 128000 192000 256000 512000",
-    20: "2000 4000 8000 16000 30000 32000 64000 72000 128000 256000",
-    50: "2000 4000 8000 16000 32000 64000",
-    100: "2000 4000 8000 16000 32000 64000",
-    200: "50 100 200 400 500 850 1000 2000 4000 8000 16000 32000",
-}
 
-best_repeat = {
-    2: ("4096000", "8192000", "12288000"),
-    5: ("512000", "1024000", "4096000"),
-    10: ("80000", "192000", "512000"),
-    20: ("30000", "72000", "256000"),
-    50: ("4000", "16000", "64000"),
-    100: ("2000", "9000", "64000"),
-    200: ("400", "850", "32000"),
-}
 rc('text', usetex=True)
 rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
 rc('font', size=14)  # default: 10 -> choose size depending on figsize
@@ -195,10 +186,10 @@ rc('font', family='STIXGeneral')
 rc('legend', fontsize=16)
 plt.tight_layout(h_pad=0, w_pad=.5)
 
-
-for beta in beta_vs_repeats:
-    estimate_repeat_in_hsj(beta=beta, repeats=beta_vs_repeats[beta])
+attack='hsj_rep_psj_delta'
+dataset='mnist'
+estimate_repeat_in_hsj(beta_vs_repeats, dataset)
 # hsj_failure()
-psj_vs_hsjr(best_repeat)
+# psj_vs_hsjr(best_repeat[attack][dataset])
 # conv_to_hsja()
 # plot_distance()
