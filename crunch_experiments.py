@@ -62,8 +62,8 @@ D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 D_OUT = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
-P = torch.zeros_like(D, device=device)
-P_OUT = torch.zeros_like(D, device=device)
+# P = torch.zeros_like(D, device=device)
+# P_OUT = torch.zeros_like(D, device=device)
 
 for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
@@ -85,7 +85,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         calls = page.calls.bin_search
         x_t = page.bin_search
         x_tt = project(x_star, x_t, label, theta_det)
-        p_t = torch.argmax(model.get_probs(x_t[None])[0]) == label
+        # p_t = torch.argmax(model.get_probs(x_t[None])[0]) == label
 
         D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
         if exp_name.startswith('psj'):
@@ -94,13 +94,13 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             D_OUT[iteration + 1, image] = page.distance
         MC[iteration + 1, image] = calls
 
-        s_, e_ = page.info_max_stats.s, page.info_max_stats.e
-        t_ = (page.bin_search[0, 0] - x_star[0, 0]) / (page.opposite[0, 0] - x_star[0, 0])
-        y_ = (0.3 - e_) / (1 - 2 * e_)
-        x_ = torch.log(y_ / (1 - y_)) / (4 * s_) + t_
-        x_est = (1-t_) * x_star + t_ * page.opposite
-        P[iteration + 1, image] = p_t
-        P_OUT[iteration + 1, image] = torch.argmax(model.get_probs(x_est[None])[0]) == label
+        # s_, e_ = page.info_max_stats.s, page.info_max_stats.e
+        # t_ = (page.bin_search[0, 0] - x_star[0, 0]) / (page.opposite[0, 0] - x_star[0, 0])
+        # y_ = (0.3 - e_) / (1 - 2 * e_)
+        # x_ = torch.log(y_ / (1 - y_)) / (4 * s_) + t_
+        # x_est = (1-t_) * x_star + t_ * page.opposite
+        # P[iteration + 1, image] = p_t
+        # P_OUT[iteration + 1, image] = torch.argmax(model.get_probs(x_est[None])[0]) == label
 
 
         for j in range(len(eps)):
@@ -121,7 +121,7 @@ dump = {
     'attack_out_distance': D_OUT,
     'model_calls': MC,
     'adv_acc': AA,
-    'prob_true_label': P,
-    'prob_true_label_out': P_OUT
+    # 'prob_true_label': P,
+    # 'prob_true_label_out': P_OUT
 }
 torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched.pkl', 'wb'))

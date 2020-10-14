@@ -61,13 +61,19 @@ dumps = {
 noise = sys.argv[1]
 exp = exps[noise]
 flip_prob = 0.05
-theta_det = 1 / (28 * 28 * 28)
 beta = 1
 
 # raws = [read_dump(f'{attack}_{rep}_b_{beta}_bayesian_ns_5') for beta in betas]
 raws = [read_dump(s) for (s, _) in dumps[noise]]
-model = get_model(key='mnist_noman', dataset='mnist')
+dataset = 'cifar10'
+if dataset == 'mnist':
+    model = get_model(key='mnist_noman', dataset=dataset)
+    d = 28. * 28.
+else:
+    model = get_model(key='cifar10', dataset=dataset)
+    d = 32. * 32. * 3.
 model.model = model.model.to(device)
+theta_det = 1. / (np.sqrt(d) * d)
 
 
 def search_boundary(x_star, x_t, theta_det, true_label):
@@ -116,7 +122,7 @@ for i, raw in enumerate(raws):
             x_t = details[iteration].bin_search
             x_tt = project(x_star, x_t, label, theta_det)
             p_tt = model.get_probs(x_tt[None])[0][label]
-            D[i, iteration, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+            D[i, iteration, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
             if dumps[noise][i][0].startswith('psj'):
                 d_output = D[i, iteration, image]
             else:

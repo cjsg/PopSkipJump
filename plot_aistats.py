@@ -66,13 +66,20 @@ def psj_vs_hsjr(R):
         psj_calls = np.median(psj_dump['model_calls'][-1])
         psj_calls_40 = np.percentile(psj_dump['model_calls'][-1], 30)
         psj_calls_60 = np.percentile(psj_dump['model_calls'][-1], 70)
-        hsj_exp_name = f"hsj_rep_r_{R[beta]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+
+        hsj_exp_name = f"hsj_rep_r_{R[beta][1]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
         hsj_dump = read_dump(hsj_exp_name)
         hsj_calls = np.median(hsj_dump['model_calls'][-1])
+
+        hsj_l = read_dump(f"hsj_rep_r_{R[beta][0]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
+        hsj_calls_l = np.median(hsj_l['model_calls'][-1])
+        hsj_u = read_dump(f"hsj_rep_r_{R[beta][2]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
+        hsj_calls_u = np.median(hsj_u['model_calls'][-1])
+
         ratio = hsj_calls / psj_calls
         ratios.append(ratio)
-        ratios_40.append(hsj_calls / psj_calls_40)
-        ratios_60.append(hsj_calls / psj_calls_60)
+        ratios_40.append(hsj_calls_l / psj_calls)
+        ratios_60.append(hsj_calls_u / psj_calls)
     plt.figure(figsize=(7, 5))
     image_path = f'{PLOTS_DIR}/exp3'
     plt.plot(betas, ratios)
@@ -163,23 +170,23 @@ def hsj_failure():
 # estimate_repeat_in_hsj(beta=10)
 beta_vs_repeats = {
     1: "3072000 4096000 6144000 8192000",
-    2: "256000 384000 512000 640000 1024000 2048000 3072000 4096000 6144000 8192000",
-    5: "16000 32000 64000 128000 256000 384000 512000 640000 1024000 2048000",
-    10: "200 500 1000 2000 4000 8000 16000 32000 64000 128000 192000 256000",
-    20: "2000 4000 8000 16000 32000 64000 72000 128000",
-    50: "2000 4000 8000 16000",
-    100: "2000 4000 8000 16000",
-    200: "50 100 200 500 850 1000 2000 4000 8000 16000",
+    2: "256000 384000 512000 640000 1024000 2048000 3072000 4096000 6144000 8192000 12288000",
+    5: "16000 32000 64000 128000 256000 384000 512000 640000 1024000 2048000 4096000",
+    10: "200 500 1000 2000 4000 8000 16000 32000 64000 80000 128000 192000 256000 512000",
+    20: "2000 4000 8000 16000 30000 32000 64000 72000 128000 256000",
+    50: "2000 4000 8000 16000 32000 64000",
+    100: "2000 4000 8000 16000 32000 64000",
+    200: "50 100 200 400 500 850 1000 2000 4000 8000 16000 32000",
 }
 
 best_repeat = {
-    2: "8192000",
-    5: "1024000",
-    10: "192000",
-    20: "72000",
-    50: "16000",
-    100: "9000",
-    200: "850",
+    2: ("4096000", "8192000", "12288000"),
+    5: ("512000", "1024000", "4096000"),
+    10: ("80000", "192000", "512000"),
+    20: ("30000", "72000", "256000"),
+    50: ("4000", "16000", "64000"),
+    100: ("2000", "9000", "64000"),
+    200: ("400", "850", "32000"),
 }
 rc('text', usetex=True)
 rc('text.latex', preamble=[r'\usepackage{amsfonts}'])

@@ -19,9 +19,8 @@ class Model:
         transform = transforms.Compose([
                                         transforms.Normalize([0.4914, 0.4822, 0.4465],
                                                              [0.2023, 0.1994, 0.2010])])
-        for i in range(images.shape[0]):
-            images[i] = transform(images[i])
-        outs = self.model(images)
+        img_tr = [transform(i) for i in images]
+        outs = self.model(torch.stack(img_tr))
         return outs.detach()
 
     def ask_model(self, images):
