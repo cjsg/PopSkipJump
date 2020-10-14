@@ -36,7 +36,7 @@ parser.add_argument("-r", "--hsja_repeat_queries", type=int, default=1,
                     "point in HSJ Attack")
 parser.add_argument("-ns", "--num_samples", type=int, default=1,
                     help="(Optional) Number of images to attack")
-parser.add_argument("-b", "--beta", type=int, default=1,
+parser.add_argument("-b", "--beta", type=float, default=1,
                     help="(Optional) Beta parameter used in Gibbs Distribution")
 parser.add_argument("-sf", "--samples_from", type=int, default=0,
                     help="(Optional) Number of images to skip during sampling")

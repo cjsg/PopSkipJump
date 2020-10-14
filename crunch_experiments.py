@@ -9,7 +9,7 @@ OUT_DIR = 'aistats'
 exp_name = sys.argv[1]
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
-beta = int(exp_name.split('_')[-6])
+beta = float(exp_name.split('_')[-6])
 device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = 100
@@ -58,11 +58,12 @@ def project(x_star, x_t, label, theta_det):
     return x_tt
 
 
-D = torch.zeros(size=(NUM_ITERATIONS, NUM_IMAGES), device=device)
-D_OUT = torch.zeros(size=(NUM_ITERATIONS, NUM_IMAGES), device=device)
+D = torch.zeros(size=(NUM_ITERATIONS+1, NUM_IMAGES), device=device)
+D_OUT = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
-AA = torch.zeros(size=(len(eps), NUM_ITERATIONS, NUM_IMAGES), device=device)
-P = torch.zeros(size=(NUM_ITERATIONS, NUM_IMAGES), device=device)
+AA = torch.zeros(size=(len(eps), NUM_ITERATIONS+1, NUM_IMAGES), device=device)
+P = torch.zeros_like(D, device=device)
+P_OUT = torch.zeros_like(D, device=device)
 
 for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
@@ -72,18 +73,20 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         if iteration == 0:
             x_0 = diary.initial_projection
             x_00 = project(x_star, x_0, label, theta_det)
-            p_0 = model.get_probs(x_0[None])[0][label]
+            p_0 = torch.argmax(model.get_probs(x_0[None])[0]) == label
+            p_00 = torch.argmax(model.get_probs(x_00[None])[0]) == label
             D[0, image] = torch.norm(x_star - x_00) ** 2 / 784 / 1 ** 2
-            D_OUT[0, image] = None
+            D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
-            P[0, image] = p_0
-            AA[0, image] = None
+            P[0, image] = p_00
+            P_OUT[0, image] = p_0
 
         page = diary.iterations[iteration]
         calls = page.calls.bin_search
         x_t = page.bin_search
         x_tt = project(x_star, x_t, label, theta_det)
-        p_t = model.get_probs(x_t[None])[0][label]
+        p_t = torch.argmax(model.get_probs(x_t[None])[0]) == label
+        p_tt = torch.argmax(model.get_probs(x_tt[None])[0]) == label
 
         D[iteration+1, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
         if exp_name.startswith('psj'):
@@ -91,7 +94,8 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         else:
             D_OUT[iteration+1, image] = page.distance
         MC[iteration+1, image] = calls
-        P[iteration+1, image] = p_t
+        P[iteration+1, image] = p_tt
+        P_OUT[iteration+1, image] = p_t
 
         for j in range(len(eps)):
             x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
@@ -111,6 +115,7 @@ dump = {
     'attack_out_distance': D_OUT,
     'model_calls': MC,
     'adv_acc': AA,
-    'prob_true_label': P
+    'prob_true_label': P,
+    'prob_true_label_out': P_OUT
 }
 torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched.pkl', 'wb'))
