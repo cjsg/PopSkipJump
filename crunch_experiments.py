@@ -67,33 +67,44 @@ P = torch.zeros(size=(NUM_ITERATIONS, NUM_IMAGES), device=device)
 for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
-        page = diary.iterations[iteration]
         x_star = diary.original
         label = diary.true_label
+        if iteration == 0:
+            x_0 = diary.initial_projection
+            x_00 = project(x_star, x_0, label, theta_det)
+            p_0 = model.get_probs(x_0[None])[0][label]
+            D[0, image] = torch.norm(x_star - x_00) ** 2 / 784 / 1 ** 2
+            D_OUT[0, image] = None
+            MC[0, image] = diary.calls_initial_bin_search
+            P[0, image] = p_0
+            AA[0, image] = None
+
+        page = diary.iterations[iteration]
         calls = page.calls.bin_search
         x_t = page.bin_search
         x_tt = project(x_star, x_t, label, theta_det)
-        p_tt = model.get_probs(x_tt[None])[0][label]
-        D[iteration, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+        p_t = model.get_probs(x_t[None])[0][label]
+
+        D[iteration+1, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
         if exp_name.startswith('psj'):
-            D_OUT[iteration, image] = D[iteration, image]
+            D_OUT[iteration+1, image] = D[iteration, image]
         else:
-            D_OUT[iteration, image] = page.distance
-        MC[iteration, image] = calls
-        P[iteration, image] = p_tt
+            D_OUT[iteration+1, image] = page.distance
+        MC[iteration+1, image] = calls
+        P[iteration+1, image] = p_t
 
         for j in range(len(eps)):
             x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
             p_adv = model.get_probs(x_adv[None])[0]
             if noise == 'bayesian':
-                AA[j, iteration, image] = p_adv[label]
+                AA[j, iteration+1, image] = p_adv[label]
             elif noise == 'deterministic':
-                AA[j, iteration, image] = (torch.argmax(p_adv) == label) * 1.0
+                AA[j, iteration+1, image] = (torch.argmax(p_adv) == label) * 1.0
             else:
                 p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
                 pred = torch.argmax(p_adv)
                 p_temp[pred] = 1 - flip_prob
-                AA[j, iteration, image] = p_temp[label]
+                AA[j, iteration+1, image] = p_temp[label]
 
 dump = {
     'border_distance': D,
