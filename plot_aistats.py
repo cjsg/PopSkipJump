@@ -137,16 +137,18 @@ def hsj_failure():
     flips = ['0.00', '0.05', '0.10', '0.15']
     print('****\t'+'\t'.join(attacks))
     for flip in flips:
+        print(flip, end='\t')
         for repeat, attack in zip(repeats, attacks):
             exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
             raw = read_dump(exp_name)
             calls = np.median(raw['model_calls'][-1])
             dist = np.median(raw['border_distance'][-1])
-            P = raw['prob_true_label_out'].cpu().numpy() * 1
-            is_adv = (P[-1, :] < 0.5) * 1
+            P_OUT = raw['prob_true_label_out'].cpu().numpy() * 1
+            is_adv = (P_OUT[-1, :] < 0.5) * 1
             false_prop = 1 - np.sum(is_adv) / float(n_samples)
-            print(f'({flip},{attack})\t', end='')
-            print(false_prop.round(2), dist, calls)
+            # print(f'({flip},{attack})\t', end='')
+            print(false_prop.round(2), end=', ')
+            # print(false_prop.round(2), dist, calls)
         print('')
 
 
