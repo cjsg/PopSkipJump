@@ -27,13 +27,14 @@ def estimate_repeat_in_hsj(beta, repeats):
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "100"
-    dists = list()
+    dists, dists_low, dists_high = list(), list(), list()
     for repeat in repeats:
         exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
         raw = read_dump(exp_name)
         D = raw['border_distance']
         dists.append(np.median(D[-1]))
-    dists = np.array(dists)
+        dists_low.append(np.percentile(D[-1], 40))
+        dists_high.append(np.percentile(D[-1], 60))
     raw = read_dump(f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
     D = raw['border_distance']
     medians = np.array([np.median(D[-1])] * len(repeats))
@@ -42,6 +43,7 @@ def estimate_repeat_in_hsj(beta, repeats):
     plt.figure(figsize=(10, 7))
     image_path = f'{PLOTS_DIR}/repeat_beta_{beta}'
     plt.plot(repeats, dists, label='HSJ-R')
+    plt.fill_between(repeats, dists_low, dists_high, alpha=0.2)
     plt.plot(repeats, medians, label='PSJ')
     plt.fill_between(repeats, perc40, perc60, alpha=0.2)
     plt.plot()
@@ -56,25 +58,31 @@ def psj_vs_hsjr(R):
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "100"
-    ratios = []
+    ratios, ratios_40, ratios_60 = [], [], []
     betas = list(R.keys())
     for beta in betas:
         psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
         psj_dump = read_dump(psj_exp_name)
         psj_calls = np.median(psj_dump['model_calls'][-1])
+        psj_calls_40 = np.percentile(psj_dump['model_calls'][-1], 30)
+        psj_calls_60 = np.percentile(psj_dump['model_calls'][-1], 70)
         hsj_exp_name = f"hsj_rep_r_{R[beta]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
         hsj_dump = read_dump(hsj_exp_name)
         hsj_calls = np.median(hsj_dump['model_calls'][-1])
         ratio = hsj_calls / psj_calls
         ratios.append(ratio)
-    plt.figure(figsize=(7, 7))
+        ratios_40.append(hsj_calls / psj_calls_40)
+        ratios_60.append(hsj_calls / psj_calls_60)
+    plt.figure(figsize=(7, 5))
     image_path = f'{PLOTS_DIR}/exp3'
     plt.plot(betas, ratios)
+    plt.fill_between(betas, ratios_40, ratios_60, alpha=0.2)
     plt.plot()
-    plt.xlabel('beta')
-    plt.ylabel('Model Calls (in .x)')
-    plt.legend()
-    # plt.yscale('log')
+    plt.xlabel('inverse temperature')
+    plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.ylabel('relative number of model calls')
+    # plt.legend()
+    plt.yscale('log')
     plt.grid()
     plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
     plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
@@ -181,9 +189,9 @@ rc('legend', fontsize=16)
 plt.tight_layout(h_pad=0, w_pad=.5)
 
 
-# for beta in beta_vs_repeats:
-#     estimate_repeat_in_hsj(beta=beta, repeats=beta_vs_repeats[beta])
-hsj_failure()
-# psj_vs_hsjr(best_repeat)
+for beta in beta_vs_repeats:
+    estimate_repeat_in_hsj(beta=beta, repeats=beta_vs_repeats[beta])
+# hsj_failure()
+psj_vs_hsjr(best_repeat)
 # conv_to_hsja()
 # plot_distance()
