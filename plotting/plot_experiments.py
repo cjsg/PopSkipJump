@@ -55,7 +55,7 @@ dumps = {
                     ('psj_b_50_bayesian_ns_100', 'PSJ(beta=50)'),
                     ('psj_b_1_deterministic_ns_100', 'PSJ(deterministic)'),
                     ('hsj_b_1_deterministic_ns_100', 'HSJ(deterministic)')],
-    'dummy': [('del_later', 'HSJ')]
+    'dummy': [('cifar10_psj_r_1_b_1_stochastic_fp_0.00_ns_100', 'HSJ')]
 }
 
 noise = sys.argv[1]

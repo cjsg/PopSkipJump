@@ -127,7 +127,7 @@ def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10, eps=0.):
 
     out = torch.empty_like(alpha)
     out[ix_nul] = 0.
-    out[ix_pos] = 1. / torch.sqrt(1. + (d-1) / (n[ix_pos] * alpha[ix_pos] ** 2))
+    out[ix_pos] = 1. / torch.sqrt(1. + (d - 1) / (n[ix_pos] * alpha[ix_pos] ** 2))
     return out
 
 
@@ -395,6 +395,9 @@ def bin_search(
     max_queries = queries
     krepeat = int(kmax / max_queries)
 
+    CLIP_MIN = 1e-7
+    CLIP_MAX = 1 - 1e-7
+
     for k in tqdm(range(krepeat), desc='bin-search'):
         if stop_next:
             break
@@ -406,6 +409,8 @@ def bin_search(
         queries = min(k // 2 + 1, max_queries)
 
         # Compute some probabilities / expectations
+        ptse_x = torch.clamp(ptse_x, CLIP_MIN, CLIP_MAX)
+        ptse_x = ptse_x / ptse_x.sum(axis=(1,3,4), keepdim=True)
         pytse_x = py_txse * ptse_x
         py_x = pytse_x.sum(axis=(1, 3, 4), keepdim=True)
         pts_x = ptse_x.sum(axis=4, keepdim=True)
@@ -525,7 +530,7 @@ def bin_search(
         a_min_to_sample = .9 * a_max if queries > 1 else a_max
         jj_top = torch.where(a_x >= a_min_to_sample)[0]
         j_amax = jj_top[torch.randint(len(jj_top), size=[queries])]
-        
+
         # # xj = xx[j_amax].item()
         # # yj = int(torch.bernoulli(1-pp[j_amax]))
         # j_amax = torch.argmax(a_x)
@@ -595,11 +600,11 @@ def bin_search(
 #     plot=True,  # True,
 #     grid_size=101,
 #     queries=5)
-# 
+#
 # print()
 # print(output['tts_map'][-1])
 # print(output['tts_max'][-1])
-# 
+#
 # plt.hist(output['xxj'][:], bins=100)
 # plt.xlim(0., 1.)
 # plt.show()

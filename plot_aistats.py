@@ -12,7 +12,7 @@ OUT_DIR = 'aistats'
 PLOTS_DIR = f'{OUT_DIR}/plots_aistats/'
 device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 1
+NUM_IMAGES = 100
 eps = list(range(1, 6))
 
 
@@ -23,8 +23,8 @@ def read_dump(path):
 
 
 def estimate_repeat_in_hsj(beta_vs_repeats, dataset):
-    attacks = ['hsj_rep']
-    labels = ['HSJ-R', 'HSJ-Delta']
+    attacks = ['hsj_rep', 'hsj_rep_psj_delta']
+    labels = ['HSJ-R', 'HSJ-Theta']
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "100"
@@ -52,8 +52,8 @@ def estimate_repeat_in_hsj(beta_vs_repeats, dataset):
         D = raw['border_distance']
         ticks = np.logspace(np.log10(min_tick), np.log10(max_tick))
         medians = np.array([np.median(D[-1])] * len(ticks))
-        perc40 = np.array([np.percentile(D[-1], 40)] * len(ticks))
-        perc60 = np.array([np.percentile(D[-1], 60)] * len(ticks))
+        perc40 = np.array([np.percentile(D[-1], 35)] * len(ticks))
+        perc60 = np.array([np.percentile(D[-1], 65)] * len(ticks))
         plt.plot(ticks, medians, label='PSJ')
         plt.fill_between(ticks, perc40, perc60, alpha=0.2)
         plt.plot()
@@ -108,49 +108,59 @@ def psj_vs_hsjr(R):
 def conv_to_hsja():
     noise = 'bayesian'
     flip = "0.00"
-    n_samples = "100"
-    betas = [1, 1.25, 1.5, 2, 5]
+    n_samples = "50"
+    betas = [1, 1.25, 1.5, 2]
     attacks = ['psj', 'hsj']
-    labels = [f'PSJ: beta={b}' for b in betas] + [f'{a.upper()}: Det' for a in attacks]
-    dist_arr, calls_arr = [], []
-    for beta in betas:
-        psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
-        psj_dump = read_dump(psj_exp_name)
-        psj_calls = np.median(psj_dump['model_calls'], axis=1)
-        psj_dist = np.median(psj_dump['border_distance'], axis=1)
-        dist_arr.append(psj_dist)
-        calls_arr.append(psj_calls)
+    # stri = '$\\frac{1}{T}$'
+    labels = ['PSJ: $T$=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: $T$=0 (det)' for a in attacks]
+    datasets = ['mnist', 'cifar10']
+    for dataset in datasets[-1:]:
+        dist_arr, calls_arr = [], []
+        for beta in betas:
+            if dataset == 'mnist':
+                psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+            else:
+                psj_exp_name = f"{dataset}_psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+            psj_dump = read_dump(psj_exp_name)
+            psj_calls = np.median(psj_dump['model_calls'], axis=1)
+            psj_dist = np.median(psj_dump['border_distance'], axis=1)
+            dist_arr.append(psj_dist)
+            calls_arr.append(psj_calls)
 
-    for attack in attacks:
-        exp_name = f"{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
-        exp_dump = read_dump(exp_name)
-        exp_calls = np.median(exp_dump['model_calls'], axis=1)
-        exp_dist = np.median(exp_dump['border_distance'], axis=1)
-        dist_arr.append(exp_dist)
-        calls_arr.append(exp_calls)
+        for attack in attacks:
+            if dataset == 'mnist':
+                exp_name = f"{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
+            else:
+                exp_name = f"{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
+            exp_dump = read_dump(exp_name)
+            exp_calls = np.median(exp_dump['model_calls'], axis=1)
+            exp_dist = np.median(exp_dump['border_distance'], axis=1)
+            dist_arr.append(exp_dist)
+            calls_arr.append(exp_calls)
 
-    plt.figure(figsize=(12, 7))
-    image_path = f'{PLOTS_DIR}/exp2_dist_vs_calls'
-    for i in range(len(labels)):
-        plt.plot(calls_arr[i], dist_arr[i], label=f"{labels[i]}")
-    plt.legend()
-    plt.xscale('log')
-    plt.xlabel('Median Model Calls')
-    plt.ylabel('Median Border Distance')
-    plt.grid()
-    plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
-    plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+        plt.figure(figsize=(12, 7))
+        image_path = f'{PLOTS_DIR}/exp2_dist_vs_calls_{dataset}'
+        for i in range(len(labels)):
+            plt.plot(calls_arr[i], dist_arr[i], label=f"{labels[i]}")
+        plt.legend()
+        plt.xscale('log')
+        plt.xlabel('median model calls')
+        plt.xlim(10)
+        plt.ylabel('median border distance')
+        plt.grid()
+        plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+        plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
-    plt.figure(figsize=(12, 7))
-    image_path = f'{PLOTS_DIR}/exp2_dist_vs_rounds'
-    for i in range(len(labels)):
-        plt.plot(dist_arr[i], label=f"{labels[i]}")
-    plt.legend()
-    plt.xlabel('Rounds')
-    plt.ylabel('Median Border Distance')
-    plt.grid()
-    plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
-    plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+        plt.figure(figsize=(12, 7))
+        image_path = f'{PLOTS_DIR}/exp2_dist_vs_rounds_{dataset}'
+        for i in range(len(labels)):
+            plt.plot(dist_arr[i], label=f"{labels[i]}")
+        plt.legend()
+        plt.xlabel('iterations')
+        plt.ylabel('median border distance')
+        plt.grid()
+        plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+        plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
 
 def hsj_failure():
@@ -160,22 +170,36 @@ def hsj_failure():
     attacks = ['hsj', 'hsj_rep', 'psj']
     repeats = [1, 3, 1]
     flips = ['0.00', '0.05', '0.10', '0.15']
-    print('****\t'+'\t'.join(attacks))
-    for flip in flips:
-        print(flip, end='\t')
-        for repeat, attack in zip(repeats, attacks):
-            exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
-            raw = read_dump(exp_name)
-            calls = np.median(raw['model_calls'][-1])
-            dist = np.median(raw['border_distance'][-1])
-            P_OUT = raw['prob_true_label_out'].cpu().numpy() * 1
-            is_adv = (P_OUT[-1, :] < 0.5) * 1
-            false_prop = 1 - np.sum(is_adv) / float(n_samples)
-            # print(f'({flip},{attack})\t', end='')
-            print(false_prop.round(2), end=', ')
-            # print(false_prop.round(2), dist, calls)
-        print('')
+    datasets = ['mnist', 'cifar10']
+    for dataset in datasets:
+        print(f'=========={dataset}=========')
+        print('****\t'+'\t'.join(attacks))
+        for flip in flips:
+            print(flip, end='\t')
+            for repeat, attack in zip(repeats, attacks):
+                if dataset == 'mnist':
+                    exp_name = f"{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+                else:
+                    exp_name = f"{dataset}_{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+                raw = read_dump(exp_name)
+                calls = np.median(raw['model_calls'][-1])
+                dist = np.median(raw['attack_out_distance'][-1])
+                # print(f'({flip},{attack})\t', end='')
+                print(f'({calls}, {dist})', end='\t')
+            print('')
 
+def plot_distance():
+    plt.figure(figsize=(10, 7))
+    exp_name = f"cifar10_psj_r_1_b_1_stochastic_fp_0.10_ns_5"
+    raw = read_dump(exp_name)
+    calls = np.median(raw['model_calls'][-1])
+    dist = np.median(raw['border_distance'], axis=1)
+    plt.plot(dist, label='PSJ')
+    plt.plot()
+    plt.legend()
+    # plt.xscale('log')
+    plt.grid()
+    plt.show()
 
 # estimate_repeat_in_hsj(beta=10)
 

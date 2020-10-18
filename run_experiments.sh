@@ -1,11 +1,11 @@
-betas="1 1.25 1.5 2"
+betas="5 10 20 50"
 flip="0.00"
 repeat="1"
 attacks="psj"
 num_samples=100
-noise="bayesian"
+noise="deterministic"
 dataset="cifar10"
-device=0
+device=2
 for beta in $betas; do
   for attack in $attacks; do
     echo "========================================"
@@ -20,3 +20,5 @@ for beta in $betas; do
     (nohup $command1; $command2)  > logs/$exp_name.txt &
   done
 done
+
+

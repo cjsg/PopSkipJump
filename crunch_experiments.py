@@ -9,10 +9,6 @@ from tracker import Diary, DiaryPage
 OUT_DIR = 'aistats'
 exp_name = sys.argv[1]
 dataset = sys.argv[2]
-if dataset == 'cifar10':
-    d = 32*32*3
-else:
-    d = 28*28
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
@@ -20,6 +16,12 @@ device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = 100
 eps = list(range(1, 6))
+if dataset == 'cifar10':
+    d = 32*32*3
+    model = get_model(key='cifar10', dataset=dataset, beta=beta)
+else:
+    d = 28*28
+    model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
 theta_det = 1 / (d * math.sqrt(d))
 
 
@@ -30,7 +32,6 @@ def read_dump(path):
 
 
 raw = read_dump(exp_name)
-model = get_model(key='mnist_noman', dataset='mnist', beta=beta)
 model.model = model.model.to(device)
 
 
