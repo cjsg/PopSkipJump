@@ -242,15 +242,15 @@ class Attack:
         Choose the delta at the scale of distance
         between x and perturbed sample.
         """
-        if current_iteration == 1:
-            delta = 0.1 * (self.clip_max - self.clip_min)
+        # if current_iteration == 1:
+        #     delta = 0.1 * (self.clip_max - self.clip_min)
+        # else:
+        if self.constraint == "l2":
+            delta = math.sqrt(self.d) * self.theta_det * dist_post_update
+        elif self.constraint == "linf":
+            delta = self.d * self.theta_det * dist_post_update
         else:
-            if self.constraint == "l2":
-                delta = math.sqrt(self.d) * self.theta_det * dist_post_update
-            elif self.constraint == "linf":
-                delta = self.d * self.theta_det * dist_post_update
-            else:
-                raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
+            raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
 
     def calculate_grad(self, decisions, rv):
