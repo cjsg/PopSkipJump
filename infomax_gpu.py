@@ -297,16 +297,16 @@ def bin_search(
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball
 
     if prev_s is None:
-        s_lo, s_hi = -1., 2.
-        Ns = 31
+        s_lo, s_hi = 2.5, 2.5
+        Ns = 1
     else:
         s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
         s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
         Ns = int(prior_frac * 30) + 1
 
     if prev_e is None:
-        e_lo, e_hi = 0., .3
-        Ne = 7
+        e_lo, e_hi = 1e-6, 1e-6
+        Ne = 1
     else:
         e_lo = prev_e
         e_hi = prev_e
