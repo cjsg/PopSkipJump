@@ -64,37 +64,39 @@ def estimate_repeat_in_hsj(beta_vs_repeats, dataset):
         plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
 
-def psj_vs_hsjr(R):
+def psj_vs_hsjr(best_repeat):
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "100"
-    ratios, ratios_40, ratios_60 = [], [], []
-    betas = list(R.keys())
-    for beta in betas:
-        psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
-        psj_dump = read_dump(psj_exp_name)
-        psj_calls = np.median(psj_dump['model_calls'][-1])
-        psj_calls_40 = np.percentile(psj_dump['model_calls'][-1], 30)
-        psj_calls_60 = np.percentile(psj_dump['model_calls'][-1], 70)
-
-        hsj_exp_name = f"hsj_rep_r_{R[beta][1]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
-        hsj_dump = read_dump(hsj_exp_name)
-        hsj_calls = np.median(hsj_dump['model_calls'][-1])
-
-        hsj_l = read_dump(f"hsj_rep_r_{R[beta][0]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
-        hsj_calls_l = np.median(hsj_l['model_calls'][-1])
-        hsj_u = read_dump(f"hsj_rep_r_{R[beta][2]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
-        hsj_calls_u = np.median(hsj_u['model_calls'][-1])
-
-        ratio = hsj_calls / psj_calls
-        ratios.append(ratio)
-        ratios_40.append(hsj_calls_l / psj_calls)
-        ratios_60.append(hsj_calls_u / psj_calls)
     plt.figure(figsize=(7, 5))
     image_path = f'{PLOTS_DIR}/exp3'
-    plt.plot(betas, ratios)
-    plt.fill_between(betas, ratios_40, ratios_60, alpha=0.2)
-    plt.plot()
+    for attack in best_repeat:
+        R = best_repeat[attack]['mnist']
+        ratios, ratios_40, ratios_60 = [], [], []
+        betas = list(R.keys())
+        for beta in betas:
+            psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+            psj_dump = read_dump(psj_exp_name)
+            psj_calls = np.median(psj_dump['model_calls'][-1])
+            psj_calls_40 = np.percentile(psj_dump['model_calls'][-1], 30)
+            psj_calls_60 = np.percentile(psj_dump['model_calls'][-1], 70)
+
+            hsj_exp_name = f"{attack}_r_{R[beta][1]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
+            hsj_dump = read_dump(hsj_exp_name)
+            hsj_calls = np.median(hsj_dump['model_calls'][-1])
+
+            hsj_l = read_dump(f"{attack}_r_{R[beta][0]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
+            hsj_calls_l = np.median(hsj_l['model_calls'][-1])
+            hsj_u = read_dump(f"{attack}_r_{R[beta][2]}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}")
+            hsj_calls_u = np.median(hsj_u['model_calls'][-1])
+
+            ratio = hsj_calls / psj_calls
+            ratios.append(ratio)
+            ratios_40.append(hsj_calls_l / psj_calls)
+            ratios_60.append(hsj_calls_u / psj_calls)
+
+        plt.plot(betas, ratios)
+        plt.fill_between(betas, ratios_40, ratios_60, alpha=0.2)
     plt.xlabel('inverse temperature')
     plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
     plt.ylabel('relative number of model calls')
@@ -109,10 +111,12 @@ def conv_to_hsja():
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "50"
-    betas = [1, 1.25, 1.5, 2]
-    attacks = ['psj', 'hsj']
+    betas = [1, 2]
+    attacks = ['psj', 'hsj', 'hsj_rep_psj_delta', 'psj']
     # stri = '$\\frac{1}{T}$'
-    labels = ['PSJ: $T$=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: $T$=0 (det)' for a in attacks]
+    labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: T=0 (det)' for a in attacks]
+    labels[-1] = 'PSJ (fixed s, eps)'
+    labels[-2] = "HSJ (PSJ's delta)"
     datasets = ['mnist', 'cifar10']
     for dataset in datasets[-1:]:
         dist_arr, calls_arr = [], []
@@ -127,11 +131,13 @@ def conv_to_hsja():
             dist_arr.append(psj_dist)
             calls_arr.append(psj_calls)
 
-        for attack in attacks:
+        for i, attack in enumerate(attacks):
             if dataset == 'mnist':
                 exp_name = f"{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
             else:
                 exp_name = f"{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
+                if i==3:
+                    exp_name = f"fixed_{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
             exp_dump = read_dump(exp_name)
             exp_calls = np.median(exp_dump['model_calls'], axis=1)
             exp_dist = np.median(exp_dump['border_distance'], axis=1)
@@ -169,7 +175,7 @@ def hsj_failure():
     n_samples = "100"
     attacks = ['hsj', 'hsj_rep', 'psj']
     repeats = [1, 3, 1]
-    flips = ['0.00', '0.05', '0.10', '0.15']
+    flips = ['0.00', '0.05', '0.10']
     datasets = ['mnist', 'cifar10']
     for dataset in datasets:
         print(f'=========={dataset}=========')
@@ -183,9 +189,12 @@ def hsj_failure():
                     exp_name = f"{dataset}_{attack}_r_{repeat}_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
                 raw = read_dump(exp_name)
                 calls = np.median(raw['model_calls'][-1])
-                dist = np.median(raw['attack_out_distance'][-1])
+                dist = np.median(raw['border_distance'][-1])
+                dist_40 = np.percentile(raw['border_distance'][-1], 40)
+                dist_60 = np.percentile(raw['border_distance'][-1], 60)
+
                 # print(f'({flip},{attack})\t', end='')
-                print(f'({calls}, {dist})', end='\t')
+                print(f'{calls} {dist} {dist_40} {dist_60}', end='\t')
             print('')
 
 def plot_distance():
@@ -203,17 +212,17 @@ def plot_distance():
 
 # estimate_repeat_in_hsj(beta=10)
 
-rc('text', usetex=True)
-rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
-rc('font', size=14)  # default: 10 -> choose size depending on figsize
-rc('font', family='STIXGeneral')
-rc('legend', fontsize=16)
-plt.tight_layout(h_pad=0, w_pad=.5)
+# rc('text', usetex=True)
+# rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+# rc('font', size=14)  # default: 10 -> choose size depending on figsize
+# rc('font', family='STIXGeneral')
+# rc('legend', fontsize=16)
+# plt.tight_layout(h_pad=0, w_pad=.5)
 
 attack='hsj_rep_psj_delta'
 dataset='mnist'
 estimate_repeat_in_hsj(beta_vs_repeats, dataset)
 # hsj_failure()
-# psj_vs_hsjr(best_repeat[attack][dataset])
+psj_vs_hsjr(best_repeat)
 # conv_to_hsja()
 # plot_distance()
