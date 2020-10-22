@@ -71,7 +71,7 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
             images = images.unsqueeze(dim=1)
             outs = self.model(images.float())
             return outs.detach()
-    if key == 'mnist_noman':
+    if key == 'mnist_cnn':
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()

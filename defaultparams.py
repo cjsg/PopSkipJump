@@ -8,7 +8,7 @@ class DefaultParams:
 
     def __init__(self):
         self.attack = 'popskip'
-        self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
+        self.model_keys: dict = {'mnist': ['mnist_cnn'], 'cifar10': ['cifar10']}
         self.num_iterations = 32
         self.internal_dtype = torch.float32
         self.bounds = (0, 1)
@@ -38,8 +38,8 @@ class DefaultParams:
 
         # Specific to Info max procedure
         self.grid_size = 300
-        self.prior_frac = 1
-        self.queries = 1
+        self.prior_frac = 0.1
+        self.queries = 5
 
         # Specific to Approximate Gradient
         self.grad_queries = 1

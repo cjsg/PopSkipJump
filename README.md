@@ -1,5 +1,5 @@
-# attack
-Decision Based Adversarial Attack 
+# PopSkipJumpAttack
+Decision Based Adversarial Attack for Noisy classifiers 
 
 ## Install Dependencies
 This repository is compatible with python 3.6.9 and above.

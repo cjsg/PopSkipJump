@@ -22,15 +22,6 @@ parser.add_argument("-a", "--attack", type=str,
                     help="(Mandatory) supported: psj, hsj, hsj_rep")
 parser.add_argument("-o", "--exp_name", type=str, default=None,
                     help="(Optional) path to the output directory")
-parser.add_argument("-pf", "--prior_frac", type=float, default=1.,
-                    help="(Optional) how much to reduce the bin-search "
-                    "interval after first round of bin-search")
-parser.add_argument("-q", "--queries_per_loc", type=int, default=1,
-                    help="(Optional) how many queries to compute per "
-                    "Bayesian optimization step in bin-search.")
-parser.add_argument("-gq", "--grad_queries", type=int, default=1,
-                    help="(Optional) how many queries to compute per "
-                    "point in Gradient Approximation step.")
 parser.add_argument("-r", "--hsja_repeat_queries", type=int, default=1,
                     help="(Optional) how many queries to compute per "
                     "point in HSJ Attack")
@@ -38,12 +29,8 @@ parser.add_argument("-ns", "--num_samples", type=int, default=1,
                     help="(Optional) Number of images to attack")
 parser.add_argument("-b", "--beta", type=float, default=1,
                     help="(Optional) Beta parameter used in Gibbs Distribution")
-parser.add_argument("-sf", "--samples_from", type=int, default=0,
-                    help="(Optional) Number of images to skip during sampling")
 parser.add_argument("-fp", "--flip_prob", type=float, default=0,
-                    help="(Optional) Number of images to skip during sampling")
-parser.add_argument("-tf", "--theta_fac", type=float, default=1,
-                    help="(Optional) Number of images to skip during sampling")
+                    help="(Optional) Flip probability for noisy classifiers")
 
 
 def validate_args(args):
@@ -95,14 +82,9 @@ def merge_params(params: DefaultParams, args):
     params.noise = args.noise
     params.beta = args.beta
     params.attack = args.attack
-    params.prior_frac = args.prior_frac
-    params.queries = args.queries_per_loc
-    params.grad_queries = args.grad_queries
     params.hsja_repeat_queries = args.hsja_repeat_queries
     params.num_samples = args.num_samples
-    params.samples_from = args.samples_from
     params.flip_prob = args.flip_prob
-    params.theta_fac = args.theta_fac
     return params
 
 
@@ -125,7 +107,7 @@ def main(params=None):
     attack = create_attack(exp_name, dataset, params)
     median_distance, additional = run_attack(attack, dataset, params)
     torch.save(additional, open('{}/{}/raw_data.pkl'.format(OUT_DIR, exp_name), 'wb'))
-    logging.warning('Saved output at "{}"'.format(exp_name))
+    logging.warning('Saved output at "{}/{}"'.format(OUT_DIR, exp_name))
     logging.warning('Median_distance: {}'.format(median_distance))
     return median_distance
 
