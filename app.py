@@ -88,7 +88,6 @@ def merge_params(params: DefaultParams, args):
     return params
 
 
-
 def get_experiment_name(args, params):
     if params.experiment_name is not None:
         return params.experiment_name
