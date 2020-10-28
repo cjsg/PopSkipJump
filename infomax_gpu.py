@@ -220,7 +220,7 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
 def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label):
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
-    batch = (1 - xx) * unperturbed + xx * perturbed
+    batch = (1 - xx) * perturbed + xx * unperturbed
     probs = model_interface.get_probs_(batch)
     if model_interface.noise == "deterministic":
         pred = probs.argmax(dim=1)
@@ -297,16 +297,16 @@ def bin_search(
     Nz = Nt  # possible sigmoid centers = possible centers of sampling ball
 
     if prev_s is None:
-        s_lo, s_hi = 2.5, 2.5
-        Ns = 1
+        s_lo, s_hi = -1., 2.
+        Ns = 31
     else:
         s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
         s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
         Ns = int(prior_frac * 30) + 1
 
     if prev_e is None:
-        e_lo, e_hi = 1e-6, 1e-6
-        Ne = 1
+        e_lo, e_hi = 0., .3
+        Ne = 7
     else:
         e_lo = prev_e
         e_hi = prev_e
@@ -539,7 +539,7 @@ def bin_search(
         if model_interface is None:
             yj = torch.bernoulli(pp[j_amax]).long()
         else:
-            yj = model_interface.sample_bernoulli(1-pp[j_amax]).long()
+            yj = model_interface.sample_bernoulli(pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

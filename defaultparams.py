@@ -8,6 +8,7 @@ class DefaultParams:
 
     def __init__(self):
         self.attack = 'popskip'
+        self.dataset = 'mnist'
         self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
         self.num_iterations = 32
         self.internal_dtype = torch.float32
@@ -37,7 +38,7 @@ class DefaultParams:
         self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
 
         # Specific to Info max procedure
-        self.grid_size = 300
+        self.grid_size = {'mnist': 100, 'cifar10': 300}
         self.prior_frac = 1
         self.queries = 1
 

@@ -95,6 +95,7 @@ def merge_params(params: DefaultParams, args):
     params.noise = args.noise
     params.beta = args.beta
     params.attack = args.attack
+    params.dataset = args.dataset
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc
     params.grad_queries = args.grad_queries
