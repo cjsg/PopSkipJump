@@ -300,12 +300,12 @@ def bin_search(
         s_lo, s_hi = -1., 2.
         Ns = 31
     else:
-        # s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
-        # s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
-        # Ns = int(prior_frac * 30) + 1
-        s_lo = log10(prev_s)
-        s_hi = s_lo
-        Ns = 1
+        s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
+        s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
+        Ns = int(prior_frac * 30) + 1
+        # s_lo = log10(prev_s)
+        # s_hi = s_lo
+        # Ns = 1
 
     if prev_e is None:
         e_lo, e_hi = 0., .3
@@ -566,7 +566,7 @@ def bin_search(
             nn = torch.stack(output['ttse_max'][-(window_size+1):])
             diffs = torch.abs(nn[1:] - nn[:-1])
             means = torch.mean(diffs, dim=0)
-            if means[0] <= (t_hi - t_lo)/Nt and means[1] <= (s_hi - s_lo)/Ns and means[2] <= (e_hi - e_hi) / Ne:
+            if means[0] <= (t_hi - t_lo)/Nt and means[1] <= (s_hi - s_lo)/Ns and means[2] <= (e_hi - e_lo) / Ne:
                 stop_next = True
             else:
                 nn = torch.tensor(output['nn_tmap_est'][-(window_size+1):])
