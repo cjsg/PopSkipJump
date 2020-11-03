@@ -45,7 +45,7 @@ class DefaultParams:
         # Specific to Approximate Gradient
         self.grad_queries = 1
 
-        self.theta_fac = 1
+        self.theta_fac = -1
 
         # Specific to Experiment mode
         self.experiment_mode = True

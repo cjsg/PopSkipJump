@@ -41,9 +41,9 @@ parser.add_argument("-b", "--beta", type=float, default=1,
 parser.add_argument("-sf", "--samples_from", type=int, default=0,
                     help="(Optional) Number of images to skip during sampling")
 parser.add_argument("-fp", "--flip_prob", type=float, default=0,
-                    help="(Optional) Number of images to skip during sampling")
-parser.add_argument("-tf", "--theta_fac", type=float, default=1,
-                    help="(Optional) Number of images to skip during sampling")
+                    help="(Optional) Probability of flipping the outcome of noisy classifier")
+parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
+                    help="(Optional) Multiplies theta of HSJ with tf")
 
 
 def validate_args(args):

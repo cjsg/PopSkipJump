@@ -167,7 +167,11 @@ class HopSkipJumpRepeatedWithPSJDelta(HopSkipJump):
 
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
-        self.theta_det = self.theta_det * params.theta_fac
+        if params.theta_fac is -1:
+            tf = 1.5 * self.d * math.sqrt(self.d) / self.grid_size
+        else:
+            tf = params.theta_fac
+        self.theta_det = self.theta_det * tf
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         # delta = dist_post_update * math.sqrt(self.d) / self.grid_size
