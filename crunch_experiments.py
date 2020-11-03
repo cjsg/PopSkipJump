@@ -14,7 +14,7 @@ noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
 device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 100
+NUM_IMAGES = 20
 eps = list(range(1, 6))
 if dataset == 'cifar10':
     d = 32*32*3
