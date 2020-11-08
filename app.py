@@ -44,6 +44,8 @@ parser.add_argument("-fp", "--flip_prob", type=float, default=0,
                     help="(Optional) Probability of flipping the outcome of noisy classifier")
 parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
                     help="(Optional) Multiplies theta of HSJ with tf")
+parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="3",
+                    help="(Optional) Stopping Criteria to use in Infomax procedure")
 
 
 def validate_args(args):
@@ -104,6 +106,7 @@ def merge_params(params: DefaultParams, args):
     params.samples_from = args.samples_from
     params.flip_prob = args.flip_prob
     params.theta_fac = args.theta_fac
+    params.infomax_stop_criteria = args.infomax_stop_criteria
     return params
 
 

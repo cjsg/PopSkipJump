@@ -110,18 +110,19 @@ def psj_vs_hsjr(best_repeat):
 def conv_to_hsja():
     noise = 'bayesian'
     flip = "0.00"
-    n_samples = "50"
-    betas = [1, 2]
-    attacks = ['psj', 'hsj', 'hsj_rep_psj_delta', 'psj']
+    n_samples = "20"
+    betas = [0.5, 1]
+    # betas = [1, 1.5, 2, 10]
+    attacks = ['psj','hsj', 'hsj_rep_psj_delta']
     # stri = '$\\frac{1}{T}$'
     labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: T=0 (det)' for a in attacks]
-    labels[-1] = 'PSJ (fixed s, eps)'
-    labels[-2] = "HSJ (PSJ's delta)"
+    labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + ['PSJ T=0 (det)', 'HSJ T=0 (det)',  'HSJ-D T=0 (det)']
+    # labels = ['PSJ', 'HSJ',  'HSJ-D']
     datasets = ['mnist', 'cifar10']
     for dataset in datasets[-1:]:
         dist_arr, calls_arr = [], []
         for beta in betas:
-            if dataset == 'mnist':
+            if False and dataset == 'mnist':
                 psj_exp_name = f"psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
             else:
                 psj_exp_name = f"{dataset}_psj_r_1_b_{beta}_{noise}_fp_{flip}_ns_{n_samples}"
@@ -132,12 +133,11 @@ def conv_to_hsja():
             calls_arr.append(psj_calls)
 
         for i, attack in enumerate(attacks):
-            if dataset == 'mnist':
+            if False and dataset == 'mnist':
                 exp_name = f"{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
             else:
                 exp_name = f"{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
-                if i==3:
-                    exp_name = f"fixed_{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
+
             exp_dump = read_dump(exp_name)
             exp_calls = np.median(exp_dump['model_calls'], axis=1)
             exp_dist = np.median(exp_dump['border_distance'], axis=1)
@@ -165,8 +165,20 @@ def conv_to_hsja():
         plt.xlabel('iterations')
         plt.ylabel('median border distance')
         plt.grid()
-        plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+        # plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
         plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+
+        plt.figure(figsize=(12, 7))
+        image_path = f'{PLOTS_DIR}/calls_vs_rounds_{dataset}'
+        for i in range(len(labels)):
+            plt.plot(calls_arr[i], label=f"{labels[i]}")
+        plt.legend()
+        plt.xlabel('iterations')
+        plt.ylabel('model calls')
+        plt.grid()
+        # plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+        plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+
 
 
 def hsj_failure():
@@ -221,8 +233,8 @@ def plot_distance():
 
 attack='hsj_rep_psj_delta'
 dataset='mnist'
-estimate_repeat_in_hsj(beta_vs_repeats, dataset)
+# estimate_repeat_in_hsj(beta_vs_repeats, dataset)
 # hsj_failure()
-psj_vs_hsjr(best_repeat)
-# conv_to_hsja()
+# psj_vs_hsjr(best_repeat)
+conv_to_hsja()
 # plot_distance()

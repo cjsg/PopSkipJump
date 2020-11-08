@@ -17,7 +17,7 @@ class HopSkipJump(Attack):
         self.grad_queries = 1  # Original HSJA does not perform multiple queries
         self.repeat_queries = 1
 
-    def bin_search_step(self, original, perturbed, page=None):
+    def bin_search_step(self, original, perturbed, page=None, estimates=None, num_evals_det=None):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
         return perturbed, dist_post_update, None
 

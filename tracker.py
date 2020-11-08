@@ -30,9 +30,10 @@ class DiaryPage(object):
 
 
 class InfoMaxStats(object):
-    def __init__(self, s, tmap, samples, e):
+    def __init__(self, s, tmap, samples, e, n):
         self.s = s
         self.e = e
+        self.n = n
         self.tmap = tmap
         self.samples = samples
 

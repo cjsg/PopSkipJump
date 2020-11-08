@@ -55,11 +55,12 @@ dumps = {
                     ('psj_b_50_bayesian_ns_100', 'PSJ(beta=50)'),
                     ('psj_b_1_deterministic_ns_100', 'PSJ(deterministic)'),
                     ('hsj_b_1_deterministic_ns_100', 'HSJ(deterministic)')],
-    'dummy': [('del_later_hsj', 'HSJ'),
-              ('del_later_psj', 'PSJ'),
-              ('del_later_psj_q', 'PSJ-Q'),
-              ('del_later_psj_pf', 'PSJ-PF'),
-              ('del_later', 'CUR')]
+    'dummy': [('det', 'HSJ'),
+              ('psj', 'PSJ'),
+              # ('del_later_psj_q', 'PSJ-Q'),
+              # ('del_later_psj_pf', 'PSJ-PF'),
+              # ('del_later', 'CUR')
+              ]
 }
 
 noise = sys.argv[1]
