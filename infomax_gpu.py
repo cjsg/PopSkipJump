@@ -18,7 +18,7 @@ def get_py_txse(y, t, x, s, eps):
     :param eps: float in [0., .5]
     """
     sigmoid = lambda x: torch.where(torch.isinf(x),  # logistic.cdf(4. * x)
-                                    torch.sign(x),
+                                    .5 * torch.sign(x) + .5,
                                     .5 * torch.tanh(2. * x) + .5)
     if type(x) != torch.Tensor:
         x = torch.tensor(x)
