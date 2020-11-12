@@ -64,7 +64,7 @@ class Attack:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(self.a)
 
-    def bin_search_step(self, original, perturbed, page=None, estimates=None, num_evals_det=None):
+    def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         """
         Performs Binary Search between original and perturbed to find the closest point to the adversarial boundary
         :param original: x_star (The original image)
@@ -141,7 +141,7 @@ class Attack:
             page.opposite = perturbed
 
             # Binary search to return to the boundary.
-            perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page, estimates, num_evals_det)
+            perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page, estimates, step)
             page.time.bin_search = time.time()
             page.calls.bin_search = self.model_interface.model_calls
             page.bin_search = perturbed

@@ -16,9 +16,9 @@ class PopSkipJump(Attack):
         self.delta_prob_unit = math.sqrt(self.d) / self.grid_size  # PSJA's delta in unit scale
         self.stop_criteria = params.infomax_stop_criteria
 
-    def bin_search_step(self, original, perturbed, page=None, estimates=None, num_evals_det=None):
+    def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         perturbed, dist_post_update, s_, e_, t_, n_, (nn_tmap, xx) = self.info_max_batch(
-            original, perturbed[None], self.a.true_label, estimates, num_evals_det)
+            original, perturbed[None], self.a.true_label, estimates, step)
         if page is not None:
             page.info_max_stats = InfoMaxStats(s_, t_, xx, e_, n_)
         return perturbed, dist_post_update, {'s': s_, 'e': e_, 'n': n_, 't': t_}
@@ -37,9 +37,13 @@ class PopSkipJump(Attack):
         # Go in the opposite direction
         return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
 
-    def get_theta_prob(self, target_cos, estimates=None, num_evals_det=None):
-        if num_evals_det is None:
-            # TODO: Think about the ideal values for target_cos and eps here
+    def get_theta_prob(self, target_cos, estimates=None):
+        """
+        Performs binary search for finding maximal theta_prob that does not affect estimated samples
+        """
+        # TODO: Replace Binary Search with a closed form solution (if it exists)
+        if estimates is None:
+            # TODO: Think about the ideal value for eps here
             s, eps = 100., 1e-4
             n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d, eps=eps)
         else:
@@ -62,16 +66,16 @@ class PopSkipJump(Attack):
                 high = mid
         return low
 
-    def info_max_batch(self, unperturbed, perturbed_inputs, true_label, estimates, num_evals_det):
+    def info_max_batch(self, unperturbed, perturbed_inputs, true_label, estimates, step):
         border_points = []
         dists = []
         smaps, tmaps, emaps, ns = [], [], [], []
-        if num_evals_det is None:
-            target_cos = get_cos_from_n(100, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
+        if estimates is None:
+            target_cos = get_cos_from_n(self.initial_num_evals, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
         else:
+            num_evals_det = int(min([self.initial_num_evals * math.sqrt(step+1), self.max_num_evals]))
             target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
-        theta_prob_dynamic = self.get_theta_prob(target_cos, estimates, num_evals_det)
-        candidate = int(1 / theta_prob_dynamic) + 1
+        theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
         grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
         for perturbed_input in perturbed_inputs:
             output, n = bin_search(
@@ -91,7 +95,6 @@ class PopSkipJump(Attack):
             tmaps.append(t_map)
             emaps.append(e_map)
             ns.append(n)
-        # print('e_map=', e_map)
         idx = int(torch.argmin(torch.tensor(dists)))
         dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
         if dist == 0:
