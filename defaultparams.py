@@ -41,7 +41,7 @@ class DefaultParams:
         self.grid_size = {'mnist': 100, 'cifar10': 300}
         self.prior_frac = 1
         self.queries = 1
-        self.infomax_stop_criteria = "3"
+        self.infomax_stop_criteria = "estimate_fluctuation"
 
         # Specific to Approximate Gradient
         self.grad_queries = 1

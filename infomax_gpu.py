@@ -242,7 +242,7 @@ def bin_search(
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=None, device=None, true_label=None, plot=False, prev_t=None,
         prev_s=None, prev_e=None, prior_frac=1., queries=5,
-        tt=None, ss=None, ee=None, stop_criteria="4"):
+        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation"):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -324,27 +324,26 @@ def bin_search(
             self.name = name
 
         def check(self, output, terminated=False):
-            if self.name == '1':
+            if self.name == 'empirical_samples':  # Criteria 1
                 if len(output['nn_tmap_est']) > window_size + 1:
                     nn = torch.tensor(output['nn_tmap_est'][-(window_size + 1):])
                     diffs = torch.abs(nn[1:] - nn[:-1])
                     if torch.mean(diffs) < queries or terminated:
                         return True, torch.mean(nn)
-            elif self.name == '2':
+            elif self.name == 'expected_samples':  # Criteria 2
                 pass
-            elif self.name == '3':
+            elif self.name == 'posterior_width':  # Criteria 3
                 if len(output['ttse_max']) > window_size:
                     tse = torch.stack(output['ttse_max'][-window_size:])
-                    tmax_hi = max(tse[:, 0])
-                    tmax_lo = min(tse[:, 0])
+                    tmax_hi, tmax_lo = max(tse[:, 0]), min(tse[:, 0])
                     nn = [get_n_from_cos(target_cos, theta=tmax_hi - tmax_lo, s=smax, eps=emax, delta=delta, d=d)
                           for (smax, emax) in tse[:, 1:]]
                     n_hi, n_lo = max(nn), min(nn)
                     if abs(n_hi - n_lo) < 1 or terminated:
-                        En = get_n_from_cos(target_cos, theta=(t_hi - t_lo) / (2 * Nt), s=tse[-1, 1], eps=tse[-1, 2],
+                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=tse[-1, 1], eps=tse[-1, 2],
                                        delta=delta, d=d)
                         return True, max(n_hi, En)
-            elif self.name == '4':
+            elif self.name == 'estimate_fluctuation':  # Criteria 4
                 if len(output['ttse_max']) > window_size + 1:
                     tse = torch.stack(output['ttse_max'][-(window_size + 1):])
                     tse[:, 1] = torch.log10(tse[:, 1])
@@ -352,7 +351,7 @@ def bin_search(
                     means = torch.max(diffs, dim=0)[0]
                     if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
                             and means[2] <= (e_hi - e_lo) / Ne) or terminated:
-                        En = get_n_from_cos(target_cos, theta=(t_hi - t_lo) / (2 * Nt), s=10.**tse[-1,1], eps=tse[-1,2],
+                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
                                             delta=delta, d=d)
                         return True, En
             else:

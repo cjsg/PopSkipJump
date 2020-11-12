@@ -44,7 +44,7 @@ parser.add_argument("-fp", "--flip_prob", type=float, default=0,
                     help="(Optional) Probability of flipping the outcome of noisy classifier")
 parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
                     help="(Optional) Multiplies theta of HSJ with tf")
-parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="3",
+parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estimate_fluctuation",
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
 
 
