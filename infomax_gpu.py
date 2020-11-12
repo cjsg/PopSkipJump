@@ -18,7 +18,7 @@ def get_py_txse(y, t, x, s, eps):
     :param eps: float in [0., .5]
     """
     sigmoid = lambda x: torch.where(torch.isinf(x),  # logistic.cdf(4. * x)
-                                    torch.sign(x),
+                                    .5 * torch.sign(x) + .5,
                                     .5 * torch.tanh(2. * x) + .5)
     if type(x) != torch.Tensor:
         x = torch.tensor(x)
@@ -127,7 +127,7 @@ def get_cos_from_n(n, s=float('Inf'), theta=0., delta=1., d=10, eps=0.):
 
     out = torch.empty_like(alpha)
     out[ix_nul] = 0.
-    out[ix_pos] = 1. / torch.sqrt(1. + (d-1) / (n[ix_pos] * alpha[ix_pos] ** 2))
+    out[ix_pos] = 1. / torch.sqrt(1. + (d - 1) / (n[ix_pos] * alpha[ix_pos] ** 2))
     return out
 
 
@@ -220,7 +220,7 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
 def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label):
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
-    batch = (1 - xx) * unperturbed + xx * perturbed
+    batch = (1 - xx) * perturbed + xx * unperturbed
     probs = model_interface.get_probs_(batch)
     if model_interface.noise == "deterministic":
         pred = probs.argmax(dim=1)
@@ -235,13 +235,14 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
     return res
 
 
+
 def bin_search(
         unperturbed=None, perturbed=None, model_interface=None,
         acq_func='I(y,t,s,e)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=None, device=None, true_label=None, plot=False, prev_t=None,
         prev_s=None, prev_e=None, prior_frac=1., queries=5,
-        tt=None, ss=None, ee=None):
+        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation"):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -303,6 +304,9 @@ def bin_search(
         s_lo = max(log10(prev_s) - prior_frac * 3, -1.)
         s_hi = min(log10(prev_s) + prior_frac * 3, 2.)
         Ns = int(prior_frac * 30) + 1
+        # s_lo = log10(prev_s)
+        # s_hi = s_lo
+        # Ns = 1
 
     if prev_e is None:
         e_lo, e_hi = 0., .3
@@ -315,6 +319,46 @@ def bin_search(
         # e_hi = min(prev_e + prior_frac*.3, .5)
         # Ne = max(int(prior_frac*7) + 1, 3)
 
+    class StoppingCriteria(object):
+        def __init__(self, name):
+            self.name = name
+
+        def check(self, output, terminated=False):
+            if self.name == 'empirical_samples':  # Criteria 1
+                if len(output['nn_tmap_est']) > window_size + 1:
+                    nn = torch.tensor(output['nn_tmap_est'][-(window_size + 1):])
+                    diffs = torch.abs(nn[1:] - nn[:-1])
+                    if torch.mean(diffs) < queries or terminated:
+                        return True, torch.mean(nn)
+            elif self.name == 'expected_samples':  # Criteria 2
+                pass
+            elif self.name == 'posterior_width':  # Criteria 3
+                if len(output['ttse_max']) > window_size:
+                    tse = torch.stack(output['ttse_max'][-window_size:])
+                    tmax_hi, tmax_lo = max(tse[:, 0]), min(tse[:, 0])
+                    nn = [get_n_from_cos(target_cos, theta=tmax_hi - tmax_lo, s=smax, eps=emax, delta=delta, d=d)
+                          for (smax, emax) in tse[:, 1:]]
+                    n_hi, n_lo = max(nn), min(nn)
+                    if abs(n_hi - n_lo) < 1 or terminated:
+                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=tse[-1, 1], eps=tse[-1, 2],
+                                       delta=delta, d=d)
+                        return True, max(n_hi, En)
+            elif self.name == 'estimate_fluctuation':  # Criteria 4
+                if len(output['ttse_max']) > window_size + 1:
+                    tse = torch.stack(output['ttse_max'][-(window_size + 1):])
+                    tse[:, 1] = torch.log10(tse[:, 1])
+                    diffs = torch.abs(tse[1:] - tse[:-1])
+                    means = torch.max(diffs, dim=0)[0]
+                    if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
+                            and means[2] <= (e_hi - e_lo) / Ne) or terminated:
+                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
+                                            delta=delta, d=d)
+                        return True, En
+            else:
+                raise RuntimeError(f"Unknown Stopping Criteria: {self.name}")
+            return False, None
+
+    stopping_criteria = StoppingCriteria(stop_criteria)
 
     # discretize parameter (search) space
     dtype = torch.float32
@@ -395,6 +439,9 @@ def bin_search(
     max_queries = queries
     krepeat = int(kmax / max_queries)
 
+    CLIP_MIN = 1e-7
+    CLIP_MAX = 1 - 1e-7
+
     for k in tqdm(range(krepeat), desc='bin-search'):
         if stop_next:
             break
@@ -406,6 +453,8 @@ def bin_search(
         queries = min(k // 2 + 1, max_queries)
 
         # Compute some probabilities / expectations
+        ptse_x = torch.clamp(ptse_x, CLIP_MIN, CLIP_MAX)
+        ptse_x = ptse_x / ptse_x.sum(axis=(1,3,4), keepdim=True)
         pytse_x = py_txse * ptse_x
         py_x = pytse_x.sum(axis=(1, 3, 4), keepdim=True)
         pts_x = ptse_x.sum(axis=4, keepdim=True)
@@ -525,7 +574,7 @@ def bin_search(
         a_min_to_sample = .9 * a_max if queries > 1 else a_max
         jj_top = torch.where(a_x >= a_min_to_sample)[0]
         j_amax = jj_top[torch.randint(len(jj_top), size=[queries])]
-        
+
         # # xj = xx[j_amax].item()
         # # yj = int(torch.bernoulli(1-pp[j_amax]))
         # j_amax = torch.argmax(a_x)
@@ -534,7 +583,7 @@ def bin_search(
         if model_interface is None:
             yj = torch.bernoulli(pp[j_amax]).long()
         else:
-            yj = model_interface.sample_bernoulli(1-pp[j_amax]).long()
+            yj = model_interface.sample_bernoulli(pp[j_amax]).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()
@@ -554,11 +603,7 @@ def bin_search(
         output['nn_tmap_est'].append(n_ztmap_est)
 
         # Test stopping criterion
-        if len(output['nn_tmap_est']) > window_size + 1:
-            nn = torch.tensor(output['nn_tmap_est'][-(window_size+1):])
-            diffs = torch.abs(nn[1:] - nn[:-1])
-            if torch.mean(diffs) < queries:
-                stop_next = True
+        stop_next, En_ = stopping_criteria.check(output)
 
         # Plots
         sq_k = sqrt(k)
@@ -581,7 +626,10 @@ def bin_search(
     end = time.time()
     vprint(f'Time to finish: {end - start:.2f} s')
     # print(tt_compute_probs, tt_setting_stats, tt_acq_func, tt_max_acquisition, tt_posterior)
-    return output
+    if stop_next is False:
+        return output, stopping_criteria.check(output, terminated=True)[1]
+    else:
+        return output, En_
 
 
 # output = bin_search(
@@ -595,11 +643,11 @@ def bin_search(
 #     plot=True,  # True,
 #     grid_size=101,
 #     queries=5)
-# 
+#
 # print()
 # print(output['tts_map'][-1])
 # print(output['tts_max'][-1])
-# 
+#
 # plt.hist(output['xxj'][:], bins=100)
 # plt.xlim(0., 1.)
 # plt.show()

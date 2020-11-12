@@ -36,7 +36,7 @@ class Attack:
         # Set binary search threshold.
         self.shape = data_shape
         self.d = int(torch.prod(torch.tensor(self.shape)))
-        self.grid_size = params.grid_size
+        self.grid_size = params.grid_size[params.dataset]
         if self.constraint == "l2":
             self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
             # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
@@ -64,7 +64,7 @@ class Attack:
             logging.info('Initializing Starting Point...')
             self.initialize_starting_point(self.a)
 
-    def bin_search_step(self, original, perturbed, page=None):
+    def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         """
         Performs Binary Search between original and perturbed to find the closest point to the adversarial boundary
         :param original: x_star (The original image)
@@ -141,7 +141,7 @@ class Attack:
             page.opposite = perturbed
 
             # Binary search to return to the boundary.
-            perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page)
+            perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed, page, estimates, step)
             page.time.bin_search = time.time()
             page.calls.bin_search = self.model_interface.model_calls
             page.bin_search = perturbed
@@ -242,15 +242,15 @@ class Attack:
         Choose the delta at the scale of distance
         between x and perturbed sample.
         """
-        if current_iteration == 1:
-            delta = 0.1 * (self.clip_max - self.clip_min)
+        # if current_iteration == 1:
+        #     delta = 0.1 * (self.clip_max - self.clip_min)
+        # else:
+        if self.constraint == "l2":
+            delta = math.sqrt(self.d) * self.theta_det * dist_post_update
+        elif self.constraint == "linf":
+            delta = self.d * self.theta_det * dist_post_update
         else:
-            if self.constraint == "l2":
-                delta = math.sqrt(self.d) * self.theta_det * dist_post_update
-            elif self.constraint == "linf":
-                delta = self.d * self.theta_det * dist_post_update
-            else:
-                raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
+            raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
 
     def calculate_grad(self, decisions, rv):

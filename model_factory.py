@@ -15,11 +15,11 @@ class Model:
         self.device = device
 
     def predict(self, images):
-        transform = transforms.Compose([transforms.ToTensor(),
-                                        transforms.Normalize([0.4914, 0.4822, 0.4465],
+        images = images.permute(0, 3, 1, 2)
+        transform = transforms.Compose([transforms.Normalize([0.4914, 0.4822, 0.4465],
                                                              [0.2023, 0.1994, 0.2010])])
         img_tr = [transform(i) for i in images]
-        outs = self.model(torch.stack(img_tr).to(self.device))
+        outs = self.model(torch.stack(img_tr))
         return outs.detach()
 
     def ask_model(self, images):
@@ -82,7 +82,7 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
         pytorch_model.eval()
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':
-        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10)
+        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10, beta=beta, device=device)
     if key == 'human':
         class Human(Model):
             def ask_model(self, images):

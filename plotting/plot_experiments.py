@@ -55,19 +55,30 @@ dumps = {
                     ('psj_b_50_bayesian_ns_100', 'PSJ(beta=50)'),
                     ('psj_b_1_deterministic_ns_100', 'PSJ(deterministic)'),
                     ('hsj_b_1_deterministic_ns_100', 'HSJ(deterministic)')],
-    'dummy': [('del_later', 'HSJ')]
+    'dummy': [('det', 'HSJ'),
+              ('psj', 'PSJ'),
+              # ('del_later_psj_q', 'PSJ-Q'),
+              # ('del_later_psj_pf', 'PSJ-PF'),
+              # ('del_later', 'CUR')
+              ]
 }
 
 noise = sys.argv[1]
 exp = exps[noise]
 flip_prob = 0.05
-theta_det = 1 / (28 * 28 * 28)
 beta = 1
 
 # raws = [read_dump(f'{attack}_{rep}_b_{beta}_bayesian_ns_5') for beta in betas]
 raws = [read_dump(s) for (s, _) in dumps[noise]]
-model = get_model(key='mnist_noman', dataset='mnist')
+dataset = 'cifar10'
+if dataset == 'mnist':
+    model = get_model(key='mnist_noman', dataset=dataset)
+    d = 28. * 28.
+else:
+    model = get_model(key='cifar10', dataset=dataset)
+    d = 32. * 32. * 3.
 model.model = model.model.to(device)
+theta_det = 1. / (np.sqrt(d) * d)
 
 
 def search_boundary(x_star, x_t, theta_det, true_label):
@@ -100,10 +111,11 @@ def project(x_star, x_t, label, theta_det):
     return x_tt
 
 
-D = torch.zeros(size=(len(raws), NUM_ITERATIONS, NUM_IMAGES), device=device)
+D = torch.zeros(size=(len(raws), NUM_ITERATIONS+1, NUM_IMAGES), device=device)
 D_OUT = torch.zeros_like(D, device=device)
-AA = torch.zeros(size=(len(raws), len(eps), NUM_ITERATIONS, NUM_IMAGES), device=device)
+AA = torch.zeros(size=(len(raws), len(eps), NUM_ITERATIONS+1, NUM_IMAGES), device=device)
 MC = torch.zeros_like(D, device=device)
+SS = torch.zeros_like(D, device=device)
 for i, raw in enumerate(raws):
     print(f"Scanning Dump {i}...")
     for iteration in tqdm(range(NUM_ITERATIONS)):
@@ -116,29 +128,34 @@ for i, raw in enumerate(raws):
             x_t = details[iteration].bin_search
             x_tt = project(x_star, x_t, label, theta_det)
             p_tt = model.get_probs(x_tt[None])[0][label]
-            D[i, iteration, image] = torch.norm(x_star - x_tt) ** 2 / 784 / 1 ** 2
+            x_0 = project(x_star, diary.initial_projection, label, theta_det)
+            D[i, 0, image] = torch.norm(x_star - x_0) ** 2 / d
+            D[i, iteration+1, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
             if dumps[noise][i][0].startswith('psj'):
-                d_output = D[i, iteration, image]
+                d_output = D[i, iteration+1, image]
             else:
                 d_output = details[iteration].distance
-            D_OUT[i, iteration, image] = d_output
-            MC[i, iteration, image] = calls
-            for j in range(len(eps)):
-                x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-                p_adv = model.get_probs(x_adv[None])[0]
-                if noise == 'bayesian':
-                    AA[i, j, iteration, image] = p_adv[label]
-                elif noise == 'deterministic':
-                    AA[i, j, iteration, image] = (torch.argmax(p_adv) == label) * 1.0
-                else:
-                    p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
-                    pred = torch.argmax(p_adv)
-                    p_temp[pred] = 1 - flip_prob
-                    AA[i, j, iteration, image] = p_temp[label]
+            # D_OUT[i, iteration+1, image] = d_output
+            MC[i, iteration+1, image] = calls
+            SS[i, iteration+1, image] = details[iteration].calls.step_search - details[iteration].calls.approx_grad
+
+            # for j in range(len(eps)):
+            #     x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
+            #     p_adv = model.get_probs(x_adv[None])[0]
+            #     if noise == 'bayesian':
+            #         AA[i, j, iteration+1, image] = p_adv[label]
+            #     elif noise == 'deterministic':
+            #         AA[i, j, iteration+1, image] = (torch.argmax(p_adv) == label) * 1.0
+            #     else:
+            #         p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
+            #         pred = torch.argmax(p_adv)
+            #         p_temp[pred] = 1 - flip_prob
+            #         AA[i, j, iteration+1, image] = p_temp[label]
 
 D = D.cpu().numpy()
 D_OUT = D_OUT.cpu().numpy()
 MC = MC.cpu().numpy()
+SS = SS.cpu().numpy()
 AA = AA.cpu().numpy()
 
 PLOTS_DIR = f'{OUT_DIR}/plots_{exp}'
@@ -161,14 +178,14 @@ plt.grid()
 plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
 plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
-plt.figure(figsize=(10, 7))
-image_path = f'{PLOTS_DIR}/distance_output'
-for i in range(len(raws)):
-    plt.plot(np.median(D_OUT[i], axis=1), label=dumps[noise][i][1])
-plt.legend()
-plt.grid()
-plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
-plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
+# plt.figure(figsize=(10, 7))
+# image_path = f'{PLOTS_DIR}/distance_output'
+# for i in range(len(raws)):
+#     plt.plot(np.median(D_OUT[i], axis=1), label=dumps[noise][i][1])
+# plt.legend()
+# plt.grid()
+# plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
+# plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 
 # for j in range(len(eps)):
 #     plt.figure(figsize=(10, 7))
@@ -183,9 +200,9 @@ plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)
 plt.figure(figsize=(10, 7))
 image_path = f'{PLOTS_DIR}/calls'
 for i in range(len(raws)):
-    plt.plot(np.mean(MC[i], axis=1), label=dumps[noise][i][1])
+    plt.plot(np.mean(SS[i], axis=1), label=dumps[noise][i][1])
 plt.legend()
 plt.grid()
-plt.yscale('log')
+# plt.yscale('log')
 plt.savefig(f'{image_path}.png', bbox_inches='tight', pad_inches=.02)
 plt.savefig(f'{image_path}.pdf', bbox_inches='tight', pad_inches=.02)

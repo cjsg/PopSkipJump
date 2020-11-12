@@ -41,7 +41,11 @@ parser.add_argument("-b", "--beta", type=float, default=1,
 parser.add_argument("-sf", "--samples_from", type=int, default=0,
                     help="(Optional) Number of images to skip during sampling")
 parser.add_argument("-fp", "--flip_prob", type=float, default=0,
-                    help="(Optional) Number of images to skip during sampling")
+                    help="(Optional) Probability of flipping the outcome of noisy classifier")
+parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
+                    help="(Optional) Multiplies theta of HSJ with tf")
+parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estimate_fluctuation",
+                    help="(Optional) Stopping Criteria to use in Infomax procedure")
 
 
 def validate_args(args):
@@ -58,7 +62,7 @@ def create_attack(exp_name, dataset, params):
         os.makedirs(exp_path)
 
     models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
-              for k in params.model_keys]
+              for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
                                      noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
     attacks_factory = {
@@ -73,10 +77,10 @@ def create_attack(exp_name, dataset, params):
 def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
-        det_model = get_model(key=params.model_keys[0], dataset=dataset, noise='deterministic')
-        imgs, labels = get_samples(n_samples=params.num_samples, conf=params.orig_image_conf,
+        det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
+        imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
                                    model=det_model, samples_from=params.samples_from)
-        starts = find_adversarial_images(labels)
+        starts = find_adversarial_images(dataset, labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=dataset, index=0)
@@ -93,6 +97,7 @@ def merge_params(params: DefaultParams, args):
     params.noise = args.noise
     params.beta = args.beta
     params.attack = args.attack
+    params.dataset = args.dataset
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc
     params.grad_queries = args.grad_queries
@@ -100,6 +105,8 @@ def merge_params(params: DefaultParams, args):
     params.num_samples = args.num_samples
     params.samples_from = args.samples_from
     params.flip_prob = args.flip_prob
+    params.theta_fac = args.theta_fac
+    params.infomax_stop_criteria = args.infomax_stop_criteria
     return params
 
 

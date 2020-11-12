@@ -50,11 +50,13 @@ class ModelInterface:
             indices_to_flip = torch.rand(size=(len(batch), num_queries), device=self.device) < self.flip_prob
             prediction[indices_to_flip] = rand_pred[indices_to_flip]
             return (prediction != true_label) * 1.0
-        else:
+        elif self.noise == 'bayesian':
             probs = probs[:, true_label]
             probs = probs.view(-1, 1).repeat(1, num_queries)
             decisions = torch.bernoulli(1 - probs)
             return decisions
+        else:
+            raise RuntimeError(f'Unknown Noise type: {self.noise}')
 
     def get_probs_(self, images):
         """
