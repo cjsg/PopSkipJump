@@ -4,7 +4,7 @@ import torch
 
 from abstract_attack import Attack
 from defaultparams import DefaultParams
-from infomax_gpu import get_n_from_cos, get_cos_from_n, bin_search
+from infomax import get_n_from_cos, get_cos_from_n, bin_search
 from tracker import InfoMaxStats
 
 
