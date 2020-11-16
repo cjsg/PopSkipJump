@@ -26,7 +26,7 @@ else:
     d = 28*28
     model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
 theta_det = 1 / (d * math.sqrt(d))
-encoder = get_encoder(encoder_type, dataset, target_dim)
+encoder = get_encoder(encoder_type, dataset, target_dim, device)
 
 def read_dump(path):
     filepath = f'{OUT_DIR}/{path}/raw_data.pkl'

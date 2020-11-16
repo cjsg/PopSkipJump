@@ -7,10 +7,11 @@ shapes = {'mnist': [28, 28]}
 
 
 class Encoder(object):
-    def __init__(self, dataset, n_components):
+    def __init__(self, dataset, n_components, device):
         self.dataset = dataset
         self.shape = shapes[dataset]
         self.n_components = n_components
+        self.device = device
         self.clip_min, self.clip_max = 0, 1
         if not os.path.exists('./data'):
             os.makedirs('./data')
@@ -31,8 +32,8 @@ class Encoder(object):
 
 
 class PCAEncoder(Encoder):
-    def __init__(self, dataset, n_components):
-        super().__init__(dataset, n_components)
+    def __init__(self, dataset, n_components, device):
+        super().__init__(dataset, n_components, device)
         encoder_path = f'data/{dataset}_pca_{n_components}.pkl'
         if True or not os.path.exists(encoder_path):
             samples = self.get_dataset_samples()
@@ -43,7 +44,7 @@ class PCAEncoder(Encoder):
             # pca = PCA(n_components=n_components)
             # pca = pca.fit(X)
             # pickle.dump(pca, open(f'data/{dataset}_{self.type}_{n_components}.pkl', 'wb'))
-        encoder = torch.load(open(encoder_path, 'rb'))
+        encoder = torch.load(open(encoder_path, 'rb'), map_location=self.device)
         self.mean = encoder['mean']
         self.V = encoder['V']
 
@@ -62,11 +63,11 @@ class PCAEncoder(Encoder):
         # return torch.tensor(X).view([-1] + self.shape)
 
 
-def get_encoder(encoder_type, dataset, target_dim):
+def get_encoder(encoder_type, dataset, target_dim, device):
     if encoder_type == 'identity':
-        return Encoder(dataset, target_dim)
+        return Encoder(dataset, target_dim, device)
     elif encoder_type == 'pca':
-        return PCAEncoder(dataset, target_dim)
+        return PCAEncoder(dataset, target_dim, device)
     else:
         raise RuntimeError(f'Unknown Encoder Type: {encoder_type}')
 

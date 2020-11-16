@@ -66,7 +66,7 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
-    encoder = get_encoder(params.encoder_type, dataset, params.encoder_target_dim)
+    encoder = get_encoder(params.encoder_type, dataset, params.encoder_target_dim, get_device())
     models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
               for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack, noise=params.noise,
