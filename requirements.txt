@@ -5,3 +5,4 @@ torch
 scipy
 numpy
 tqdm
+sklearn

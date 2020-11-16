@@ -5,6 +5,7 @@ from model_factory import get_model
 from img_utils import get_device
 import math
 from tracker import Diary, DiaryPage
+from encoder import get_encoder
 
 OUT_DIR = 'aistats'
 exp_name = sys.argv[1]
@@ -12,6 +13,8 @@ dataset = sys.argv[2]
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
+target_dim = int(exp_name.split('_')[-10])
+encoder_type = str(exp_name.split('_')[-12])
 device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = 20
@@ -23,7 +26,7 @@ else:
     d = 28*28
     model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
 theta_det = 1 / (d * math.sqrt(d))
-
+encoder = get_encoder(encoder_type, dataset, target_dim)
 
 def read_dump(path):
     filepath = f'{OUT_DIR}/{path}/raw_data.pkl'
@@ -40,7 +43,8 @@ def search_boundary(x_star, x_t, theta_det, true_label):
     while high - low > theta_det:
         mid = (high + low) / 2.0
         x_mid = (1 - mid) * x_star + mid * x_t
-        pred = torch.argmax(model.get_probs(x_mid[None])[0])
+        x_mid_ = encoder.decompress(x_mid[None])
+        pred = torch.argmax(model.get_probs(x_mid_)[0])
         if pred == true_label:
             low = mid
         else:
@@ -50,12 +54,14 @@ def search_boundary(x_star, x_t, theta_det, true_label):
 
 
 def project(x_star, x_t, label, theta_det):
-    probs = model.get_probs(x_t[None])
+    x_t_ = encoder.decompress(x_t[None])
+    probs = model.get_probs(x_t_)
     if torch.argmax(probs[0]) == label:
         c = 0.25
         while True:
             x_tt = x_t + c * (x_t - x_star) / torch.norm(x_t - x_star)
-            pred = torch.argmax(model.get_probs(x_tt[None])[0])
+            x_tt_ = encoder.decompress(x_tt[None])
+            pred = torch.argmax(model.get_probs(x_tt_)[0])
             if pred != label:
                 x_tt = search_boundary(x_t, x_tt, theta_det, label)
                 break
@@ -96,7 +102,8 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
         for j in range(len(eps)):
             x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-            p_adv = model.get_probs(x_adv[None])[0]
+            x_adv_ = encoder.decompress(x_adv[None])
+            p_adv = model.get_probs(x_adv_)[0]
             if noise == 'bayesian':
                 AA[j, iteration + 1, image] = p_adv[label]
             elif noise == 'deterministic':
