@@ -35,7 +35,8 @@ class Attack:
 
         # Set binary search threshold.
         self.shape = data_shape
-        self.d = int(torch.prod(torch.tensor(self.shape)))
+        self.d = self.model_interface.encoder.n_components
+        # self.d = int(torch.prod(torch.tensor(self.shape)))
         self.grid_size = params.grid_size[params.dataset]
         if self.constraint == "l2":
             self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
@@ -48,9 +49,13 @@ class Attack:
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
             logging.warning("Attacking Image: {}".format(i))
-            a = Adversarial(image=image, label=label, device=self.device)
+            image_ = torch.tensor(image).type(torch.float32).to(self.device)
+            start_ = torch.tensor(starts[i]).type(torch.float32).to(self.device)
+            image_ = self.model_interface.encoder.compress(image_.unsqueeze(dim=0))[0]
+            start_ = self.model_interface.encoder.compress(start_.unsqueeze(dim=0))[0]
+            a = Adversarial(image=image_, label=label, device=self.device)
             if starts is not None:
-                a.set_starting_point(starts[i], self.bounds)
+                a.set_starting_point(start_, self.bounds)
             self.reset_variables(a)
             self.attack_one(iterations)
             if len(self.diary.iterations) > 0:
@@ -62,7 +67,17 @@ class Attack:
     def perform_initialization(self):
         if self.a.perturbed is None:
             logging.info('Initializing Starting Point...')
-            self.initialize_starting_point(self.a)
+            num_evals = 0
+            while True:
+                random_noise = torch.rand(size=self.shape) * (self.clip_max - self.clip_min) + self.clip_min
+                random_noise_ = self.model_interface.encoder.compress(random_noise[None])
+                success = self.model_interface.forward(random_noise_, self.a, self.sampling_freq)
+                # when model is confused, it is not adversarial
+                num_evals += 1
+                if success == 1:
+                    break
+                if num_evals > 1e4:
+                    return
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         """
@@ -134,7 +149,8 @@ class Attack:
             page.calls.step_search = self.model_interface.model_calls
 
             # Update the sample.
-            perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+            perturbed = perturbed + epsilon * update
+            # perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
             page.approx_grad = perturbed
 
             perturbed = self.opposite_movement_step(original, perturbed)
@@ -169,20 +185,8 @@ class Attack:
         self.prev_e = None
         self.diary = Diary(a.unperturbed, a.true_label)
 
-    def initialize_starting_point(self, a):
-        num_evals = 0
-        while True:
-            random_noise = torch.rand(size=self.shape) * (self.clip_max - self.clip_min) + self.clip_min
-            success = self.model_interface.forward(random_noise[None], a, self.sampling_freq)
-            # when model is confused, it is not adversarial
-            num_evals += 1
-            if success == 1:
-                break
-            if num_evals > 1e4:
-                return
-
     def generate_random_vectors(self, batch_size):
-        noise_shape = [int(batch_size)] + list(self.shape)
+        noise_shape = [int(batch_size)] + [self.d]
         if self.constraint == "l2":
             rv = torch.randn(size=noise_shape, device=self.device)
             # if torch.cuda.is_available():
@@ -193,7 +197,7 @@ class Attack:
             rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
-        axis = tuple(range(1, 1 + len(self.shape)))
+        axis = tuple(range(1, 2))
         rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         return rv
 
@@ -201,17 +205,17 @@ class Attack:
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals/self.grad_queries)
-        sum_directions = torch.zeros(self.shape, device=self.device)
+        sum_directions = torch.zeros(self.d, device=self.device)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j*self.batch_size)
             rv = self.generate_random_vectors(batch_size)
             perturbed = sample + delta * rv
-            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
             decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
             decisions = decisions.sum(dim=1)
-            decision_shape = [len(decisions)] + [1] * len(self.shape)
+            decision_shape = [len(decisions)] + [1]
             # Map (0, 1) -> (-1, +1)
             fval = 2 * decisions.view(decision_shape) - self.grad_queries
             # Baseline subtraction (when fval differs)
@@ -254,7 +258,7 @@ class Attack:
         return delta
 
     def calculate_grad(self, decisions, rv):
-        decision_shape = [len(decisions)] + [1] * len(self.shape)
+        decision_shape = [len(decisions)] + [1]
         fval = 2 * decisions.view(decision_shape) - 1.0
         # Baseline subtraction (when fval differs)
         vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)

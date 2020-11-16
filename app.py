@@ -5,6 +5,7 @@ import torch
 import time
 from datetime import datetime
 from defaultparams import DefaultParams
+from encoder import get_encoder
 from popskip import PopSkipJump
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
@@ -46,6 +47,10 @@ parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
                     help="(Optional) Multiplies theta of HSJ with tf")
 parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estimate_fluctuation",
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
+parser.add_argument("-et", "--encoder_type", type=str, default="identity",
+                    help="(Optional) Encoder to use for Dimensionality Reduction")
+parser.add_argument("-etd", "--encoder_target_dim", type=int, default=784,
+                    help="(Optional) Dimensionality of output space of encoder")
 
 
 def validate_args(args):
@@ -61,10 +66,11 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
+    encoder = get_encoder(params.encoder_type, dataset, params.encoder_target_dim)
     models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
               for k in params.model_keys[dataset]]
-    model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
-                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
+    model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack, noise=params.noise,
+                                     device=get_device(), flip_prob=params.flip_prob, encoder=encoder)
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
@@ -107,6 +113,8 @@ def merge_params(params: DefaultParams, args):
     params.flip_prob = args.flip_prob
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
+    params.encoder_type = args.encoder_type
+    params.encoder_target_dim = args.encoder_target_dim
     return params
 
 

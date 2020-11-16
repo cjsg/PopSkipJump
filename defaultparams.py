@@ -25,6 +25,10 @@ class DefaultParams:
         self.distance = "MSE"  # Distance metric
         self.batch_size = 256
 
+        # Specific to encoder
+        self.encoder_type = 'identity'
+        self.encoder_target_dim = 784
+
         # Hand-picking images
         self.orig_image_conf = 0.75
 

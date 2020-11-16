@@ -77,7 +77,7 @@ class HopSkipJump(Attack):
         """ Projection onto given l2 / linf balls in a batch. """
         if type(alphas) != torch.Tensor:
             alphas = torch.tensor(alphas)
-        alphas_shape = [len(alphas)] + [1] * len(self.shape)
+        alphas_shape = [len(alphas)] + [1]
         alphas = alphas.view(alphas_shape)
         if self.constraint == "l2":
             projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
@@ -99,7 +99,8 @@ class HopSkipJump(Attack):
         while True:
             if count % 200 == 0:
                 logging.warning("Decreased epsilon {} times".format(count))
-            updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
+            # updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
+            updated = x + epsilon * update
             success = (self.decision_by_repetition(updated[None]))[0]
             if success:
                 break
@@ -112,16 +113,16 @@ class HopSkipJump(Attack):
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals)
-        sum_directions = torch.zeros(self.shape, device=self.device)
+        sum_directions = torch.zeros(self.d, device=self.device)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j * self.batch_size)
             rv = self.generate_random_vectors(batch_size)
             perturbed = sample + delta * rv
-            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
             decisions = self.decision_by_repetition(perturbed)
-            decision_shape = [len(decisions)] + [1] * len(self.shape)
+            decision_shape = [len(decisions)] + [1]
             # Map (0, 1) to (-1, +1)
             fval = 2 * decisions.view(decision_shape) - 1.0
             # Baseline subtraction (when fval differs)

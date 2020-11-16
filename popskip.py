@@ -35,7 +35,8 @@ class PopSkipJump(Attack):
 
     def opposite_movement_step(self, original, perturbed):
         # Go in the opposite direction
-        return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
+        return perturbed + 0.5 * (perturbed - original)
+        # return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
 
     def get_theta_prob(self, target_cos, estimates=None):
         """

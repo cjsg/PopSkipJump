@@ -11,9 +11,9 @@ class ModelInterface:
             - implements the definition of an adversarial example
     """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
-                 new_adv_def=False, device=None, flip_prob=0.0):
+                 new_adv_def=False, device=None, flip_prob=0.0, encoder=None):
         self.models = models
-        self.bounds = bounds
+        # self.clip_min, self.clip_max = bounds
         self.n_classes = n_classes
         self.model_calls = 0
         self.slack_prop = slack
@@ -22,6 +22,7 @@ class ModelInterface:
         self.device = device
         self.send_models_to_device()
         self.flip_prob = flip_prob
+        self.encoder = encoder
 
     def send_models_to_device(self):
         for model in self.models:
@@ -38,7 +39,8 @@ class ModelInterface:
         :param batch: A batch of images
         :return: decisions of shape = (len(batch), num_queries)
         """
-        probs = self.get_probs_(images=batch)
+        probs = self.get_probs_(encodings=batch)
+
         self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
@@ -58,13 +60,14 @@ class ModelInterface:
         else:
             raise RuntimeError(f'Unknown Noise type: {self.noise}')
 
-    def get_probs_(self, images):
+    def get_probs_(self, encodings):
         """
             WARNING
             This function should only be used for capturing statistics.
             It should not be a part of a decision based attack.
         """
         m_id = random.choice(list(range(len(self.models))))
+        images = self.encoder.decompress(encodings)
         outs = self.models[m_id].get_probs(images)
         return outs
 
@@ -89,7 +92,8 @@ class ModelInterface:
         return outs
 
     # TODO: Will be deprecated soon
-    def forward(self, images, a, freq, average=False, remember=True):
+    def forward(self, encodings, a, freq, average=False, remember=True):
+        images = self.encoder.decompress(encodings)
         if type(images) != torch.Tensor:
             images = torch.tensor(images).to(self.device)
         slack = self.slack_prop * freq
@@ -118,7 +122,7 @@ class ModelInterface:
         if remember:
             for i in range(len(images)):
                 if ans[i] == 1:
-                    distance = a.calculate_distance(images[i], self.bounds)
+                    distance = a.calculate_distance(images[i], (0, 1))
                     if a.distance > distance:
                         a.distance = distance
                         a.perturbed = images[i]
