@@ -84,7 +84,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         if iteration == 0:
             x_0 = diary.initial_projection
             x_00 = project(x_star, x_0, label, theta_det)
-            D[0, image] = torch.norm(x_star - x_00) ** 2 / d / 1 ** 2
+            D[0, image] = torch.norm(x_star - x_00) ** 2 / target_dim / 1 ** 2
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
@@ -93,7 +93,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         x_t = page.bin_search
         x_tt = project(x_star, x_t, label, theta_det)
 
-        D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
+        D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / target_dim / 1 ** 2
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
         else:
