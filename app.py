@@ -13,7 +13,7 @@ from model_factory import get_model
 from model_interface import ModelInterface
 
 logging.root.setLevel(logging.WARNING)
-OUT_DIR = 'aistats'
+OUT_DIR = 'thesis'
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str,
                     help="(Mandatory) supported: mnist, cifar10")

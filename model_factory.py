@@ -42,7 +42,7 @@ class Model:
 
     def get_probs(self, images):
         if type(images) != torch.Tensor:
-            images = torch.tensor(images, dtype=torch.float32)
+            images = torch.tensor(images, dtype=torch.float64)
         logits = self.predict(images)
         # logits = logits.numpy()
         logits = logits - torch.max(logits, dim=1, keepdim=True)[0]

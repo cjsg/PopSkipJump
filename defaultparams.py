@@ -11,7 +11,6 @@ class DefaultParams:
         self.dataset = 'mnist'
         self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
         self.num_iterations = 32
-        self.internal_dtype = torch.float32
         self.bounds = (0, 1)
         self.gamma = 1.0
         self.input_image_path = None  # String

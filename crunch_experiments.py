@@ -7,7 +7,7 @@ import math
 from tracker import Diary, DiaryPage
 from encoder import get_encoder
 
-OUT_DIR = 'aistats'
+OUT_DIR = 'thesis'
 exp_name = sys.argv[1]
 dataset = sys.argv[2]
 flip_prob = float(exp_name.split('_')[-3])
@@ -43,8 +43,7 @@ def search_boundary(x_star, x_t, theta_det, true_label):
     while high - low > theta_det:
         mid = (high + low) / 2.0
         x_mid = (1 - mid) * x_star + mid * x_t
-        x_mid_ = encoder.decompress(x_mid[None])
-        pred = torch.argmax(model.get_probs(x_mid_)[0])
+        pred = torch.argmax(model.get_probs(x_mid[None])[0])
         if pred == true_label:
             low = mid
         else:
@@ -54,14 +53,12 @@ def search_boundary(x_star, x_t, theta_det, true_label):
 
 
 def project(x_star, x_t, label, theta_det):
-    x_t_ = encoder.decompress(x_t[None])
-    probs = model.get_probs(x_t_)
+    probs = model.get_probs(x_t[None])
     if torch.argmax(probs[0]) == label:
         c = 0.25
         while True:
             x_tt = x_t + c * (x_t - x_star) / torch.norm(x_t - x_star)
-            x_tt_ = encoder.decompress(x_tt[None])
-            pred = torch.argmax(model.get_probs(x_tt_)[0])
+            pred = torch.argmax(model.get_probs(x_tt[None])[0])
             if pred != label:
                 x_tt = search_boundary(x_t, x_tt, theta_det, label)
                 break
@@ -73,27 +70,31 @@ def project(x_star, x_t, label, theta_det):
 
 D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 D_OUT = torch.zeros_like(D, device=device)
+G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
 for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
-        x_star = diary.original
+        x_star = encoder.decompress(diary.original[None])[0]
         label = diary.true_label
         if iteration == 0:
-            x_0 = diary.initial_projection
+            x_0 = encoder.decompress(diary.initial_projection[None])[0]
             x_00 = project(x_star, x_0, label, theta_det)
-            D[0, image] = torch.norm(x_star - x_00) ** 2 / target_dim / 1 ** 2
+            D[0, image] = torch.norm(x_star - x_00) ** 2 / d / 1 ** 2
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
         page: DiaryPage = diary.iterations[iteration]
         calls = page.calls.bin_search
-        x_t = page.bin_search
+        x_tilde = encoder.decompress(page.approx_grad[None])[0]
+        G[iteration+1, image] = torch.norm(x_tilde - x_star) ** 2 / d
+        x_t = encoder.decompress(page.bin_search[None])[0]
+        # x_tt = x_t
         x_tt = project(x_star, x_t, label, theta_det)
 
-        D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / target_dim / 1 ** 2
+        D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
         else:
@@ -102,8 +103,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
         for j in range(len(eps)):
             x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-            x_adv_ = encoder.decompress(x_adv[None])
-            p_adv = model.get_probs(x_adv_)[0]
+            p_adv = model.get_probs(x_adv[None])[0]
             if noise == 'bayesian':
                 AA[j, iteration + 1, image] = p_adv[label]
             elif noise == 'deterministic':
@@ -116,6 +116,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
 dump = {
     'border_distance': D,
+    'approx_grad': G,
     'attack_out_distance': D_OUT,
     'model_calls': MC,
     'adv_acc': AA,

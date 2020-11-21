@@ -4,7 +4,7 @@ import torch
 
 class Adversarial:
     def __init__(self, image, label, device=None, distance='MSE'):
-        self.unperturbed = torch.tensor(image).type(torch.float32).to(device)
+        self.unperturbed = torch.tensor(image).to(device)
         self.true_label = label
         self.distance_metric = distance
         self.distance = float('Inf')
@@ -18,7 +18,7 @@ class Adversarial:
             return calculate_linf_distance(self.unperturbed, x, bounds=bounds)
 
     def set_starting_point(self, point, bounds):
-        self.perturbed = torch.tensor(point).type(torch.float32).to(self.device)
+        self.perturbed = torch.tensor(point).to(self.device)
         self.distance = self.calculate_distance(self.perturbed, bounds=bounds)
 
 

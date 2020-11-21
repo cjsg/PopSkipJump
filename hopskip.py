@@ -113,16 +113,17 @@ class HopSkipJump(Attack):
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals)
-        sum_directions = torch.zeros(self.d, device=self.device)
+        sum_directions = torch.zeros(self.shape, device=self.device, dtype=torch.float64)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j * self.batch_size)
             rv = self.generate_random_vectors(batch_size)
-            perturbed = sample + delta * rv
+            delta_rv = self.model_interface.encoder.compress(delta * rv, centered=True)
+            perturbed = sample + delta_rv
             # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-            rv = (perturbed - sample) / delta
+            # rv = (perturbed - sample) / delta
             decisions = self.decision_by_repetition(perturbed)
-            decision_shape = [len(decisions)] + [1]
+            decision_shape = [len(decisions)] + [1] * (len(rv.shape) - 1)
             # Map (0, 1) to (-1, +1)
             fval = 2 * decisions.view(decision_shape) - 1.0
             # Baseline subtraction (when fval differs)

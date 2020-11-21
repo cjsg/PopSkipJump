@@ -15,7 +15,6 @@ class Attack:
         self.max_num_evals = params.max_num_evals
         self.gamma = params.gamma
         self.batch_size = params.batch_size
-        self.internal_dtype = params.internal_dtype
         self.bounds = params.bounds
         self.clip_min, self.clip_max = params.bounds
         self.sampling_freq = params.sampling_freq_binsearch
@@ -49,8 +48,8 @@ class Attack:
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
             logging.warning("Attacking Image: {}".format(i))
-            image_ = torch.tensor(image).type(torch.float32).to(self.device)
-            start_ = torch.tensor(starts[i]).type(torch.float32).to(self.device)
+            image_ = torch.tensor(image).type(torch.float64).to(self.device)
+            start_ = torch.tensor(starts[i]).type(torch.float64).to(self.device)
             image_ = self.model_interface.encoder.compress(image_.unsqueeze(dim=0))[0]
             start_ = self.model_interface.encoder.compress(start_.unsqueeze(dim=0))[0]
             a = Adversarial(image=image_, label=label, device=self.device)
@@ -111,11 +110,16 @@ class Attack:
         """
         raise NotImplementedError
 
+    def print_distance(self, a, b, message):
+        pass
+        # print(f"{message}: {torch.norm(a-b)}")
+
     def attack_one(self, iterations=64):
         self.diary.epoch_start = time.time()
 
         self.perform_initialization()
         original, perturbed = self.a.unperturbed, self.a.perturbed
+        self.print_distance(perturbed, original, "initialization")
 
         self.diary.initial_image = self.a.perturbed
         self.diary.initialization_calls = self.model_interface.model_calls
@@ -125,6 +129,7 @@ class Attack:
         self.diary.epoch_initial_bin_search = time.time()
         self.diary.initial_projection = perturbed
         self.diary.calls_initial_bin_search = self.model_interface.model_calls
+        self.print_distance(perturbed, original, "first projection")
 
         dist = self.compute_distance(perturbed, original)
         distance = self.a.distance
@@ -149,9 +154,10 @@ class Attack:
             page.calls.step_search = self.model_interface.model_calls
 
             # Update the sample.
-            perturbed = perturbed + epsilon * update
+            perturbed = perturbed + self.model_interface.encoder.compress(epsilon * update[None], centered=True)[0]
             # perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
             page.approx_grad = perturbed
+            self.print_distance(perturbed, original, "after gradient step")
 
             perturbed = self.opposite_movement_step(original, perturbed)
             page.opposite = perturbed
@@ -161,6 +167,7 @@ class Attack:
             page.time.bin_search = time.time()
             page.calls.bin_search = self.model_interface.model_calls
             page.bin_search = perturbed
+            self.print_distance(perturbed, original, "after binary search")
 
             # compute new distance.
             dist = self.compute_distance(perturbed, original)
@@ -186,9 +193,9 @@ class Attack:
         self.diary = Diary(a.unperturbed, a.true_label)
 
     def generate_random_vectors(self, batch_size):
-        noise_shape = [int(batch_size)] + [self.d]
+        noise_shape = [int(batch_size)] + list(self.shape)
         if self.constraint == "l2":
-            rv = torch.randn(size=noise_shape, device=self.device)
+            rv = torch.randn(size=noise_shape, device=self.device, dtype=torch.float64)
             # if torch.cuda.is_available():
             #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
             # else:
@@ -197,7 +204,7 @@ class Attack:
             rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
-        axis = tuple(range(1, 2))
+        axis = tuple(range(1, len(rv.shape)))
         rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         return rv
 
