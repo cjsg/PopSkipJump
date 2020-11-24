@@ -324,15 +324,15 @@ def bin_search(
             self.name = name
 
         def check(self, output, terminated=False):
-            if self.name == 'empirical_samples':  # Criteria 1
+            if self.name in ['empirical_samples', '1']:  # Criteria 1
                 if len(output['nn_tmap_est']) > window_size + 1:
                     nn = torch.tensor(output['nn_tmap_est'][-(window_size + 1):])
                     diffs = torch.abs(nn[1:] - nn[:-1])
                     if torch.mean(diffs) < queries or terminated:
                         return True, torch.mean(nn)
-            elif self.name == 'expected_samples':  # Criteria 2
+            elif self.name in ['expected_samples', '2']:  # Criteria 2
                 pass
-            elif self.name == 'posterior_width':  # Criteria 3
+            elif self.name in ['posterior_width', '3']:  # Criteria 3
                 if len(output['ttse_max']) > window_size:
                     tse = torch.stack(output['ttse_max'][-window_size:])
                     tmax_hi, tmax_lo = max(tse[:, 0]), min(tse[:, 0])
@@ -343,7 +343,7 @@ def bin_search(
                         En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=tse[-1, 1], eps=tse[-1, 2],
                                        delta=delta, d=d)
                         return True, max(n_hi, En)
-            elif self.name == 'estimate_fluctuation':  # Criteria 4
+            elif self.name in ['estimate_fluctuation', '4']:  # Criteria 4
                 if len(output['ttse_max']) > window_size + 1:
                     tse = torch.stack(output['ttse_max'][-(window_size + 1):])
                     tse[:, 1] = torch.log10(tse[:, 1])
@@ -351,7 +351,7 @@ def bin_search(
                     means = torch.max(diffs, dim=0)[0]
                     if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
                             and means[2] <= (e_hi - e_lo) / Ne) or terminated:
-                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
+                        En = get_n_from_cos(target_cos, theta=1/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
                                             delta=delta, d=d)
                         return True, En
             else:

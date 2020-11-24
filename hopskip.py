@@ -4,6 +4,7 @@ import logging
 
 from abstract_attack import Attack
 from defaultparams import DefaultParams
+from infomax import get_n_from_cos, get_cos_from_n
 
 
 class HopSkipJump(Attack):
@@ -22,7 +23,13 @@ class HopSkipJump(Attack):
         return perturbed, dist_post_update, None
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        return self._gradient_estimator(perturbed, num_evals_det, delta)
+        if self.adjust_num_evals:
+            theta_orig = self.gamma / (math.sqrt(self.d_orig) * self.d_orig)
+            target_cos = get_cos_from_n(num_evals_det, theta=theta_orig, delta=self.d_orig*theta_orig, d=self.d_orig)
+            n_latent = int(get_n_from_cos(target_cos, theta=self.theta_det, delta=self.d*self.theta_det, d=self.d)) + 1
+            return self._gradient_estimator(perturbed, n_latent, delta)
+        else:
+            return self._gradient_estimator(perturbed, num_evals_det, delta)
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
@@ -95,18 +102,18 @@ class HopSkipJump(Attack):
           the desired side of the boundary.
         """
         epsilon = dist / math.sqrt(current_iteration)
-        count = 1
-        while True:
-            if count % 200 == 0:
-                logging.warning("Decreased epsilon {} times".format(count))
-            # updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
-            updated = x + epsilon * update
-            success = (self.decision_by_repetition(updated[None]))[0]
-            if success:
-                break
-            else:
-                epsilon = epsilon / 2.0  # pragma: no cover
-                count += 1
+        # count = 1
+        # while True:
+        #     if count % 200 == 0:
+        #         logging.warning("Decreased epsilon {} times".format(count))
+        #     # updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
+        #     updated = x + self.model_interface.encoder.compress(epsilon * update[None], centered=True)[0]
+        #     success = (self.decision_by_repetition(updated[None]))[0]
+        #     if success:
+        #         break
+        #     else:
+        #         epsilon = epsilon / 2.0  # pragma: no cover
+        #         count += 1
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):

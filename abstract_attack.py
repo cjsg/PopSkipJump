@@ -12,6 +12,7 @@ class Attack:
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
+        self.adjust_num_evals = params.adjust_num_evals
         self.max_num_evals = params.max_num_evals
         self.gamma = params.gamma
         self.batch_size = params.batch_size
@@ -34,6 +35,7 @@ class Attack:
 
         # Set binary search threshold.
         self.shape = data_shape
+        self.d_orig = int(torch.prod(torch.tensor(self.shape)))
         self.d = self.model_interface.encoder.n_components
         # self.d = int(torch.prod(torch.tensor(self.shape)))
         self.grid_size = params.grid_size[params.dataset]
@@ -134,6 +136,7 @@ class Attack:
         dist = self.compute_distance(perturbed, original)
         distance = self.a.distance
         for step in range(1, iterations + 1):
+            self.step = step
             page = DiaryPage()
             page.time.start = time.time()
             page.calls.start = self.model_interface.model_calls
@@ -212,17 +215,18 @@ class Attack:
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals/self.grad_queries)
-        sum_directions = torch.zeros(self.d, device=self.device)
+        sum_directions = torch.zeros(self.shape, device=self.device, dtype=torch.float64)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j*self.batch_size)
             rv = self.generate_random_vectors(batch_size)
-            perturbed = sample + delta * rv
+            delta_rv = self.model_interface.encoder.compress(delta * rv, centered=True)
+            perturbed = sample + delta_rv
             # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-            rv = (perturbed - sample) / delta
+            # rv = (perturbed - sample) / delta
             decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
             decisions = decisions.sum(dim=1)
-            decision_shape = [len(decisions)] + [1]
+            decision_shape = [len(decisions)] + [1] * (len(rv.shape) - 1)
             # Map (0, 1) -> (-1, +1)
             fval = 2 * decisions.view(decision_shape) - self.grad_queries
             # Baseline subtraction (when fval differs)

@@ -51,6 +51,10 @@ parser.add_argument("-et", "--encoder_type", type=str, default="identity",
                     help="(Optional) Encoder to use for Dimensionality Reduction")
 parser.add_argument("-etd", "--encoder_target_dim", type=int, default=784,
                     help="(Optional) Dimensionality of output space of encoder")
+parser.add_argument("-bo", "--initial_num_evals", type=int, default=100,
+                    help="(Optional) Number of samples to use in first gradient estimation")
+parser.add_argument("-ane", "--adjust_num_evals", type=int, default=0,
+                    help="(Optional) Adjust Number of samples at each gradient step based on dimensionality")
 
 
 def validate_args(args):
@@ -115,6 +119,8 @@ def merge_params(params: DefaultParams, args):
     params.infomax_stop_criteria = args.infomax_stop_criteria
     params.encoder_type = args.encoder_type
     params.encoder_target_dim = args.encoder_target_dim
+    params.initial_num_evals = args.initial_num_evals
+    params.adjust_num_evals = bool(args.adjust_num_evals)
     return params
 
 

@@ -48,6 +48,7 @@ class DefaultParams:
 
         # Specific to Approximate Gradient
         self.grad_queries = 1
+        self.adjust_num_evals = False
 
         self.theta_fac = -1
 
