@@ -11,9 +11,9 @@ from tracker import InfoMaxStats
 class PopSkipJump(Attack):
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
-        self.delta_det_unit = self.theta_det * math.sqrt(self.d)
+        self.delta_det_unit = self.theta_det * math.sqrt(self.d_latent)
         self.theta_prob = 1. / self.grid_size # Theta for Info-max procedure
-        self.delta_prob_unit = math.sqrt(self.d) / self.grid_size  # PSJA's delta in unit scale
+        self.delta_prob_unit = math.sqrt(self.d_latent) / self.grid_size  # PSJA's delta in unit scale
         self.stop_criteria = params.infomax_stop_criteria
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
@@ -24,10 +24,12 @@ class PopSkipJump(Attack):
         return perturbed, dist_post_update, {'s': s_, 'e': e_, 'n': n_, 't': t_}
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        delta_prob_unit = self.theta_prob * math.sqrt(self.d_latent)  # PSJA's delta in unit scale
         delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
-
         num_evals_prob = estimates['n']
+        if self.adjust_num_evals:
+            target_cos = get_cos_from_n(num_evals_prob, theta=self.theta_prob, delta=self.delta_prob_unit, d=self.d_orig)
+            num_evals_prob = int(get_n_from_cos(target_cos, theta=self.theta_prob, delta=self.delta_prob_unit, d=self.d_latent)) + 1
         page.num_eval_prob = num_evals_prob
         num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
         page.time.num_evals = time.time()
@@ -46,21 +48,21 @@ class PopSkipJump(Attack):
         if estimates is None:
             # TODO: Think about the ideal value for eps here
             s, eps = 100., 1e-4
-            n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d, eps=eps)
+            n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d_latent, eps=eps)
         else:
             s, eps = estimates['s'], estimates['e']
-            n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d, eps=eps)
+            n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d_latent, eps=eps)
         low, high = 0, self.theta_det
         theta = self.theta_det
-        n2 = get_n_from_cos(target_cos, s=s, theta=theta, delta=self.delta_prob_unit, d=self.d, eps=eps)
+        n2 = get_n_from_cos(target_cos, s=s, theta=theta, delta=self.delta_prob_unit, d=self.d_latent, eps=eps)
         while (n2-n1) < 1:
             theta *= 2
-            n2 = get_n_from_cos(target_cos, s=s, theta=theta, delta=self.delta_prob_unit, d=self.d, eps=eps)
+            n2 = get_n_from_cos(target_cos, s=s, theta=theta, delta=self.delta_prob_unit, d=self.d_latent, eps=eps)
             low, high = theta/2, theta
 
         while high - low >= self.theta_det:
             mid = (low + high) / 2
-            n2 = get_n_from_cos(target_cos, s=s, theta=mid, delta=self.delta_prob_unit, d=self.d, eps=eps)
+            n2 = get_n_from_cos(target_cos, s=s, theta=mid, delta=self.delta_prob_unit, d=self.d_latent, eps=eps)
             if (n2 - n1) < 1:
                 low = mid
             else:
@@ -72,15 +74,16 @@ class PopSkipJump(Attack):
         dists = []
         smaps, tmaps, emaps, ns = [], [], [], []
         if estimates is None:
-            target_cos = get_cos_from_n(self.initial_num_evals, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
+            target_cos = get_cos_from_n(self.initial_num_evals, theta=self.theta_det, delta=self.delta_det_unit, d=self.d_latent)
         else:
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step+1), self.max_num_evals]))
-            target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
-        theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
-        grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+            target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d_latent)
+        # theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
+        # grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+        grid_size_dynamic = self.grid_size
         for perturbed_input in perturbed_inputs:
             output, n = bin_search(
-                unperturbed, perturbed_input, self.model_interface, d=self.d,
+                unperturbed, perturbed_input, self.model_interface, d=self.d_latent,
                 grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
                 true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
                 prev_e=self.prev_e, prior_frac=self.prior_frac, target_cos=target_cos,

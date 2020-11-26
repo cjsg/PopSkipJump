@@ -2,8 +2,9 @@ class Diary(object):
     def __init__(self, image, label):
         self.true_label = label
         self.original = image
-
         self.initial_image = None
+        self.raw_original = None
+        self.raw_initial_image = None
         self.initial_projection = None
 
         self.calls_initialization = None

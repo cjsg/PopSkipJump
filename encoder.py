@@ -19,7 +19,9 @@ class Encoder(object):
         return images.flatten(start_dim=1).type(torch.float64)
 
     def decompress(self, encodings, centered=False):
-        return encodings.view([-1] + self.shape)
+        X = encodings.view([-1] + self.shape)
+        X = torch.clamp(X, self.clip_min, self.clip_max)
+        return X
 
     def get_dataset_samples(self, train=True):
         if self.dataset == 'mnist':
@@ -61,7 +63,7 @@ class PCAEncoder(Encoder):
 
 
 def get_encoder(encoder_type, dataset, target_dim, device):
-    if encoder_type == 'identity':
+    if encoder_type in ['identity', 'vanilla']:
         return Encoder(dataset, target_dim, device)
     elif encoder_type == 'pca':
         return PCAEncoder(dataset, target_dim, device)
@@ -71,46 +73,27 @@ def get_encoder(encoder_type, dataset, target_dim, device):
 
 def main():
     dataset = 'mnist'
-    ticks = [784]
+    ticks = [50, 100, 150, 200, 300, 400, 500, 600, 700]
     for d in ticks:
         encoder_id = Encoder(dataset, d, 'cpu')
         encoder_pca = PCAEncoder(dataset, d, 'cpu')
-
+        encoder = encoder_pca
         def printd(a, b, msg):
             a_ = encoder_id.decompress(a)
             b_ = encoder_pca.decompress(b)
             d = torch.norm(a_ - b_)
             print(msg, d)
 
-        # samples = encoder.get_dataset_samples(train=False)
-        # Y = samples
-        # Z = encoder.compress(Y)
-        # Y_ = encoder.decompress(Z)
-        from model_factory import get_model
-        model = get_model(key='mnist_noman', dataset=dataset)
-        diary_id = torch.load(open('thesis/exp_id/raw_data.pkl', 'rb'))[0]
-        diary_pca = torch.load(open('thesis/exp_pca/raw_data.pkl', 'rb'))[0]
-        # diary_id = torch.load(open('thesis/mnist_1_hsj_isc_3_et_identity_etd_784_r_1_b_1_deterministic_fp_0.00_ns_1/raw_data.pkl', 'rb'))[0]
-        # diary_pca= torch.load(open('thesis/mnist_1_hsj_isc_3_et_pca_etd_784_r_1_b_1_deterministic_fp_0.00_ns_1/raw_data.pkl', 'rb'))[0]
-        printd(diary_id.original, diary_pca.original, 'original')
-        printd(diary_id.initial_image, diary_pca.initial_image, 'initial_image')
-        printd(diary_id.initial_projection, diary_pca.initial_projection, 'initial_projection')
-        page_id = diary_id.iterations[0]
-        page_pca = diary_pca.iterations[0]
-        printd(page_id.approx_grad, page_pca.approx_grad, 'approx_grad')
-        printd(page_id.bin_search, page_pca.bin_search, 'bin_search')
-        # X_id = encoder_id.decompress(Y_id)
-        # X_pca = encoder_pca.decompress(Y_pca)
-        # prob_id = model.get_probs(X_id)
-        # pred_id = prob_id.argmax(dim=1)
-        # prob_pca = model.get_probs(X_pca)
-        # pred_pca = prob_pca.argmax(dim=1)
-        # print(torch.sum(pred_pca == pred_id))
-        # print (d, torch.mean(torch.norm(Y.float() - Y_.float(), dim=(1, 2))))
+        samples = encoder.get_dataset_samples(train=False)
+        Y = samples
+        Z = encoder.compress(Y)
+        Y_ = encoder.decompress(Z)
+        print(d, torch.mean(torch.norm(Y.float() - Y_.float(), dim=(1, 2))))
     pass
 
-# if __name__ == '__main__':
-#     main()
+
+if __name__ == '__main__':
+    main()
 #     r = torch.randn((100, 28, 28), dtype=torch.float64)
 #     encoder = get_encoder('pca', 'mnist', 784, 'cpu')
 #     # rt = encoder.compress(r, centered=True)

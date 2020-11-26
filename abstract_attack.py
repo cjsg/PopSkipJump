@@ -26,6 +26,7 @@ class Attack:
         self.prior_frac = params.prior_frac
         self.queries = params.queries
         self.grad_queries = params.grad_queries
+        self.encoder_type = params.encoder_type
 
         # Set constraint based on the distance.
         if params.distance == 'MSE':
@@ -36,14 +37,14 @@ class Attack:
         # Set binary search threshold.
         self.shape = data_shape
         self.d_orig = int(torch.prod(torch.tensor(self.shape)))
-        self.d = self.model_interface.encoder.n_components
+        self.d_latent = self.model_interface.encoder.n_components
         # self.d = int(torch.prod(torch.tensor(self.shape)))
         self.grid_size = params.grid_size[params.dataset]
         if self.constraint == "l2":
-            self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
+            self.theta_det = self.gamma / (math.sqrt(self.d_latent) * self.d_latent)
             # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
-            self.theta_det = self.gamma / (self.d * self.d)
+            self.theta_det = self.gamma / (self.d_latent * self.d_latent)
 
     def attack(self, images, labels, starts=None, iterations=64):
         raw_results = []
@@ -52,12 +53,14 @@ class Attack:
             logging.warning("Attacking Image: {}".format(i))
             image_ = torch.tensor(image).type(torch.float64).to(self.device)
             start_ = torch.tensor(starts[i]).type(torch.float64).to(self.device)
-            image_ = self.model_interface.encoder.compress(image_.unsqueeze(dim=0))[0]
-            start_ = self.model_interface.encoder.compress(start_.unsqueeze(dim=0))[0]
-            a = Adversarial(image=image_, label=label, device=self.device)
+            image_latent = self.model_interface.encoder.compress(image_.unsqueeze(dim=0))[0]
+            start_latent = self.model_interface.encoder.compress(start_.unsqueeze(dim=0))[0]
+            a = Adversarial(image=image_latent, label=label, device=self.device)
             if starts is not None:
-                a.set_starting_point(start_, self.bounds)
+                a.set_starting_point(start_latent, self.bounds)
             self.reset_variables(a)
+            self.diary.raw_original = image_
+            self.diary.raw_initial_image = start_
             self.attack_one(iterations)
             if len(self.diary.iterations) > 0:
                 distances.append(a.distance)
@@ -157,8 +160,9 @@ class Attack:
             page.calls.step_search = self.model_interface.model_calls
 
             # Update the sample.
-            perturbed = perturbed + self.model_interface.encoder.compress(epsilon * update[None], centered=True)[0]
-            # perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+            perturbed = perturbed + epsilon * update
+            if self.encoder_type == 'vanilla':
+                perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             page.approx_grad = perturbed
             self.print_distance(perturbed, original, "after gradient step")
 
@@ -175,7 +179,7 @@ class Attack:
             # compute new distance.
             dist = self.compute_distance(perturbed, original)
             if self.constraint == "l2":
-                distance = dist ** 2 / self.d / (self.clip_max - self.clip_min) ** 2
+                distance = dist ** 2 / self.d_latent / (self.clip_max - self.clip_min) ** 2
             elif self.constraint == "linf":
                 distance = dist / (self.clip_max - self.clip_min)
             logging.info('distance of adversarial = %f', distance)
@@ -196,13 +200,9 @@ class Attack:
         self.diary = Diary(a.unperturbed, a.true_label)
 
     def generate_random_vectors(self, batch_size):
-        noise_shape = [int(batch_size)] + list(self.shape)
+        noise_shape = [int(batch_size)] + [self.d_latent]
         if self.constraint == "l2":
             rv = torch.randn(size=noise_shape, device=self.device, dtype=torch.float64)
-            # if torch.cuda.is_available():
-            #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
-            # else:
-            #     rv = torch.FloatTensor(*noise_shape).normal_()
         elif self.constraint == "linf":
             rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
         else:
@@ -215,15 +215,15 @@ class Attack:
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals/self.grad_queries)
-        sum_directions = torch.zeros(self.shape, device=self.device, dtype=torch.float64)
+        sum_directions = torch.zeros(self.d_latent, device=self.device, dtype=torch.float64)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j*self.batch_size)
             rv = self.generate_random_vectors(batch_size)
-            delta_rv = self.model_interface.encoder.compress(delta * rv, centered=True)
-            perturbed = sample + delta_rv
-            # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-            # rv = (perturbed - sample) / delta
+            perturbed = sample + delta * rv
+            if self.encoder_type == 'vanilla':
+                perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+                rv = (perturbed - sample) / delta
             decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
             decisions = decisions.sum(dim=1)
             decision_shape = [len(decisions)] + [1] * (len(rv.shape) - 1)
@@ -261,9 +261,9 @@ class Attack:
         #     delta = 0.1 * (self.clip_max - self.clip_min)
         # else:
         if self.constraint == "l2":
-            delta = math.sqrt(self.d) * self.theta_det * dist_post_update
+            delta = math.sqrt(self.d_latent) * self.theta_det * dist_post_update
         elif self.constraint == "linf":
-            delta = self.d * self.theta_det * dist_post_update
+            delta = self.d_latent * self.theta_det * dist_post_update
         else:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta

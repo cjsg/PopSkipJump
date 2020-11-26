@@ -15,9 +15,11 @@ noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
 target_dim = int(exp_name.split('_')[-10])
 encoder_type = str(exp_name.split('_')[-12])
-device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = 20
+# beta, target_dim, encoder_type = 1.0, 50, 'pca'
+device = get_device()
+
 eps = list(range(1, 6))
 if dataset == 'cifar10':
     d = 32*32*3
@@ -78,6 +80,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
         x_star = encoder.decompress(diary.original[None])[0]
+        # x_star = diary.raw_original
         label = diary.true_label
         if iteration == 0:
             x_0 = encoder.decompress(diary.initial_projection[None])[0]
@@ -101,18 +104,18 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             D_OUT[iteration + 1, image] = page.distance
         MC[iteration + 1, image] = calls
 
-        for j in range(len(eps)):
-            x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-            p_adv = model.get_probs(x_adv[None])[0]
-            if noise == 'bayesian':
-                AA[j, iteration + 1, image] = p_adv[label]
-            elif noise == 'deterministic':
-                AA[j, iteration + 1, image] = (torch.argmax(p_adv) == label) * 1.0
-            else:
-                p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
-                pred = torch.argmax(p_adv)
-                p_temp[pred] = 1 - flip_prob
-                AA[j, iteration + 1, image] = p_temp[label]
+        # for j in range(len(eps)):
+        #     x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
+        #     p_adv = model.get_probs(x_adv[None])[0]
+        #     if noise == 'bayesian':
+        #         AA[j, iteration + 1, image] = p_adv[label]
+        #     elif noise == 'deterministic':
+        #         AA[j, iteration + 1, image] = (torch.argmax(p_adv) == label) * 1.0
+        #     else:
+        #         p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
+        #         pred = torch.argmax(p_adv)
+        #         p_temp[pred] = 1 - flip_prob
+        #         AA[j, iteration + 1, image] = p_temp[label]
 
 dump = {
     'border_distance': D,

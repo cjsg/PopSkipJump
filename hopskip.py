@@ -26,7 +26,7 @@ class HopSkipJump(Attack):
         if self.adjust_num_evals:
             theta_orig = self.gamma / (math.sqrt(self.d_orig) * self.d_orig)
             target_cos = get_cos_from_n(num_evals_det, theta=theta_orig, delta=self.d_orig*theta_orig, d=self.d_orig)
-            n_latent = int(get_n_from_cos(target_cos, theta=self.theta_det, delta=self.d*self.theta_det, d=self.d)) + 1
+            n_latent = int(get_n_from_cos(target_cos, theta=self.theta_det, delta=self.d_latent * self.theta_det, d=self.d_latent)) + 1
             return self._gradient_estimator(perturbed, n_latent, delta)
         else:
             return self._gradient_estimator(perturbed, num_evals_det, delta)
@@ -54,7 +54,7 @@ class HopSkipJump(Attack):
             # thresholds = self.theta * 1000  # remove 1000 later
             thresholds = self.theta_det  # remove 1000 later
             if cosine:
-                thresholds /= self.d
+                thresholds /= self.d_latent
 
         lows = torch.zeros(len(perturbed_inputs), device=self.device)
 
@@ -102,34 +102,36 @@ class HopSkipJump(Attack):
           the desired side of the boundary.
         """
         epsilon = dist / math.sqrt(current_iteration)
-        # count = 1
-        # while True:
-        #     if count % 200 == 0:
-        #         logging.warning("Decreased epsilon {} times".format(count))
-        #     # updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
-        #     updated = x + self.model_interface.encoder.compress(epsilon * update[None], centered=True)[0]
-        #     success = (self.decision_by_repetition(updated[None]))[0]
-        #     if success:
-        #         break
-        #     else:
-        #         epsilon = epsilon / 2.0  # pragma: no cover
-        #         count += 1
+        count = 1
+        while True:
+            if count % 200 == 0:
+                logging.warning("Decreased epsilon {} times".format(count))
+            updated = x + epsilon * update
+            if self.encoder_type == 'vanilla':
+                updated = torch.clamp(updated, self.clip_min, self.clip_max)
+            success = (self.decision_by_repetition(updated[None]))[0]
+            if success:
+                break
+            else:
+                epsilon = epsilon / 2.0  # pragma: no cover
+                count += 1
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals)
-        sum_directions = torch.zeros(self.shape, device=self.device, dtype=torch.float64)
+        sum_directions = torch.zeros(self.d_latent, device=self.device, dtype=torch.float64)
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j * self.batch_size)
             rv = self.generate_random_vectors(batch_size)
-            delta_rv = self.model_interface.encoder.compress(delta * rv, centered=True)
-            perturbed = sample + delta_rv
-            # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-            # rv = (perturbed - sample) / delta
+            perturbed = sample + delta * rv
+            if self.encoder_type == 'vanilla':
+                perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+                rv = (perturbed - sample) / delta
             decisions = self.decision_by_repetition(perturbed)
+            print(torch.sum(decisions))
             decision_shape = [len(decisions)] + [1] * (len(rv.shape) - 1)
             # Map (0, 1) to (-1, +1)
             fval = 2 * decisions.view(decision_shape) - 1.0
@@ -177,7 +179,7 @@ class HopSkipJumpRepeatedWithPSJDelta(HopSkipJump):
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
         if params.theta_fac is -1:
-            tf = 1.5 * self.d * math.sqrt(self.d) / self.grid_size
+            tf = 1.5 * self.d_latent * math.sqrt(self.d_latent) / self.grid_size
         else:
             tf = params.theta_fac
         self.theta_det = self.theta_det * tf

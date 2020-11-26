@@ -8,8 +8,8 @@ from matplotlib import rc
 from img_utils import get_device
 from exp3_constants import beta_vs_repeats, best_repeat
 
-OUT_DIR = 'aistats'
-PLOTS_DIR = f'{OUT_DIR}/plots_aistats/'
+OUT_DIR = 'thesis'
+PLOTS_DIR = f'{OUT_DIR}/plots_encodings/'
 device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = 100
@@ -111,15 +111,17 @@ def conv_to_hsja():
     noise = 'bayesian'
     flip = "0.00"
     n_samples = "20"
-    betas = [0.5, 1]
+    betas = []
     # betas = [1, 1.5, 2, 10]
-    attacks = ['psj','hsj', 'hsj_rep_psj_delta']
+    attacks = ['hsj','hsj', 'hsj']
     # stri = '$\\frac{1}{T}$'
-    labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: T=0 (det)' for a in attacks]
-    labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + ['PSJ T=0 (det)', 'HSJ T=0 (det)',  'HSJ-D T=0 (det)']
-    # labels = ['PSJ', 'HSJ',  'HSJ-D']
+    # labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + [f'{a.upper()}: T=0 (det)' for a in attacks]
+    # labels = ['PSJ: T=%.2f' % (1/b) for b in betas] + ['PSJ T=0 (det)', 'HSJ T=0 (det)',  'HSJ-D T=0 (det)']
+    labels = ['HSJ', 'HSJ-PCA-784',  'HSJ-PCA-100']
     datasets = ['mnist', 'cifar10']
-    for dataset in datasets[-1:]:
+    encoders = ['identity', 'pca', 'pca']
+    tdims = [784, 784, 100]
+    for dataset in datasets[:1]:
         dist_arr, calls_arr = [], []
         for beta in betas:
             if False and dataset == 'mnist':
@@ -136,7 +138,7 @@ def conv_to_hsja():
             if False and dataset == 'mnist':
                 exp_name = f"{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
             else:
-                exp_name = f"{dataset}_{attack}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
+                exp_name = f"{dataset}_{attack}_isc_3_et_{encoders[i]}_etd_{tdims[i]}_r_1_b_1_deterministic_fp_{flip}_ns_{n_samples}"
 
             exp_dump = read_dump(exp_name)
             exp_calls = np.median(exp_dump['model_calls'], axis=1)
