@@ -36,6 +36,7 @@ class DefaultParams:
         self.slack = 0.0
         self.flip_prob = 0.2  # Specific to Stochastic Noise
         self.beta = 1.0  # Gibbs Distribution Parameter (p ~ exp(beta*x))
+        self.smoothing_noise = 0.01
 
         # Specific to Info max procedure
         self.grid_size = {'mnist': 100, 'cifar10': 300}

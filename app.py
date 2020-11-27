@@ -46,6 +46,8 @@ parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
                     help="(Optional) Multiplies theta of HSJ with tf")
 parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estimate_fluctuation",
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
+parser.add_argument("-sn", "--smoothing_noise", type=float, default=0.,
+                    help="(Optional) Noise used in Randomized smoothing")
 
 
 def validate_args(args):
@@ -61,10 +63,11 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
-    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
+    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise)
               for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
-                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
+                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob,
+                                     smoothing_noise=params.smoothing_noise)
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
@@ -107,6 +110,7 @@ def merge_params(params: DefaultParams, args):
     params.flip_prob = args.flip_prob
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
+    params.smoothing_noise = args.smoothing_noise
     return params
 
 

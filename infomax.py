@@ -221,16 +221,28 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
     batch = (1 - xx) * perturbed + xx * unperturbed
-    probs = model_interface.get_probs_(batch)
     if model_interface.noise == "deterministic":
+        probs = model_interface.get_probs_(batch)
+        pred = probs.argmax(dim=1)
+        res = torch.zeros(xx.shape[0], device=batch.device)
+        res[pred == true_label] = 1.
+    elif model_interface.noise == "smoothing":
+        rv = torch.randn(size=batch.shape, device=batch.device)
+        axis = tuple(range(1, len(batch.shape)))
+        rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
+        batch_ = batch + model_interface.smoothing_noise * rv
+        batch_ = torch.clamp(batch_, model_interface.bounds[0], model_interface.bounds[1])
+        probs = model_interface.get_probs_(batch_)
         pred = probs.argmax(dim=1)
         res = torch.zeros(xx.shape[0], device=batch.device)
         res[pred == true_label] = 1.
     elif model_interface.noise == "stochastic":
+        probs = model_interface.get_probs_(batch)
         pred = probs.argmax(dim=1)
         res = torch.ones(xx.shape[0], device=batch.device) * model_interface.flip_prob / (model_interface.n_classes - 1)
         res[pred == true_label] = 1 - model_interface.flip_prob
     else:
+        probs = model_interface.get_probs_(batch)
         res = probs[:, true_label]
     return res
 
@@ -387,7 +399,8 @@ def bin_search(
     if unperturbed is None:
         pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
     else:
-        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
+        pp = None
+        # pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
 
     def vprint(string):
         if verbose:
@@ -583,7 +596,8 @@ def bin_search(
         if model_interface is None:
             yj = torch.bernoulli(pp[j_amax]).long()
         else:
-            yj = model_interface.sample_bernoulli(pp[j_amax]).long()
+            pj = get_bernoulli_probs(xj[None], unperturbed, perturbed, model_interface, true_label)
+            yj = model_interface.sample_bernoulli(pj).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

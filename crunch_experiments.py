@@ -12,9 +12,10 @@ dataset = sys.argv[2]
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
+smoothing_noise = float(exp_name.split('_')[-8])
 device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 20
+NUM_IMAGES = int(exp_name.split('_')[-1])
 eps = list(range(1, 6))
 if dataset == 'cifar10':
     d = 32*32*3
@@ -99,7 +100,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             p_adv = model.get_probs(x_adv[None])[0]
             if noise == 'bayesian':
                 AA[j, iteration + 1, image] = p_adv[label]
-            elif noise == 'deterministic':
+            elif noise in ['deterministic', 'smoothing']:
                 AA[j, iteration + 1, image] = (torch.argmax(p_adv) == label) * 1.0
             else:
                 p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)

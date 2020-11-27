@@ -6,13 +6,14 @@ from img_utils import show_image
 
 
 class Model:
-    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0, device=None):
+    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0.):
         self.model = model
         self.noise = noise
         self.n_classes = n_classes
         self.flip_prob = flip_prob
         self.beta = beta
         self.device = device
+        self.smoothing_noise = smoothing_noise
 
     def predict(self, images):
         images = images.permute(0, 3, 1, 2)
@@ -23,8 +24,8 @@ class Model:
         return outs.detach()
 
     def ask_model(self, images):
-        logits = self.predict(images)
         if self.noise == 'bayesian':
+            logits = self.predict(images)
             logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
             probs = torch.exp(self.beta*logits)
             probs = probs / torch.sum(probs, dim=1, keepdim=True)
@@ -32,12 +33,22 @@ class Model:
             sample = torch.multinomial(probs, 1)
             return sample.flatten()
         elif self.noise == 'stochastic':
+            logits = self.predict(images)
             pred = torch.argmax(logits, dim=1)
             rand = torch.randint(self.n_classes, size=[images.shape[0]])
             flip_prob = torch.rand(len(images))
             pred[flip_prob < self.flip_prob] = rand[flip_prob < self.flip_prob]
             return pred
+        elif self.noise == 'smoothing':
+            rv = torch.randn(size=images.shape, device=self.device)
+            axis = tuple(range(1, len(images.shape)))
+            rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
+            images_ = images + self.smoothing_noise * rv
+            images_ = torch.clamp(images_, 0, 1)
+            logits = self.predict(images_)
+            return torch.argmax(logits, dim=1)
         else:
+            logits = self.predict(images)
             return torch.argmax(logits, dim=1)
 
     def get_probs(self, images):
@@ -65,7 +76,7 @@ class Model:
         return grad.detach().numpy()
 
 
-def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
+def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0.):
     class MNIST_Model(Model):
         def predict(self, images):
             images = images.unsqueeze(dim=1)
@@ -75,14 +86,16 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()
-        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device)
+        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device,
+                           smoothing_noise=smoothing_noise)
     if key == 'mnist_cw':
         pytorch_model = CWMNISTNetwork()
         pytorch_model.load_state_dict(torch.load('mnist_models/cw_mnist_cnn.pt', map_location='cpu'))
         pytorch_model.eval()
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':
-        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10, beta=beta, device=device)
+        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10, beta=beta, device=device,
+                     smoothing_noise=smoothing_noise)
     if key == 'human':
         class Human(Model):
             def ask_model(self, images):

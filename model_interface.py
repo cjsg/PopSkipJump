@@ -11,7 +11,7 @@ class ModelInterface:
             - implements the definition of an adversarial example
     """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
-                 new_adv_def=False, device=None, flip_prob=0.0):
+                 new_adv_def=False, device=None, flip_prob=0.0, smoothing_noise=0.):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -22,6 +22,7 @@ class ModelInterface:
         self.device = device
         self.send_models_to_device()
         self.flip_prob = flip_prob
+        self.smoothing_noise = smoothing_noise
 
     def send_models_to_device(self):
         for model in self.models:
@@ -38,12 +39,23 @@ class ModelInterface:
         :param batch: A batch of images
         :return: decisions of shape = (len(batch), num_queries)
         """
-        probs = self.get_probs_(images=batch)
         self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
+            probs = self.get_probs_(images=batch)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             return (prediction != true_label) * 1.0
+        elif self.noise == 'smoothing':
+            #TODO: Add support for num_queries later
+            rv = torch.randn(size=batch.shape, device=self.device)
+            axis = tuple(range(1, len(batch.shape)))
+            rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
+            batch_ = batch + self.smoothing_noise * rv
+            batch_ = torch.clamp(batch_, self.bounds[0], self.bounds[1])
+            probs = self.get_probs_(images=batch_)
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)  # TODO: Change this
+            return (prediction != true_label) * 1.0
         elif self.noise == 'stochastic':
+            probs = self.get_probs_(images=batch)
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)
             rand_pred[rand_pred == true_label] = self.n_classes-1
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
@@ -51,6 +63,7 @@ class ModelInterface:
             prediction[indices_to_flip] = rand_pred[indices_to_flip]
             return (prediction != true_label) * 1.0
         elif self.noise == 'bayesian':
+            probs = self.get_probs_(images=batch)
             probs = probs[:, true_label]
             probs = probs.view(-1, 1).repeat(1, num_queries)
             decisions = torch.bernoulli(1 - probs)
@@ -95,7 +108,7 @@ class ModelInterface:
         slack = self.slack_prop * freq
         batch = torch.stack(tuple(images))
         m_id = random.choice(list(range(len(self.models))))
-        if self.noise == 'deterministic':
+        if self.noise in ['deterministic', 'smoothing']:
             labels = self.models[m_id].ask_model(batch)
             ans = (labels != a.true_label) * 1
             self.model_calls += len(images)
