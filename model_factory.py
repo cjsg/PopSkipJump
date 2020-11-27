@@ -41,8 +41,6 @@ class Model:
             return pred
         elif self.noise == 'smoothing':
             rv = torch.randn(size=images.shape, device=self.device)
-            axis = tuple(range(1, len(images.shape)))
-            rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
             images_ = images + self.smoothing_noise * rv
             images_ = torch.clamp(images_, 0, 1)
             logits = self.predict(images_)

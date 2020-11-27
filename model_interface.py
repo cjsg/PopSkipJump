@@ -47,8 +47,6 @@ class ModelInterface:
         elif self.noise == 'smoothing':
             #TODO: Add support for num_queries later
             rv = torch.randn(size=batch.shape, device=self.device)
-            axis = tuple(range(1, len(batch.shape)))
-            rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
             batch_ = batch + self.smoothing_noise * rv
             batch_ = torch.clamp(batch_, self.bounds[0], self.bounds[1])
             probs = self.get_probs_(images=batch_)

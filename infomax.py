@@ -228,8 +228,6 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
         res[pred == true_label] = 1.
     elif model_interface.noise == "smoothing":
         rv = torch.randn(size=batch.shape, device=batch.device)
-        axis = tuple(range(1, len(batch.shape)))
-        rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
         batch_ = batch + model_interface.smoothing_noise * rv
         batch_ = torch.clamp(batch_, model_interface.bounds[0], model_interface.bounds[1])
         probs = model_interface.get_probs_(batch_)
