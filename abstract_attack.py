@@ -110,6 +110,7 @@ class Attack:
         self.diary.epoch_initial_bin_search = time.time()
         self.diary.initial_projection = perturbed
         self.diary.calls_initial_bin_search = self.model_interface.model_calls
+        self.print_distance(perturbed, original, 'initial_projection')
 
         dist = self.compute_distance(perturbed, original)
         distance = self.a.distance
@@ -136,6 +137,7 @@ class Attack:
             # Update the sample.
             perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
             page.approx_grad = perturbed
+            self.print_distance(perturbed, original, 'approx_grad')
 
             perturbed = self.opposite_movement_step(original, perturbed)
             page.opposite = perturbed
@@ -145,6 +147,8 @@ class Attack:
             page.time.bin_search = time.time()
             page.calls.bin_search = self.model_interface.model_calls
             page.bin_search = perturbed
+            self.print_distance(perturbed, original, 'bin_search')
+
 
             # compute new distance.
             dist = self.compute_distance(perturbed, original)
@@ -160,6 +164,9 @@ class Attack:
             page.distance = self.a.distance
             self.diary.iterations.append(page)
         return self.diary
+
+    def print_distance(self, a , b, msg):
+        print(msg, torch.norm(a-b))
 
     def reset_variables(self, a):
         self.model_interface.model_calls = 0

@@ -1,12 +1,14 @@
 import torch
 from torchvision import transforms
+import torch.nn.functional as F
 from cifar10_models import *
 from pytorchmodels import MNIST_Net, CWMNISTNetwork
 from img_utils import show_image
 
 
 class Model:
-    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0.):
+    def __init__(self, model, noise=None, n_classes=10, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0.,
+                 crop_size=None):
         self.model = model
         self.noise = noise
         self.n_classes = n_classes
@@ -14,6 +16,7 @@ class Model:
         self.beta = beta
         self.device = device
         self.smoothing_noise = smoothing_noise
+        self.crop_size = crop_size
 
     def predict(self, images):
         images = images.permute(0, 3, 1, 2)
@@ -40,14 +43,28 @@ class Model:
             pred[flip_prob < self.flip_prob] = rand[flip_prob < self.flip_prob]
             return pred
         elif self.noise == 'smoothing':
-            rv = torch.randn(size=images.shape, device=self.device)
+            rv = torch.randn(size=images.shape, device=images.device)
             images_ = images + self.smoothing_noise * rv
             images_ = torch.clamp(images_, 0, 1)
             logits = self.predict(images_)
             return torch.argmax(logits, dim=1)
-        else:
+        elif self.noise == 'cropping':
+            size = images.shape[1]
+            x_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(images)))[0]
+            x_end = x_start + self.crop_size
+            y_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(images)))[0]
+            y_end = y_start + self.crop_size
+            cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(images)]
+            cropped_batch = torch.stack(cropped)
+            resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+            resized = resized.squeeze(dim=1)
+            logits = self.predict(resized)
+            return torch.argmax(logits, dim=1)
+        elif self.noise in ['deterministic', 'dropout']:
             logits = self.predict(images)
             return torch.argmax(logits, dim=1)
+        else:
+            raise RuntimeError(f'Unknown Noise type: {self.noise}')
 
     def get_probs(self, images):
         if type(images) != torch.Tensor:
@@ -74,7 +91,8 @@ class Model:
         return grad.detach().numpy()
 
 
-def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0.):
+def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0., crop_size=None,
+              drop_rate=0.):
     class MNIST_Model(Model):
         def predict(self, images):
             images = images.unsqueeze(dim=1)
@@ -84,8 +102,11 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
         pytorch_model.eval()
+        if noise == "dropout":
+            pytorch_model.conv2_drop.p = drop_rate
+            pytorch_model.conv2_drop.train()
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device,
-                           smoothing_noise=smoothing_noise)
+                           smoothing_noise=smoothing_noise, crop_size=crop_size)
     if key == 'mnist_cw':
         pytorch_model = CWMNISTNetwork()
         pytorch_model.load_state_dict(torch.load('mnist_models/cw_mnist_cnn.pt', map_location='cpu'))
@@ -93,7 +114,7 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':
         return Model(densenet121(pretrained=True).eval(), noise, n_classes=10, beta=beta, device=device,
-                     smoothing_noise=smoothing_noise)
+                     smoothing_noise=smoothing_noise, crop_size=crop_size)
     if key == 'human':
         class Human(Model):
             def ask_model(self, images):
@@ -105,3 +126,13 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
                 return torch.tensor(results)
 
         return Human(model=None)
+
+#
+# if __name__ == '__main__':
+#     from img_utils import get_samples
+#     model = get_model('mnist_noman', 'deterministic')
+#     samples, labels = get_samples('mnist', 10000)
+#     samples, labels = torch.tensor(samples), torch.tensor(labels)
+#     preds = model.ask_model(samples)
+#     print (torch.sum(preds == labels))
+#     pass

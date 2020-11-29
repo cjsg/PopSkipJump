@@ -48,6 +48,10 @@ parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estima
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
 parser.add_argument("-sn", "--smoothing_noise", type=float, default=0.,
                     help="(Optional) Noise used in Randomized smoothing")
+parser.add_argument("-cs", "--crop_size", type=int, default=28,
+                    help="(Optional) Size of cropped images")
+parser.add_argument("-dr", "--drop_rate", type=float, default=0.,
+                    help="(Optional) rate for dropout noise")
 
 
 def validate_args(args):
@@ -63,11 +67,12 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
-    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise)
+    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise,
+                        params.crop_size, params.drop_rate)
               for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
                                      noise=params.noise, device=get_device(), flip_prob=params.flip_prob,
-                                     smoothing_noise=params.smoothing_noise)
+                                     smoothing_noise=params.smoothing_noise, crop_size=params.crop_size)
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
@@ -111,6 +116,8 @@ def merge_params(params: DefaultParams, args):
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
     params.smoothing_noise = args.smoothing_noise
+    params.crop_size = args.crop_size
+    params.drop_rate = args.drop_rate
     return params
 
 

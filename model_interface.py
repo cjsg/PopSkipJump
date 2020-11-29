@@ -1,5 +1,6 @@
 import random
 import torch
+import torch.nn.functional as F
 
 
 class ModelInterface:
@@ -11,7 +12,7 @@ class ModelInterface:
             - implements the definition of an adversarial example
     """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
-                 new_adv_def=False, device=None, flip_prob=0.0, smoothing_noise=0.):
+                 new_adv_def=False, device=None, flip_prob=0.0, smoothing_noise=0., crop_size=None):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -23,6 +24,7 @@ class ModelInterface:
         self.send_models_to_device()
         self.flip_prob = flip_prob
         self.smoothing_noise = smoothing_noise
+        self.crop_size = crop_size
 
     def send_models_to_device(self):
         for model in self.models:
@@ -40,7 +42,7 @@ class ModelInterface:
         :return: decisions of shape = (len(batch), num_queries)
         """
         self.model_calls += batch.shape[0] * num_queries
-        if self.noise == 'deterministic':
+        if self.noise in ['deterministic', 'dropout']:
             probs = self.get_probs_(images=batch)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             return (prediction != true_label) * 1.0
@@ -52,6 +54,21 @@ class ModelInterface:
             probs = self.get_probs_(images=batch_)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)  # TODO: Change this
             return (prediction != true_label) * 1.0
+        elif self.noise == 'cropping':
+            size = batch.shape[1]
+            x_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(batch)))[0]
+            x_end = x_start + self.crop_size
+            y_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(batch)))[0]
+            y_end = y_start + self.crop_size
+            cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(batch)]
+            cropped_batch = torch.stack(cropped)
+            resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+            resized = resized.squeeze(dim=1)
+            probs = self.get_probs_(images=resized)
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            return (prediction != true_label) * 1.0
+        elif self.noise == 'dropout':
+            pass
         elif self.noise == 'stochastic':
             probs = self.get_probs_(images=batch)
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)

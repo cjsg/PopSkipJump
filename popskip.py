@@ -27,7 +27,7 @@ class PopSkipJump(Attack):
         delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
         delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
 
-        num_evals_prob = estimates['n']
+        num_evals_prob = estimates['n'] * 2
         page.num_eval_prob = num_evals_prob
         num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
         page.time.num_evals = time.time()

@@ -1,6 +1,8 @@
 import time
 from math import pi, sqrt, log10
 import torch
+import torch.nn.functional as F
+
 from scipy.special import erf  # , xlogy
 from tqdm import tqdm
 # from tqdm.notebook import tqdm  # tqdm_notebook as tqdm
@@ -221,7 +223,7 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
     batch = (1 - xx) * perturbed + xx * unperturbed
-    if model_interface.noise == "deterministic":
+    if model_interface.noise in ["deterministic", "dropout"]:
         probs = model_interface.get_probs_(batch)
         pred = probs.argmax(dim=1)
         res = torch.zeros(xx.shape[0], device=batch.device)
@@ -234,14 +236,30 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
         pred = probs.argmax(dim=1)
         res = torch.zeros(xx.shape[0], device=batch.device)
         res[pred == true_label] = 1.
+    elif model_interface.noise == "cropping":
+        size = batch.shape[1]
+        x_start = torch.randint(low=0, high=size + 1 - model_interface.crop_size, size=(1, len(batch)))[0]
+        x_end = x_start + model_interface.crop_size
+        y_start = torch.randint(low=0, high=size + 1 - model_interface.crop_size, size=(1, len(batch)))[0]
+        y_end = y_start + model_interface.crop_size
+        cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(batch)]
+        cropped_batch = torch.stack(cropped)
+        resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+        resized = resized.squeeze(dim=1)
+        probs = model_interface.get_probs_(resized)
+        pred = probs.argmax(dim=1)
+        res = torch.zeros(xx.shape[0], device=batch.device)
+        res[pred == true_label] = 1.
     elif model_interface.noise == "stochastic":
         probs = model_interface.get_probs_(batch)
         pred = probs.argmax(dim=1)
         res = torch.ones(xx.shape[0], device=batch.device) * model_interface.flip_prob / (model_interface.n_classes - 1)
         res[pred == true_label] = 1 - model_interface.flip_prob
-    else:
+    elif model_interface.noise == "bayesian":
         probs = model_interface.get_probs_(batch)
         res = probs[:, true_label]
+    else:
+        raise RuntimeError(f'Unknown Noise type: {model_interface.noise}')
     return res
 
 
@@ -361,7 +379,7 @@ def bin_search(
                     means = torch.max(diffs, dim=0)[0]
                     if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
                             and means[2] <= (e_hi - e_lo) / Ne) or terminated:
-                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
+                        En = get_n_from_cos(target_cos, theta=1./grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
                                             delta=delta, d=d)
                         return True, En
             else:
