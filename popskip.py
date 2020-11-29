@@ -75,8 +75,9 @@ class PopSkipJump(Attack):
         else:
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step+1), self.max_num_evals]))
             target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
-        theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
-        grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+        # theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
+        # grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+        grid_size_dynamic = self.grid_size
         for perturbed_input in perturbed_inputs:
             output, n = bin_search(
                 unperturbed, perturbed_input, self.model_interface, d=self.d,
