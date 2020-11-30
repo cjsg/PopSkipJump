@@ -214,13 +214,13 @@ def hsj_failure():
             print('')
 
 
-def plot_distance():
+def plot_distance_vs_rounds():
     plt.figure(figsize=(10, 7))
     dataset = 'mnist'
-    attacks = ['hsj', 'psj', 'psj', 'psj']
-    noises = ['deterministic', 'smoothing', 'cropping', 'dropout']
-    labels = ['HSJ', 'PSJ-Smoothing', 'PSJ-cropping', 'PSJ-dropout']
-    noise_values = [None, 0.01, 27, 0.2]
+    attacks = ['hsj', 'psj', 'psj', 'psj', 'psj']
+    noises = ['deterministic', 'deterministic', 'smoothing', 'cropping', 'dropout']
+    labels = ['HSJ', 'PSJ', 'PSJ-Smoothing', 'PSJ-cropping', 'PSJ-dropout']
+    noise_values = [None, None, 0.01, 27, 0.2]
     for i in range(len(attacks)):
         attack, noise, noise_value = attacks[i], noises[i], noise_values[i]
         sn = noise_value if noise == 'smoothing' else 0.01
@@ -229,9 +229,14 @@ def plot_distance():
         exp_name = f'{dataset}_{attack}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_b_1_{noise}_fp_0.00_ns_100'
         raw = read_dump(exp_name)
         calls = np.median(raw['model_calls'].cpu().numpy(), axis=1)
-        dist = np.median(raw['border_distance'].cpu().numpy(), axis=1)
-        dist_smooth = np.median(raw['border_distance_smooth'].cpu().numpy(), axis=1)
-        plt.plot(np.sqrt(dist), label=f'{labels[i]}')
+        metric = 'border_distance'
+        # metric = 'border_distance_smooth'
+        dist = np.sqrt(np.median(raw[metric].cpu().numpy(), axis=1))
+        dist_40 = np.sqrt(np.percentile(raw[metric].cpu().numpy(), 40, axis=1))
+        dist_60 = np.sqrt(np.percentile(raw[metric].cpu().numpy(), 60, axis=1))
+        print (dist_60)
+        plt.plot(dist, label=f'{labels[i]}')
+        plt.fill_between(range(0, len(dist_40)), dist_40, dist_60, alpha=0.2)
         # plt.plot(np.sqrt(dist_smooth), label=f'{labels[i]}: average of outputs')
 
     # plt.xscale('log')
@@ -369,6 +374,6 @@ def plot_adverarial_accuracy():
 # hsj_failure()
 # psj_vs_hsjr(best_repeat)
 # conv_to_hsja()
-plot_distance()
+plot_distance_vs_rounds()
 plot_distance_vs_noise()
 # plot_adverarial_accuracy()
