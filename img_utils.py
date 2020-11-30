@@ -55,6 +55,37 @@ def find_adversarial_images(dataset, labels):
     return starts
 
 
+def get_samples_for_cropping(model, n_samples=100, conf=0.75):
+    import os
+    if not os.path.exists('images.pkl'):
+        print ("Image pickle not found")
+        np.random.seed(42)
+        test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+        samples = test_data.data
+        targets = test_data.test_labels
+        candidates = np.random.choice(len(test_data), len(test_data), replace=False)
+        indices = []
+        i = 0
+        while len(indices) != n_samples:
+            if i%4 == 0:
+                print (i, 'explored', len(indices), 'found')
+            batch = samples[candidates[i]][None].repeat(10000, 1, 1) / 255.0
+            pred = model.ask_model(batch)
+            p = torch.sum(pred == targets[candidates[i]]) / 10000.
+            if p > conf:
+                indices.append(candidates[i])
+            i += 1
+        targets = np.array(targets)
+        images = samples[indices] / 255.0
+        labels = targets[indices]
+        dump = {'images': images, 'labels': labels}
+        print("Images indices: ", indices)
+        torch.save(dump, open('images.pkl', 'wb'))
+    dump = torch.load(open('images.pkl', 'rb'))
+    images, labels = dump['images'], dump['labels']
+    return images[:n_samples], labels[:n_samples]
+
+
 def get_samples(dataset, n_samples=16, conf=None, model=None, samples_from=0):
     np.random.seed(42)
     if dataset == 'mnist':

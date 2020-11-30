@@ -7,7 +7,7 @@ from datetime import datetime
 from defaultparams import DefaultParams
 from popskip import PopSkipJump
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta
-from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
+from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images, get_samples_for_cropping
 from model_factory import get_model
 from model_interface import ModelInterface
 
@@ -85,9 +85,11 @@ def create_attack(exp_name, dataset, params):
 def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
-        det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
-        imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
-                                   model=det_model, samples_from=params.samples_from)
+        crop_model = get_model('mnist_noman', 'mnist', noise='cropping', crop_size=22)
+        imgs, labels = get_samples_for_cropping(crop_model, params.num_samples, params.orig_image_conf)
+        # det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
+        # imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
+        #                            model=det_model, samples_from=params.samples_from)
         starts = find_adversarial_images(dataset, labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
