@@ -27,7 +27,7 @@ class PopSkipJump(Attack):
         delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
         delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
 
-        num_evals_prob = estimates['n'] * 2
+        num_evals_prob = estimates['n']
         page.num_eval_prob = num_evals_prob
         num_evals_prob = int(min(num_evals_prob, self.max_num_evals))
         page.time.num_evals = time.time()
@@ -103,8 +103,26 @@ class PopSkipJump(Attack):
         out = border_points[idx]
         dist_border = self.compute_distance(out, unperturbed)
         if dist_border == 0:
+            # from tqdm import tqdm
+            # alphas = torch.linspace(0, 1, 21)
+            # pp = torch.zeros(21)
+            # pp_det = torch.zeros(21)
+            # for i, alpha in tqdm(enumerate(alphas)):
+            #     x = alpha * unperturbed + (1-alpha) * perturbed_input
+            #     d = self.model_interface.decision(x[None].repeat(10000, 1, 1), self.a.true_label).flatten()
+            #     p = 1 - (torch.sum(d) / 10000.)
+            #     p_det = self.model_interface.get_probs_(x[None])[0, self.a.true_label]
+            #     pp[i], pp_det[i] = p, p_det
             print("Distance of border point is 0")
         return out, dist, smaps[idx], emaps[idx], tmaps[idx], ns[idx], (nn_tmap_est, output['xxj'])
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         return dist / math.sqrt(current_iteration)
+
+# import matplotlib.pyplot as plt
+# plt.plot(alphas, pp, label='Cropping 10000 repetitions')
+# plt.plot(alphas, pp_det, label='Without cropping')
+# plt.scatter([tmaps[0].numpy()], [0.5], label='output')
+# plt.legend()
+# plt.ylabel('Probability of true label')
+# plt.show()
