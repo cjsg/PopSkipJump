@@ -20,7 +20,8 @@ eps = list(range(1, 6))
 if dataset == 'cifar10':
     d = 32*32*3
     model = get_model(key='cifar10', dataset=dataset, beta=beta)
-    model_noisy = get_model(key='cifar10', dataset=dataset, noise=noise)
+    model_noisy = get_model(key='cifar10', dataset=dataset, noise=noise,
+                            smoothing_noise=0.01, crop_size=26, drop_rate=0.5)
 else:
     d = 28*28
     model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
