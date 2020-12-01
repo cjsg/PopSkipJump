@@ -62,13 +62,15 @@ class ModelInterface:
             y_end = y_start + self.crop_size
             cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(batch)]
             cropped_batch = torch.stack(cropped)
-            resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
-            resized = resized.squeeze(dim=1)
+            if cropped_batch.ndim == 4:
+                resized = F.interpolate(cropped_batch.permute(0, 3, 1, 2), size, mode='bilinear')
+                resized = resized.permute(0, 2, 3, 1)
+            else:
+                resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+                resized = resized.squeeze(dim=1)
             probs = self.get_probs_(images=resized)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             return (prediction != true_label) * 1.0
-        elif self.noise == 'dropout':
-            pass
         elif self.noise == 'stochastic':
             probs = self.get_probs_(images=batch)
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)

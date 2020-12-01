@@ -56,8 +56,12 @@ class Model:
             y_end = y_start + self.crop_size
             cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(images)]
             cropped_batch = torch.stack(cropped)
-            resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
-            resized = resized.squeeze(dim=1)
+            if cropped_batch.ndim == 4:
+                resized = F.interpolate(cropped_batch.permute(0, 3, 1, 2), size, mode='bilinear')
+                resized = resized.permute(0, 2, 3, 1)
+            else:
+                resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+                resized = resized.squeeze(dim=1)
             logits = self.predict(resized)
             return torch.argmax(logits, dim=1)
         elif self.noise in ['deterministic', 'dropout']:

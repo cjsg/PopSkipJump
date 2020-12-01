@@ -55,23 +55,37 @@ def find_adversarial_images(dataset, labels):
     return starts
 
 
-def get_samples_for_cropping(model, n_samples=100, conf=0.75):
+def get_samples_for_cropping(dataset, model, n_samples=100, conf=0.75):
     import os
-    if not os.path.exists('images.pkl'):
-        print ("Image pickle not found")
+    data_path = f'data/images_{dataset}.pkl'
+    if not os.path.exists(data_path):
+        print("Image pickle not found")
         np.random.seed(42)
-        test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
-        samples = test_data.data
-        targets = test_data.test_labels
+        if dataset == 'mnist':
+            test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+            samples = test_data.data
+            targets = test_data.test_labels
+        elif dataset == 'cifar10':
+            test_data = datasets.CIFAR10(root="data", train=False, download=True, transform=None)
+            samples = test_data.data
+            targets = test_data.targets
+        else:
+            raise RuntimeError('Unknown Dataset: {}'.format(dataset))
         candidates = np.random.choice(len(test_data), len(test_data), replace=False)
         indices = []
         i = 0
         while len(indices) != n_samples:
-            if i%4 == 0:
-                print (i, 'explored', len(indices), 'found')
-            batch = samples[candidates[i]][None].repeat(10000, 1, 1) / 255.0
+            if i % 4 == 0:
+                print(i, 'explored', len(indices), 'found')
+            if dataset == 'mnist':
+                batch = samples[candidates[i]][None].repeat(100, 1, 1) / 255.0
+            elif dataset == 'cifar10':
+                batch = torch.tensor(samples[candidates[i]][None])
+                batch = batch.repeat(100, 1, 1, 1) / 255.0
+            else:
+                raise RuntimeError
             pred = model.ask_model(batch)
-            p = torch.sum(pred == targets[candidates[i]]) / 10000.
+            p = torch.sum(pred == targets[candidates[i]]) / 100.
             if p > conf:
                 indices.append(candidates[i])
             i += 1
@@ -80,8 +94,8 @@ def get_samples_for_cropping(model, n_samples=100, conf=0.75):
         labels = targets[indices]
         dump = {'images': images, 'labels': labels}
         print("Images indices: ", indices)
-        torch.save(dump, open('images.pkl', 'wb'))
-    dump = torch.load(open('images.pkl', 'rb'))
+        torch.save(dump, open(data_path, 'wb'))
+    dump = torch.load(open(data_path, 'rb'))
     images, labels = dump['images'], dump['labels']
     return images[:n_samples], labels[:n_samples]
 
