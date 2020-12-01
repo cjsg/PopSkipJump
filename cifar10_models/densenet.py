@@ -26,7 +26,7 @@ class _DenseLayer(nn.Sequential):
         new_features = super(_DenseLayer, self).forward(x)
         if self.drop_rate > 0:
             new_features = F.dropout(new_features, p=self.drop_rate,
-                                     training=self.training)
+                                     training=True)
         return torch.cat([x, new_features], 1)
 
 

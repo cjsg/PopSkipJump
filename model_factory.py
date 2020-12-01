@@ -117,7 +117,11 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
         pytorch_model.eval()
         return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob)
     if key == 'cifar10':
-        return Model(densenet121(pretrained=True).eval(), noise, n_classes=10, beta=beta, device=device,
+        if noise == "dropout":
+            pytorch_model = densenet121(pretrained=True, drop_rate=drop_rate).eval()
+        else:
+            pytorch_model = densenet121(pretrained=True, drop_rate=0).eval()
+        return Model(pytorch_model, noise, n_classes=10, beta=beta, device=device,
                      smoothing_noise=smoothing_noise, crop_size=crop_size)
     if key == 'human':
         class Human(Model):
