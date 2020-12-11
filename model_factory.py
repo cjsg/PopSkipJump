@@ -61,8 +61,8 @@ class Model:
         for i in range(len(images)):
             _grad_true = torch.autograd.grad(t_outs[i, true_label], t_images, create_graph=True)[0]
             _grad_wrong = torch.autograd.grad(t_outs[i, wrong_labels[i]], t_images, create_graph=True)[0]
-            grad[i] = _grad_true[i] - _grad_wrong[i]
-        return grad.detach().numpy()
+            grad[i] = _grad_wrong[i] - _grad_true[i]
+        return grad.detach()
 
 
 def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None):

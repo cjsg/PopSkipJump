@@ -176,3 +176,13 @@ class HopSkipJumpRepeatedWithPSJDelta(HopSkipJump):
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         # delta = dist_post_update * math.sqrt(self.d) / self.grid_size
         return self._gradient_estimator(perturbed, num_evals_det, delta)
+
+
+class HopSkipJumpTrueGradient(HopSkipJump):
+    """
+        Implements HSJ with access to true gradients of the underlying classifier
+    """
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        self.model_interface.model_calls += 1
+        grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)[0]
+        return grad / torch.norm(grad)

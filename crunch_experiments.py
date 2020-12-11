@@ -6,7 +6,7 @@ from img_utils import get_device
 import math
 from tracker import Diary, DiaryPage
 
-OUT_DIR = 'aistats'
+OUT_DIR = 'thesis'
 exp_name = sys.argv[1]
 dataset = sys.argv[2]
 flip_prob = float(exp_name.split('_')[-3])
@@ -14,7 +14,7 @@ noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
 device = get_device()
 NUM_ITERATIONS = 32
-NUM_IMAGES = 20
+NUM_IMAGES = int(exp_name.split('_')[-1])
 eps = list(range(1, 6))
 if dataset == 'cifar10':
     d = 32*32*3

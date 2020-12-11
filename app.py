@@ -6,13 +6,13 @@ import time
 from datetime import datetime
 from defaultparams import DefaultParams
 from popskip import PopSkipJump
-from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta
+from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
 from model_factory import get_model
 from model_interface import ModelInterface
 
 logging.root.setLevel(logging.WARNING)
-OUT_DIR = 'aistats'
+OUT_DIR = 'thesis'
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str,
                     help="(Mandatory) supported: mnist, cifar10")
@@ -69,6 +69,7 @@ def create_attack(exp_name, dataset, params):
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
         'hsj_rep_psj_delta': HopSkipJumpRepeatedWithPSJDelta,
+        'hsj_true_grad': HopSkipJumpTrueGradient,
         'psj': PopSkipJump
     }
     return attacks_factory.get(params.attack)(model_interface, get_shape(dataset), get_device(), params)

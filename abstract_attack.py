@@ -125,6 +125,9 @@ class Attack:
             page.num_eval_det = num_evals_det
             page.time.approx_grad = time.time()
             page.calls.approx_grad = self.model_interface.model_calls
+            true_grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)
+            page.grad_true = true_grad
+            page.grad_estimate = gradf
 
             update = gradf if self.constraint == 'l2' else torch.sign(gradf)
 

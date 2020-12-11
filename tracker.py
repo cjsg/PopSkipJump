@@ -27,6 +27,8 @@ class DiaryPage(object):
         self.info_max_stats = None
         self.calls: Calls = Calls()
         self.time: Time = Time()
+        self.grad_estimate = None
+        self.grad_true = None
 
 
 class InfoMaxStats(object):
