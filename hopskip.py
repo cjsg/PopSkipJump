@@ -184,5 +184,5 @@ class HopSkipJumpTrueGradient(HopSkipJump):
     """
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         self.model_interface.model_calls += 1
-        grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)[0]
+        grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)[0][0]
         return grad / torch.norm(grad)
