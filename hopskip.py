@@ -73,22 +73,6 @@ class HopSkipJump(Attack):
         out = out_inputs[idx]
         return out, dist
 
-    def project(self, unperturbed, perturbed_inputs, alphas):
-        """ Projection onto given l2 / linf balls in a batch. """
-        if type(alphas) != torch.Tensor:
-            alphas = torch.tensor(alphas)
-        alphas_shape = [len(alphas)] + [1] * len(self.shape)
-        alphas = alphas.view(alphas_shape)
-        if self.constraint == "l2":
-            projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
-        elif self.constraint == "linf":
-            projected = torch.clamp(
-                perturbed_inputs, unperturbed - alphas, unperturbed + alphas
-            )
-        else:
-            raise RuntimeError(f"Unknown constraint type: {self.constraint}")
-        return projected
-
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         """ Geometric progression to search for stepsize.
           Keep decreasing stepsize by half until reaching

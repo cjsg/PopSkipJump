@@ -43,7 +43,6 @@ class PopSkipJump(Attack):
         """
         # TODO: Replace Binary Search with a closed form solution (if it exists)
         if estimates is None:
-            # TODO: Think about the ideal value for eps here
             s, eps = 100., 1e-4
             n1 = get_n_from_cos(target_cos, s=s, theta=0, delta=self.delta_prob_unit, d=self.d, eps=eps)
         else:
@@ -107,3 +106,33 @@ class PopSkipJump(Attack):
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         return dist / math.sqrt(current_iteration)
+
+
+class PopSkipJumpTrueLogits(PopSkipJump):
+    def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
+        dists_post_update = self.compute_distance(original, perturbed)
+        if self.constraint == "linf":
+            high = dists_post_update
+            # Stopping criteria.
+            threshold = dists_post_update * self.theta_det
+        else:
+            high = torch.ones(1, device=self.device)
+            threshold = self.theta_det
+        low = torch.zeros(1, device=self.device)
+        while high - low > threshold:
+            mid = (high + low) / 2.0
+            mid_input = self.project(original, perturbed, mid)
+            self.model_interface.model_calls += 1
+            prob = self.model_interface.get_probs_(mid_input)[0]
+            if prob[self.a.true_label] < 0.5:
+                high = mid
+            else:
+                low = mid
+        out_input = self.project(original, perturbed, high)[0]
+        return out_input, dists_post_update, None
+
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
+        # TODO: This will work well for deterministic classifier only. For prob classifier, we can query for probs.
+        return self._gradient_estimator(perturbed, num_evals_det, delta_prob)

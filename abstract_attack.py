@@ -256,12 +256,18 @@ class Attack:
             raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
         return delta
 
-    def calculate_grad(self, decisions, rv):
-        decision_shape = [len(decisions)] + [1] * len(self.shape)
-        fval = 2 * decisions.view(decision_shape) - 1.0
-        # Baseline subtraction (when fval differs)
-        vals = fval if torch.abs(torch.mean(fval)) == 1.0 else fval - torch.mean(fval)
-        gradf = torch.mean(vals * rv, dim=0)
-        # Get the gradient direction.
-        gradf = gradf / torch.norm(gradf)
-        return gradf
+    def project(self, unperturbed, perturbed_inputs, alphas):
+        """ Projection onto given l2 / linf balls in a batch. """
+        if type(alphas) != torch.Tensor:
+            alphas = torch.tensor(alphas)
+        alphas_shape = [len(alphas)] + [1] * len(self.shape)
+        alphas = alphas.view(alphas_shape)
+        if self.constraint == "l2":
+            projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
+        elif self.constraint == "linf":
+            projected = torch.clamp(
+                perturbed_inputs, unperturbed - alphas, unperturbed + alphas
+            )
+        else:
+            raise RuntimeError(f"Unknown constraint type: {self.constraint}")
+        return projected

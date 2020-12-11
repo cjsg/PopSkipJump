@@ -5,7 +5,7 @@ import torch
 import time
 from datetime import datetime
 from defaultparams import DefaultParams
-from popskip import PopSkipJump
+from popskip import PopSkipJump, PopSkipJumpTrueLogits
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
 from model_factory import get_model
@@ -70,7 +70,8 @@ def create_attack(exp_name, dataset, params):
         'hsj_rep': HopSkipJumpRepeated,
         'hsj_rep_psj_delta': HopSkipJumpRepeatedWithPSJDelta,
         'hsj_true_grad': HopSkipJumpTrueGradient,
-        'psj': PopSkipJump
+        'psj': PopSkipJump,
+        'psj_true_logits': PopSkipJumpTrueLogits
     }
     return attacks_factory.get(params.attack)(model_interface, get_shape(dataset), get_device(), params)
 
