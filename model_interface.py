@@ -58,6 +58,26 @@ class ModelInterface:
         else:
             raise RuntimeError(f'Unknown Noise type: {self.noise}')
 
+    def decision_with_logits(self, batch, true_label):
+        """
+        Same as decision() but insteas of decision it returns logit vectors. Used for white-box attacks
+        :return: decisions of shape = (len(batch), num_classes)
+        """
+        probs = self.get_probs_(images=batch)
+        self.model_calls += batch.shape[0]
+        if self.noise == 'deterministic':
+            ans = torch.zeros_like(probs)
+            ans[torch.arange(len(probs)), probs.argmax(axis=1)] = 1
+            return ans
+        elif self.noise == 'stochastic':
+            ans = torch.ones_like(probs) * self.flip_prob / (self.n_classes - 1)
+            ans[torch.arange(len(probs)), probs.argmax(axis=1)] = 1 - self.flip_prob
+            return ans
+        elif self.noise == 'bayesian':
+            return probs
+        else:
+            raise RuntimeError(f'Unknown Noise type: {self.noise}')
+
     def get_probs_(self, images):
         """
             WARNING

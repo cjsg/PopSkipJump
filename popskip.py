@@ -122,8 +122,7 @@ class PopSkipJumpTrueLogits(PopSkipJump):
         while high - low > threshold:
             mid = (high + low) / 2.0
             mid_input = self.project(original, perturbed, mid)
-            self.model_interface.model_calls += 1
-            prob = self.model_interface.get_probs_(mid_input)[0]
+            prob = self.model_interface.decision_with_logits(mid_input, self.a.true_label)[0]
             if prob[self.a.true_label] < 0.5:
                 high = mid
             else:

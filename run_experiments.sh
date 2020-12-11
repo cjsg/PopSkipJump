@@ -1,10 +1,10 @@
 betas="1"
 flip="0.00"
 repeat="1"
-attacks="psj"
+attacks="psj_true_logits"
 num_samples=100
 noise="deterministic"
-dataset="cifar10"
+dataset="mnist"
 device=2
 for beta in $betas; do
   for attack in $attacks; do
