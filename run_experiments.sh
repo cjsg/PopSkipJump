@@ -1,4 +1,4 @@
-betas="5 10 20 50"
+betas="1"
 flip="0.00"
 repeat="1"
 attacks="psj"

@@ -351,7 +351,7 @@ def bin_search(
                     means = torch.max(diffs, dim=0)[0]
                     if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
                             and means[2] <= (e_hi - e_lo) / Ne) or terminated:
-                        En = get_n_from_cos(target_cos, theta=0.5/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
+                        En = get_n_from_cos(target_cos, theta=1.0/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
                                             delta=delta, d=d)
                         return True, En
             else:
