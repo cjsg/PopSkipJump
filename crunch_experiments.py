@@ -71,6 +71,9 @@ def project(x_star, x_t, label, theta_det):
 
 
 D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
+D1 = torch.zeros_like(D, device=device)
+D2 = torch.zeros_like(D, device=device)
+D3 = torch.zeros_like(D, device=device)
 D_OUT = torch.zeros_like(D, device=device)
 G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
@@ -79,13 +82,17 @@ AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 for iteration in tqdm(range(NUM_ITERATIONS)):
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
-        x_star = encoder.decompress(diary.original[None])[0]
-        # x_star = diary.raw_original
+        x_star_encoded = diary.original
+        x_star_reconstructed = encoder.decompress(x_star_encoded[None])[0]
+        x_star = diary.raw_original
         label = diary.true_label
         if iteration == 0:
             x_0 = encoder.decompress(diary.initial_projection[None])[0]
             x_00 = project(x_star, x_0, label, theta_det)
             D[0, image] = torch.norm(x_star - x_00) ** 2 / d / 1 ** 2
+            D1[0, image] = torch.norm(diary.initial_projection - x_star_encoded)
+            D2[0, image] = torch.norm(x_00 - x_star_reconstructed)
+            D3[0, image] = torch.norm(x_00 - x_star)
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
@@ -93,11 +100,15 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         calls = page.calls.bin_search
         x_tilde = encoder.decompress(page.approx_grad[None])[0]
         G[iteration+1, image] = torch.norm(x_tilde - x_star) ** 2 / d
-        x_t = encoder.decompress(page.bin_search[None])[0]
+        x_t_encoded = page.bin_search
+        x_t = encoder.decompress(x_t_encoded[None])[0]
         # x_tt = x_t
         x_tt = project(x_star, x_t, label, theta_det)
 
         D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
+        D1[iteration + 1, image] = torch.norm(x_t_encoded - x_star_encoded)
+        D2[iteration + 1, image] = torch.norm(x_tt - x_star_reconstructed)
+        D3[iteration + 1, image] = torch.norm(x_tt - x_star)
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
         else:
@@ -119,6 +130,9 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
 dump = {
     'border_distance': D,
+    'dist_encoded': D1,
+    'dist_reconstructed': D2,
+    'dist_original': D3,
     'approx_grad': G,
     'attack_out_distance': D_OUT,
     'model_calls': MC,
