@@ -12,6 +12,7 @@ dataset = sys.argv[2]
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
+distance_metric = str(exp_name.split('_')[-8])
 device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = int(exp_name.split('_')[-1])
@@ -39,7 +40,14 @@ def search_boundary(x_star, x_t, theta_det, true_label):
     high, low = 1, 0
     while high - low > theta_det:
         mid = (high + low) / 2.0
-        x_mid = (1 - mid) * x_star + mid * x_t
+        if distance_metric == 'l2':
+            x_mid = (1 - mid) * x_star + mid * x_t
+        elif distance_metric == 'linf':
+            dist_linf = torch.max(torch.abs(x_star - x_t))
+            min_limit = x_star - mid * dist_linf
+            max_limit = x_star + mid * dist_linf
+            x_mid = torch.where(x_t > max_limit, max_limit, x_t)
+            x_mid = torch.where(x_mid < min_limit, min_limit, x_mid)
         pred = torch.argmax(model.get_probs(x_mid[None])[0])
         if pred == true_label:
             low = mid
@@ -47,6 +55,13 @@ def search_boundary(x_star, x_t, theta_det, true_label):
             high = mid
     out = (1 - high) * x_star + high * x_t
     return out
+
+
+def compute_distance(x1, x2):
+    if distance_metric == "l2":
+        return torch.norm(x1 - x2) / math.sqrt(d)
+    elif distance_metric == "linf":
+        return torch.max(torch.abs(x1 - x2))
 
 
 def project(x_star, x_t, label, theta_det):
@@ -78,7 +93,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         if iteration == 0:
             x_0 = diary.initial_projection
             x_00 = project(x_star, x_0, label, theta_det)
-            D[0, image] = torch.norm(x_star - x_00) ** 2 / d / 1 ** 2
+            D[0, image] = compute_distance(x_star, x_00)
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
@@ -87,7 +102,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         x_t = page.bin_search
         x_tt = project(x_star, x_t, label, theta_det)
 
-        D[iteration + 1, image] = torch.norm(x_star - x_tt) ** 2 / d / 1 ** 2
+        D[iteration + 1, image] = compute_distance(x_star, x_tt)
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
         else:

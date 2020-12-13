@@ -46,6 +46,8 @@ parser.add_argument("-tf", "--theta_fac", type=float, default=-1,
                     help="(Optional) Multiplies theta of HSJ with tf")
 parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estimate_fluctuation",
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
+parser.add_argument("-dm", "--distance", type=str, default="L2",
+                    help="(Optional) Distance metric for attack. ex L2, Linf")
 
 
 def validate_args(args):
@@ -109,6 +111,7 @@ def merge_params(params: DefaultParams, args):
     params.flip_prob = args.flip_prob
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
+    params.distance = args.distance
     return params
 
 

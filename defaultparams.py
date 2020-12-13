@@ -22,7 +22,7 @@ class DefaultParams:
         self.initial_num_evals = 100  # B_0 (i.e. num of queries for first iteration of original HSJA)
         self.max_num_evals = 50000  # Maximum queries allowed in Approximate Gradient Step
         # self.stepsize_search = "geometric_progression"  # Deprecating this
-        self.distance = "MSE"  # Distance metric
+        self.distance = "linf"  # Distance metric
         self.batch_size = 256
 
         # Hand-picking images

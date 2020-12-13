@@ -28,9 +28,9 @@ class Attack:
         self.grad_queries = params.grad_queries
 
         # Set constraint based on the distance.
-        if params.distance == 'MSE':
+        if params.distance in ['MSE', 'L2', 'l2']:
             self.constraint = "l2"
-        elif params.distance == 'Linf':
+        elif params.distance in ['Linf', 'linf']:
             self.constraint = "linf"
 
         # Set binary search threshold.
@@ -265,9 +265,9 @@ class Attack:
         if self.constraint == "l2":
             projected = (1 - alphas) * unperturbed + alphas * perturbed_inputs
         elif self.constraint == "linf":
-            projected = torch.clamp(
-                perturbed_inputs, unperturbed - alphas, unperturbed + alphas
-            )
+            projected = torch.where(perturbed_inputs > unperturbed + alphas, unperturbed + alphas, perturbed_inputs)
+            projected = torch.where(projected < unperturbed - alphas, unperturbed - alphas, projected)
+            # projected = torch.clamp(perturbed_inputs, unperturbed - alphas, unperturbed + alphas)
         else:
             raise RuntimeError(f"Unknown constraint type: {self.constraint}")
         return projected
