@@ -217,10 +217,17 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
     plt.show()
 
 
-def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label):
+def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label, dist_metric='l2'):
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
-    batch = (1 - xx) * perturbed + xx * unperturbed
+    if dist_metric == 'l2':
+        batch = (1 - xx) * perturbed + xx * unperturbed
+    elif dist_metric == 'linf':
+        dist_linf = torch.max(torch.abs(unperturbed - perturbed))
+        min_limit = unperturbed - xx * dist_linf
+        max_limit = unperturbed + xx * dist_linf
+        batch = torch.where(perturbed > max_limit, max_limit, perturbed)
+        batch = torch.where(batch < min_limit, min_limit, batch)
     probs = model_interface.get_probs_(batch)
     if model_interface.noise == "deterministic":
         pred = probs.argmax(dim=1)
@@ -242,7 +249,7 @@ def bin_search(
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=None, device=None, true_label=None, plot=False, prev_t=None,
         prev_s=None, prev_e=None, prior_frac=1., queries=5,
-        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation"):
+        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation", dist_metric="l2"):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -387,7 +394,7 @@ def bin_search(
     if unperturbed is None:
         pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
     else:
-        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label)
+        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label, dist_metric)
 
     def vprint(string):
         if verbose:

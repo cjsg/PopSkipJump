@@ -1,7 +1,7 @@
 betas="1"
 flip="0.00"
 repeat="1"
-attacks="hsj"
+attacks="psj"
 num_samples=100
 dm="linf"
 noise="deterministic"
