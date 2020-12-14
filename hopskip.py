@@ -79,17 +79,17 @@ class HopSkipJump(Attack):
           the desired side of the boundary.
         """
         epsilon = dist / math.sqrt(current_iteration)
-        count = 1
-        while True:
-            if count % 200 == 0:
-                logging.warning("Decreased epsilon {} times".format(count))
-            updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
-            success = (self.decision_by_repetition(updated[None]))[0]
-            if success:
-                break
-            else:
-                epsilon = epsilon / 2.0  # pragma: no cover
-                count += 1
+        # count = 1
+        # while True:
+        #     if count % 200 == 0:
+        #         logging.warning("Decreased epsilon {} times".format(count))
+        #     updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
+        #     success = (self.decision_by_repetition(updated[None]))[0]
+        #     if success:
+        #         break
+        #     else:
+        #         epsilon = epsilon / 2.0  # pragma: no cover
+        #         count += 1
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):

@@ -23,7 +23,10 @@ if dataset == 'cifar10':
 else:
     d = 28*28
     model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
-theta_det = 1 / (d * math.sqrt(d))
+if distance_metric == 'l2':
+    theta_det = 1 / (d * math.sqrt(d))
+elif distance_metric == 'linf':
+    theta_det = 1 / (d * d)
 
 
 def read_dump(path):
@@ -36,24 +39,29 @@ raw = read_dump(exp_name)
 model.model = model.model.to(device)
 
 
+def interpolation(x_star, x_t, alpha):
+    if distance_metric == 'l2':
+        x_mid = (1 - alpha) * x_star + alpha * x_t
+    elif distance_metric == 'linf':
+        dist_linf = torch.max(torch.abs(x_star - x_t))
+        min_limit = x_star - alpha * dist_linf
+        max_limit = x_star + alpha * dist_linf
+        x_mid = torch.where(x_t > max_limit, max_limit, x_t)
+        x_mid = torch.where(x_mid < min_limit, min_limit, x_mid)
+    return x_mid
+
+
 def search_boundary(x_star, x_t, theta_det, true_label):
     high, low = 1, 0
     while high - low > theta_det:
         mid = (high + low) / 2.0
-        if distance_metric == 'l2':
-            x_mid = (1 - mid) * x_star + mid * x_t
-        elif distance_metric == 'linf':
-            dist_linf = torch.max(torch.abs(x_star - x_t))
-            min_limit = x_star - mid * dist_linf
-            max_limit = x_star + mid * dist_linf
-            x_mid = torch.where(x_t > max_limit, max_limit, x_t)
-            x_mid = torch.where(x_mid < min_limit, min_limit, x_mid)
+        x_mid = interpolation(x_star, x_t, mid)
         pred = torch.argmax(model.get_probs(x_mid[None])[0])
         if pred == true_label:
             low = mid
         else:
             high = mid
-    out = (1 - high) * x_star + high * x_t
+    out = interpolation(x_star, x_t, high)
     return out
 
 
@@ -82,6 +90,7 @@ def project(x_star, x_t, label, theta_det):
 
 D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 D_OUT = torch.zeros_like(D, device=device)
+D_G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
@@ -103,6 +112,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         x_tt = project(x_star, x_t, label, theta_det)
 
         D[iteration + 1, image] = compute_distance(x_star, x_tt)
+        D_G[iteration+1, image] = compute_distance(x_star, page.approx_grad)
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
         else:
@@ -124,6 +134,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
 dump = {
     'border_distance': D,
+    'distance_approxgrad': D_G,
     'attack_out_distance': D_OUT,
     'model_calls': MC,
     'adv_acc': AA,

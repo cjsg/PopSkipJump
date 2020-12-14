@@ -11,9 +11,13 @@ from tracker import InfoMaxStats
 class PopSkipJump(Attack):
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
-        self.delta_det_unit = self.theta_det * math.sqrt(self.d)
         self.theta_prob = 1. / self.grid_size # Theta for Info-max procedure
-        self.delta_prob_unit = math.sqrt(self.d) / self.grid_size  # PSJA's delta in unit scale
+        if self.constraint == 'l2':
+            self.delta_det_unit = self.theta_det * math.sqrt(self.d)
+            self.delta_prob_unit = math.sqrt(self.d) / self.grid_size  # PSJA's delta in unit scale
+        elif self.constraint == 'linf':
+            self.delta_det_unit = self.theta_det * self.d
+            self.delta_prob_unit = self.d / self.grid_size  # PSJA's delta in unit scale
         self.stop_criteria = params.infomax_stop_criteria
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
@@ -24,7 +28,10 @@ class PopSkipJump(Attack):
         return perturbed, dist_post_update, {'s': s_, 'e': e_, 'n': n_, 't': t_}
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        if self.constraint == "l2":
+            delta_prob_unit = self.theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        elif self.constraint == "linf":
+            delta_prob_unit = self.theta_prob * self.d  # PSJA's delta in unit scale
         delta_prob = dist_post_update * delta_prob_unit  # PSJA's delta
 
         num_evals_prob = estimates['n']
@@ -35,7 +42,14 @@ class PopSkipJump(Attack):
 
     def opposite_movement_step(self, original, perturbed):
         # Go in the opposite direction
-        return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
+        if self.constraint == 'l2':
+            return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
+        elif self.constraint == 'linf':
+            o_ = original.flatten()
+            p_ = perturbed.flatten()
+            indices = torch.argmax(torch.abs(o_ - p_))
+            p_[indices] = p_[indices] + 0.5 * (p_[indices] - o_[indices])
+            return torch.clamp(p_.view(perturbed.shape), self.clip_min, self.clip_max)
 
     def get_theta_prob(self, target_cos, estimates=None):
         """
@@ -74,8 +88,9 @@ class PopSkipJump(Attack):
         else:
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step+1), self.max_num_evals]))
             target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
-        theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
-        grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+        # theta_prob_dynamic = self.get_theta_prob(target_cos, estimates)
+        # grid_size_dynamic = min(self.grid_size, int(1 / theta_prob_dynamic) + 1)
+        grid_size_dynamic = self.grid_size
         for perturbed_input in perturbed_inputs:
             output, n = bin_search(
                 unperturbed, perturbed_input, self.model_interface, d=self.d,
@@ -85,7 +100,12 @@ class PopSkipJump(Attack):
                 queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map, e_map = output['ttse_max'][-1]
-            border_point = (1 - t_map) * perturbed_input + t_map * unperturbed
+            if self.constraint == 'l2':
+                border_point = (1 - t_map) * perturbed_input + t_map * unperturbed
+            elif self.constraint == 'linf':
+                dist_linf = self.compute_distance(unperturbed, perturbed_input)
+                alphas = (1 - t_map) * dist_linf
+                border_point = self.project(unperturbed, perturbed_input, alphas[None])[0]
             self.prev_t, self.prev_s, self.prev_e = t_map, s_map, e_map
             dist = self.compute_distance(unperturbed, border_point)
             border_points.append(border_point)

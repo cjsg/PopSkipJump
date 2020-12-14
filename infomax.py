@@ -224,8 +224,8 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label,
         batch = (1 - xx) * perturbed + xx * unperturbed
     elif dist_metric == 'linf':
         dist_linf = torch.max(torch.abs(unperturbed - perturbed))
-        min_limit = unperturbed - xx * dist_linf
-        max_limit = unperturbed + xx * dist_linf
+        min_limit = unperturbed - (1-xx) * dist_linf
+        max_limit = unperturbed + (1-xx) * dist_linf
         batch = torch.where(perturbed > max_limit, max_limit, perturbed)
         batch = torch.where(batch < min_limit, min_limit, batch)
     probs = model_interface.get_probs_(batch)
