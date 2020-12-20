@@ -22,7 +22,7 @@ class HopSkipJump(Attack):
         return perturbed, dist_post_update, None
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        return self._gradient_estimator(perturbed, num_evals_det, delta)
+        return self._gradient_estimator(perturbed, num_evals_det, delta)[0]
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
@@ -117,7 +117,7 @@ class HopSkipJump(Attack):
         # Get the gradient direction.
         gradf = sum_directions / num_rvs
         gradf = gradf / torch.norm(gradf)
-        return gradf
+        return gradf, sum_directions, num_rvs
 
     def decision_by_repetition(self, perturbed):
         decisions = self.model_interface.decision(perturbed, self.a.true_label, self.repeat_queries)
@@ -159,7 +159,7 @@ class HopSkipJumpRepeatedWithPSJDelta(HopSkipJump):
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         # delta = dist_post_update * math.sqrt(self.d) / self.grid_size
-        return self._gradient_estimator(perturbed, num_evals_det, delta)
+        return self._gradient_estimator(perturbed, num_evals_det, delta)[0]
 
 
 class HopSkipJumpTrueGradient(HopSkipJump):
@@ -170,3 +170,27 @@ class HopSkipJumpTrueGradient(HopSkipJump):
         self.model_interface.model_calls += 1
         grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)[0][0]
         return grad / torch.norm(grad)
+
+
+class HopSkipJumpAllGradient(HopSkipJump):
+    def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
+        super().__init__(model_interface, data_shape, device, params)
+        self.sum_directions = torch.zeros(self.shape, device=self.device)
+        self.num_directions = 0
+
+    def reset_variables(self, a):
+        super().reset_variables(a)
+        self.sum_directions = torch.zeros(self.shape, device=self.device)
+        self.num_directions = 0
+
+    def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
+        if self.num_directions is 0:
+            _, sum_directions, n_samples = self._gradient_estimator(perturbed, num_evals_det, delta)
+            grad = sum_directions / n_samples
+        else:
+            _, sum_directions, n_samples = self._gradient_estimator(perturbed, num_evals_det/2, delta)
+            grad = (sum_directions + 0.5 * self.sum_directions) / (n_samples + 0.5 * self.num_directions)
+        self.sum_directions = self.sum_directions + sum_directions
+        self.num_directions += n_samples
+        grad = grad / torch.norm(grad)
+        return grad
