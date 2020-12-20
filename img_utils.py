@@ -122,6 +122,27 @@ def get_concat_v(im1, im2):
     return dst
 
 
+def get_concat_v_all(imgs):
+    assert len(imgs) >= 2
+    res = get_concat_v(imgs[0], imgs[1])
+    for img in imgs[2:]:
+        res = get_concat_v(res, img)
+    return res
+
+
+def save_concat_h(imgs: list, path=None):
+    assert len(imgs) >= 2
+    a0 = Image.fromarray(imgs[0].numpy() * 255)
+    a1 = Image.fromarray(imgs[1].numpy() * 255)
+    res = get_concat_h(a0, a1)
+    for img in imgs[2:]:
+        a = Image.fromarray(img.numpy() * 255)
+        res = get_concat_h(res, a)
+    if path is not None:
+        res.save(path)
+    return res
+
+
 def one_big_image(exp_name):
     rows = []
     for row in range(0, 8):

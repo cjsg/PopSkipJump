@@ -7,9 +7,9 @@ noise="deterministic"
 dataset="mnist"
 isc="4"
 ets="pca"
-etd="50"
+etds="50 100 200 400 784"
 device=0
-anes="1"
+ane="0"
 #for etd in $etds; do
 #  for attack in $attacks; do
 #    exp_name="$dataset""_$attack""_isc_$isc""_et_$et""_etd_$etd""_r_$repeat""_b_$beta""_$noise""_fp_$flip""_ns_$num_samples"
@@ -26,7 +26,7 @@ anes="1"
 #done
 for id in `seq 1 10`
 do
-  for ane in $anes; do
+  for etd in $etds; do
     for et in $ets; do
       exp_name="$dataset""_$ane""_$id""_$attack""_isc_$isc""_et_$et""_etd_$etd""_r_$repeat""_b_$beta""_$noise""_fp_$flip""_ns_$num_samples"
       export CUDA_VISIBLE_DEVICES=$device
@@ -36,8 +36,8 @@ do
       command2="python crunch_experiments.py $exp_name $dataset"
       device=$(( (device + 1) % 4 ))
       echo "$command1"
-#      (nohup $command1; $command2)  > logs/$exp_name.txt &
-      $command2 &
+      (nohup $command1; $command2)  > logs/$exp_name.txt &
+#      $command2 &
     done
   done
 done
