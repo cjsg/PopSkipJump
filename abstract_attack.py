@@ -2,7 +2,7 @@ import logging
 import torch
 import math
 import time
-from tracker import Diary, DiaryPage
+from tracker import Diary, DiaryPage, InfoMaxStats
 from defaultparams import DefaultParams
 from adversarial import Adversarial
 from model_interface import ModelInterface
@@ -107,6 +107,8 @@ class Attack:
         self.diary.epoch_initialization = time.time()
 
         perturbed, dist_post_update, estimates = self.bin_search_step(original, perturbed)
+        if estimates is not None:
+            self.diary.init_infomax = InfoMaxStats(estimates['s'], estimates['t'], None, estimates['e'], estimates['n'])
         self.diary.epoch_initial_bin_search = time.time()
         self.diary.initial_projection = perturbed
         self.diary.calls_initial_bin_search = self.model_interface.model_calls
