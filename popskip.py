@@ -151,32 +151,6 @@ class PopSkipJumpTrueLogits(PopSkipJump):
         return out_input, dists_post_update, None
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        return self._gradient_estimator(perturbed, num_evals_det, delta)
-
-    def _gradient_estimator(self, sample, num_evals, delta):
-        """ Computes an approximation by querying every point `grad_queries` times"""
-        # Generate random vectors.
-        num_rvs = int(num_evals)
-        sum_directions = torch.zeros(self.shape, device=self.device)
-        num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
-        for j in range(num_batchs):
-            batch_size = min(self.batch_size, num_rvs - j*self.batch_size)
-            rv = self.generate_random_vectors(batch_size)
-            perturbed = sample + delta * rv
-            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
-            rv = (perturbed - sample) / delta
-            decisions = 1 - self.model_interface.decision_with_logits(perturbed, self.a.true_label)[:, self.a.true_label]
-            # decisions = decisions.sum(dim=1)
-            decision_shape = [len(decisions)] + [1] * len(self.shape)
-            # Map (0, 1) -> (-1, +1)
-            fval = 2 * decisions.view(decision_shape) - 1
-            # Baseline subtraction (when fval differs)
-            if torch.abs(torch.mean(fval)) == 1.0:
-                vals = fval
-            else:
-                vals = fval - torch.mean(fval)
-            sum_directions = sum_directions + torch.sum(vals * rv, dim=0)
-        # Get the gradient direction.
-        gradf = sum_directions / num_rvs
-        gradf = gradf / torch.norm(gradf)
-        return gradf
+        self.model_interface.model_calls += 1
+        grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)[0][0]
+        return grad / torch.norm(grad)
