@@ -23,7 +23,7 @@ class DefaultParams:
         self.max_num_evals = 50000  # Maximum queries allowed in Approximate Gradient Step
         # self.stepsize_search = "geometric_progression"  # Deprecating this
         self.distance = "linf"  # Distance metric
-        self.batch_size = 256
+        self.batch_size = 1000
 
         # Hand-picking images
         self.orig_image_conf = 0.75
@@ -45,6 +45,7 @@ class DefaultParams:
 
         # Specific to Approximate Gradient
         self.grad_queries = 1
+        self.eval_factor = 1
 
         self.theta_fac = -1
 

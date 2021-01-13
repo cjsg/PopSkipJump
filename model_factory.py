@@ -55,7 +55,8 @@ class Model:
         # TODO: this line will not work for noisy model.
         # wrong_labels = self.ask_model(images)
         images = images.unsqueeze(1).type(torch.float32)
-        t_images = torch.tensor(images, requires_grad=True)
+        t_images = images.clone().detach().requires_grad_(True)
+        # t_images = torch.tensor(images, requires_grad=True)
         t_outs = self.model(t_images)
         grad = torch.zeros(t_images.shape)
         for i in range(len(images)):

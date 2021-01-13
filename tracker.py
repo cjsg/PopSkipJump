@@ -5,6 +5,7 @@ class Diary(object):
 
         self.initial_image = None
         self.initial_projection = None
+        self.init_infomax = None
 
         self.calls_initialization = None
         self.calls_initial_bin_search = None
@@ -18,9 +19,11 @@ class Diary(object):
 
 class DiaryPage(object):
     def __init__(self):
+        self.initial = None
         self.distance = None
         self.num_eval_det = None
         self.num_eval_prob = None
+        self.delta = None
         self.approx_grad = None
         self.opposite = None
         self.bin_search = None

@@ -40,14 +40,14 @@ model.model = model.model.to(device)
 
 
 def interpolation(x_star, x_t, alpha):
-    if distance_metric == 'l2':
+    if distance_metric == 'l2' or distance_metric == 'linf':
         x_mid = (1 - alpha) * x_star + alpha * x_t
-    elif distance_metric == 'linf':
-        dist_linf = torch.max(torch.abs(x_star - x_t))
-        min_limit = x_star - alpha * dist_linf
-        max_limit = x_star + alpha * dist_linf
-        x_mid = torch.where(x_t > max_limit, max_limit, x_t)
-        x_mid = torch.where(x_mid < min_limit, min_limit, x_mid)
+    # elif distance_metric == 'linf':
+    #     dist_linf = torch.max(torch.abs(x_star - x_t))
+    #     min_limit = x_star - alpha * dist_linf
+    #     max_limit = x_star + alpha * dist_linf
+    #     x_mid = torch.where(x_t > max_limit, max_limit, x_t)
+    #     x_mid = torch.where(x_mid < min_limit, min_limit, x_mid)
     return x_mid
 
 
@@ -90,6 +90,8 @@ def project(x_star, x_t, label, theta_det):
 
 D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 D_OUT = torch.zeros_like(D, device=device)
+D_VANILLA = torch.zeros_like(D, device=device)
+P_VANILLA = torch.zeros_like(D, device=device)
 D_G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
@@ -103,6 +105,8 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             x_0 = diary.initial_projection
             x_00 = project(x_star, x_0, label, theta_det)
             D[0, image] = compute_distance(x_star, x_00)
+            D_VANILLA[0, image] = compute_distance(x_star, x_0)
+            P_VANILLA[0, image] = model.get_probs(x_0[None])[0][label]
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
@@ -112,6 +116,8 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         x_tt = project(x_star, x_t, label, theta_det)
 
         D[iteration + 1, image] = compute_distance(x_star, x_tt)
+        D_VANILLA[iteration + 1, image] = compute_distance(x_star, x_t)
+        P_VANILLA[iteration + 1, image] = model.get_probs(x_t[None])[0][label]
         D_G[iteration+1, image] = compute_distance(x_star, page.approx_grad)
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
@@ -134,6 +140,8 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
 dump = {
     'border_distance': D,
+    'vanilla_distance': D_VANILLA,
+    'vanilla_prob': P_VANILLA,
     'distance_approxgrad': D_G,
     'attack_out_distance': D_OUT,
     'model_calls': MC,

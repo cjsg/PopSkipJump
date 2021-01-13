@@ -1,6 +1,7 @@
 import logging
 import torch
 import math
+import numpy as np
 import time
 from tracker import Diary, DiaryPage, InfoMaxStats
 from defaultparams import DefaultParams
@@ -13,6 +14,7 @@ class Attack:
         self.model_interface: ModelInterface = model_interface
         self.initial_num_evals = params.initial_num_evals
         self.max_num_evals = params.max_num_evals
+        self.n_iterations = params.num_iterations
         self.gamma = params.gamma
         self.batch_size = params.batch_size
         self.internal_dtype = params.internal_dtype
@@ -26,6 +28,8 @@ class Attack:
         self.prior_frac = params.prior_frac
         self.queries = params.queries
         self.grad_queries = params.grad_queries
+
+        self.rv_history = dict()
 
         # Set constraint based on the distance.
         if params.distance in ['MSE', 'L2', 'l2']:
@@ -97,6 +101,7 @@ class Attack:
         raise NotImplementedError
 
     def attack_one(self, iterations=64):
+        # torch.manual_seed(42)
         self.diary.epoch_start = time.time()
 
         self.perform_initialization()
@@ -115,26 +120,37 @@ class Attack:
 
         dist = self.compute_distance(perturbed, original)
         distance = self.a.distance
-        for step in range(1, iterations + 1):
+        for self.step in range(1, iterations + 1):
+            step = self.step  # TODO: Remove this later
             page = DiaryPage()
             page.time.start = time.time()
             page.calls.start = self.model_interface.model_calls
+            page.initial = perturbed
 
             delta = self.select_delta(dist_post_update, step)
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step), self.max_num_evals]))
-            gradf = self.gradient_approximation_step(perturbed, num_evals_det, delta, dist_post_update,
+            gradf, grad_curr = self.gradient_approximation_step(perturbed, num_evals_det, delta, dist_post_update,
                                                      estimates, page)
+            print("Main loop:", gradf.flatten()[:5])
+            # gradf = self.grad_prev[self.step]  # TODO: Very dangerous!! Remove Soon
             page.num_eval_det = num_evals_det
+            page.delta = delta
             page.time.approx_grad = time.time()
             page.calls.approx_grad = self.model_interface.model_calls
-            true_grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)
-            page.grad_true = true_grad
-            page.grad_estimate = gradf
+            # true_grad = self.model_interface.get_grads(perturbed[None], self.a.true_label)
+            # true_grad = true_grad / torch.norm(true_grad)
+            # page.grad_true = true_grad
+            page.grad_estimate = grad_curr
 
             update = gradf if self.constraint == 'l2' else torch.sign(gradf)
 
             # find step size.
             epsilon = self.geometric_progression_for_stepsize(perturbed, update, dist, step, original)
+            # print('Cosines',
+            #       torch.dot(true_grad.flatten(), self.grad_prev[self.step].flatten()),
+            #       torch.dot(true_grad.flatten(), gradf.flatten()),
+            #       epsilon,
+            #       torch.norm(gradf))
             page.time.step_search = time.time()
             page.calls.step_search = self.model_interface.model_calls
 
@@ -187,19 +203,23 @@ class Attack:
                 return
 
     def generate_random_vectors(self, batch_size):
-        noise_shape = [int(batch_size)] + list(self.shape)
-        if self.constraint == "l2":
-            rv = torch.randn(size=noise_shape, device=self.device)
-            # if torch.cuda.is_available():
-            #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
-            # else:
-            #     rv = torch.FloatTensor(*noise_shape).normal_()
-        elif self.constraint == "linf":
-            rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
-        else:
-            raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
-        axis = tuple(range(1, 1 + len(self.shape)))
-        rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis, keepdim=True))
+        with torch.no_grad():
+            noise_shape = [int(batch_size)] + list(self.shape)
+            if self.constraint == "l2":
+
+                rv = np.random.randn(*noise_shape)
+                # rv = torch.from_numpy(rv_numpy).to(self.device)
+                # rv = torch.randn(size=noise_shape, device=self.device)
+                # if torch.cuda.is_available():
+                #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
+                # else:
+                #     rv = torch.FloatTensor(*noise_shape).normal_()
+            elif self.constraint == "linf":
+                rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
+            else:
+                raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
+            axis = tuple(range(1, 1 + len(self.shape)))
+            rv = rv / np.sqrt(np.sum(rv ** 2, axis=axis,  keepdims=True))
         return rv
 
     def _gradient_estimator(self, sample, num_evals, delta):

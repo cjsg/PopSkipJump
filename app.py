@@ -48,6 +48,8 @@ parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estima
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
 parser.add_argument("-dm", "--distance", type=str, default="L2",
                     help="(Optional) Distance metric for attack. ex L2, Linf")
+parser.add_argument("-ef", "--eval_factor", type=float, default=1,
+                    help="(Optional) Distance metric for attack. ex L2, Linf")
 
 
 def validate_args(args):
@@ -113,6 +115,7 @@ def merge_params(params: DefaultParams, args):
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
     params.distance = args.distance
+    params.eval_factor = args.eval_factor
     return params
 
 

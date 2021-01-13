@@ -41,6 +41,7 @@ class PopSkipJump(Attack):
         return self._gradient_estimator(perturbed, num_evals_prob, delta_prob)
 
     def opposite_movement_step(self, original, perturbed):
+        # return perturbed
         # Go in the opposite direction
         if self.constraint == 'l2':
             return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)

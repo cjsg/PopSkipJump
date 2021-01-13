@@ -1,5 +1,6 @@
 import math
 import torch
+import numpy as np
 import logging
 
 from abstract_attack import Attack
@@ -16,13 +17,15 @@ class HopSkipJump(Attack):
         super().__init__(model_interface, data_shape, device, params)
         self.grad_queries = 1  # Original HSJA does not perform multiple queries
         self.repeat_queries = 1
+        self.eval_factor = params.eval_factor
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
         return perturbed, dist_post_update, None
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        return self._gradient_estimator(perturbed, num_evals_det, delta)[0]
+        g = self._gradient_estimator(perturbed, num_evals_det*self.eval_factor, delta)[0]
+        return g,g
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
@@ -44,8 +47,7 @@ class HopSkipJump(Attack):
             thresholds = dists_post_update * self.theta_det
         else:
             highs = torch.ones(len(perturbed_inputs), device=self.device)
-            # thresholds = self.theta * 1000  # remove 1000 later
-            thresholds = self.theta_det  # remove 1000 later
+            thresholds = self.theta_det
             if cosine:
                 thresholds /= self.d
 
@@ -93,16 +95,26 @@ class HopSkipJump(Attack):
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):
+        # torch.manual_seed(42)
         """ Computes an approximation by querying every point `grad_queries` times"""
         # Generate random vectors.
         num_rvs = int(num_evals)
-        sum_directions = torch.zeros(self.shape, device=self.device)
+        # sum_directions = torch.zeros(self.shape, device=self.device)
+        sum_directions = np.zeros(self.shape)
+        sample = sample.numpy()
+        delta = delta.numpy()
         num_batchs = int(math.ceil(num_rvs * 1.0 / self.batch_size))
+
         for j in range(num_batchs):
             batch_size = min(self.batch_size, num_rvs - j * self.batch_size)
+            # if num_evals in self.rv_history:
+            #     rv = self.rv_history[num_evals]
+            # else:
             rv = self.generate_random_vectors(batch_size)
+            #     self.rv_history[num_evals] = rv
             perturbed = sample + delta * rv
-            perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            # perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
+            perturbed = np.clip(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
             decisions = self.decision_by_repetition(perturbed)
             decision_shape = [len(decisions)] + [1] * len(self.shape)
@@ -113,10 +125,12 @@ class HopSkipJump(Attack):
                 vals = fval
             else:
                 vals = fval - torch.mean(fval)
-            sum_directions = sum_directions + torch.sum(vals * rv, dim=0)
+            vals = vals.numpy()
+            sum_directions = sum_directions + np.sum(vals * rv, axis=0)
         # Get the gradient direction.
         gradf = sum_directions / num_rvs
-        gradf = gradf / torch.norm(gradf)
+        gradf = gradf / np.linalg.norm(gradf)
+        # gradf = gradf / torch.norm(gradf)
         return gradf, sum_directions, num_rvs
 
     def decision_by_repetition(self, perturbed):
@@ -175,22 +189,40 @@ class HopSkipJumpTrueGradient(HopSkipJump):
 class HopSkipJumpAllGradient(HopSkipJump):
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         super().__init__(model_interface, data_shape, device, params)
-        self.sum_directions = torch.zeros(self.shape, device=self.device)
-        self.num_directions = 0
+        # self.sum_directions = torch.zeros(self.shape, device=self.device)
+        self.n_prev = torch.zeros(self.n_iterations+1, device=self.device)
+        self.grad_prev = torch.zeros([self.n_iterations+1]+list(self.shape), device=self.device)
+        self.prev_grad_ratio = 0.5
 
     def reset_variables(self, a):
         super().reset_variables(a)
-        self.sum_directions = torch.zeros(self.shape, device=self.device)
-        self.num_directions = 0
+        # There is no need to reset them but still doing it just to be safe
+        # self.sum_directions = torch.zeros(self.shape, device=self.device)
+        self.n_prev = torch.zeros(self.n_iterations+1, device=self.device)
+        self.grad_prev = torch.zeros([self.n_iterations+1]+list(self.shape), device=self.device)
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        if self.num_directions is 0:
-            _, sum_directions, n_samples = self._gradient_estimator(perturbed, num_evals_det, delta)
-            grad = sum_directions / n_samples
+        if self.step == 1:
+            n = num_evals_det
+            grad_curr, _, n_samples = self._gradient_estimator(perturbed, n * self.eval_factor, delta)
+            grad = grad_curr
         else:
-            _, sum_directions, n_samples = self._gradient_estimator(perturbed, num_evals_det/2, delta)
-            grad = (sum_directions + 0.5 * self.sum_directions) / (n_samples + 0.5 * self.num_directions)
-        self.sum_directions = self.sum_directions + sum_directions
-        self.num_directions += n_samples
-        grad = grad / torch.norm(grad)
-        return grad
+            prev_page = self.diary.iterations[-1]
+            n = num_evals_det
+            n_prev = prev_page.num_eval_det
+            delta_prev = prev_page.delta
+            grad_curr, _, n = self._gradient_estimator(perturbed, n * self.eval_factor, delta)
+            g_prev_2, _, n_prev_2 = self._gradient_estimator(prev_page.initial, n_prev * self.eval_factor, delta_prev)
+            # g2 = self.grad_prev[self.step-1]
+            g_prev = prev_page.grad_estimate
+            print("Inside func:", g_prev.flatten()[:5])
+            print("Inside func2:", g_prev_2.flatten()[:5])
+
+            grad = n * grad_curr + n_prev * g_prev_2
+            grad = grad / (n + n_prev)
+            # grad = grad / torch.norm(grad)
+            grad = grad / np.linalg.norm(grad)
+        # self.sum_directions = sum_directions
+        # self.n_prev[self.step] = n_samples
+        # self.grad_prev[self.step] = grad_curr.detach().clone()
+        return grad, grad_curr
