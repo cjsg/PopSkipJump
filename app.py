@@ -11,7 +11,7 @@ from img_utils import get_sample, read_image, get_samples, get_shape
 from model_factory import get_model
 from model_interface import ModelInterface
 
-logging.root.setLevel(logging.WARNING)
+logging.root.setLevel(logging.INFO)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset",
@@ -97,8 +97,8 @@ if __name__ == '__main__':
     hyperparams.noise = 'deterministic'
     hyperparams.hopskipjumpattack = True
     # hyperparams.remember_all = True
-    hyperparams.experiment_name = 'hsja_on_det_model2'
-    hyperparams.num_samples = 50
+    hyperparams.experiment_name = 'del_later'
+    hyperparams.num_samples = 1
     # hyperparams.beta = 20
     start = time.time()
     main(params=hyperparams)

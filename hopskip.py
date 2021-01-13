@@ -113,11 +113,15 @@ class HopSkipJumpAttack:
         additional['model_calls']['projection'] = self.model_interface.model_calls
         dist = self.compute_distance(perturbed, original)
         distance = a.distance
+        prev_grad = None
+        prev_num = None
+        prev_perturbed = None
+        prev_delta = None
         for step in range(1, iterations + 1):
             additional['timing']['iters'].append({'start': time.time()})
             additional['progression'].append(dict())
             additional['model_calls']['iters'].append(dict())
-            logging.info('Step %d...' % step)
+            # logging.info('Step %d...' % step)
             # Choose delta.
             delta = self.select_delta(dist_post_update, step)
 
@@ -126,9 +130,18 @@ class HopSkipJumpAttack:
             # self.grad_sampling_freq = self.sampling_freq
 
             if self.hsja:
-                gradf = self.approximate_gradient(
+                gradf_this = self.approximate_gradient(
                     decision_function, perturbed, num_evals_det, delta, average
                 )
+                if step is 1:
+                    gradf = gradf_this
+                else:
+                    g = self.approximate_gradient(decision_function, prev_perturbed, prev_num, prev_delta, average)
+                    gradf = gradf_this + g
+                    gradf = gradf / np.linalg.norm(gradf)
+                prev_perturbed = perturbed
+                prev_delta = delta
+                prev_num = num_evals_det
             else:
                 target_cos = get_cos_from_n(num_evals_det, theta=self.theta, delta=delta/dist_post_update, d=self.d)
                 num_evals_prob = int(get_n_from_cos(target_cos, s=s_, theta=(1/100), delta=(np.sqrt(self.d)/100), d=self.d))
@@ -151,7 +164,7 @@ class HopSkipJumpAttack:
                 cos_details = self.capture_cosines(perturbed, original, gradf, a.true_label, decision_function)
                 additional['cosine_details'].append(cos_details)
 
-            logging.info('Binary Search back to the boundary')
+            # logging.info('Binary Search back to the boundary')
             if self.stepsize_search == "geometric_progression":
                 # find step size.
                 epsilon = self.geometric_progression_for_stepsize(
@@ -212,8 +225,8 @@ class HopSkipJumpAttack:
                 distance = dist ** 2 / self.d / (self.clip_max - self.clip_min) ** 2
             elif self.constraint == "linf":
                 distance = dist / (self.clip_max - self.clip_min)
-            logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
-            logging.info('distance of adversarial = %f', distance)
+            # logging.info('Model Calls till now: %d' % self.model_interface.model_calls)
+            logging.info('distance of adversarial = %f', dist)
             additional['iterations'].append({'perturbed': a.perturbed, 'distance': a.distance})
         return additional
 
