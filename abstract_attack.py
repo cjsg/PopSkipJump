@@ -1,7 +1,6 @@
 import logging
 import torch
 import math
-import numpy as np
 import time
 from tracker import Diary, DiaryPage, InfoMaxStats
 from defaultparams import DefaultParams
@@ -131,7 +130,7 @@ class Attack:
             num_evals_det = int(min([self.initial_num_evals * math.sqrt(step), self.max_num_evals]))
             gradf, grad_curr = self.gradient_approximation_step(perturbed, num_evals_det, delta, dist_post_update,
                                                      estimates, page)
-            print("Main loop:", gradf.flatten()[:5])
+            # print("Main loop:", gradf.flatten()[:5])
             # gradf = self.grad_prev[self.step]  # TODO: Very dangerous!! Remove Soon
             page.num_eval_det = num_evals_det
             page.delta = delta
@@ -206,10 +205,7 @@ class Attack:
         with torch.no_grad():
             noise_shape = [int(batch_size)] + list(self.shape)
             if self.constraint == "l2":
-
-                rv = np.random.randn(*noise_shape)
-                # rv = torch.from_numpy(rv_numpy).to(self.device)
-                # rv = torch.randn(size=noise_shape, device=self.device)
+                rv = torch.randn(size=noise_shape, device=self.device)
                 # if torch.cuda.is_available():
                 #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
                 # else:
@@ -219,7 +215,7 @@ class Attack:
             else:
                 raise RuntimeError("Unknown constraint metric: {}".format(self.constraint))
             axis = tuple(range(1, 1 + len(self.shape)))
-            rv = rv / np.sqrt(np.sum(rv ** 2, axis=axis,  keepdims=True))
+            rv = rv / torch.sqrt(torch.sum(rv ** 2, dim=axis,  keepdim=True))
         return rv
 
     def _gradient_estimator(self, sample, num_evals, delta):

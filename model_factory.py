@@ -41,14 +41,15 @@ class Model:
             return torch.argmax(logits, dim=1)
 
     def get_probs(self, images):
-        if type(images) != torch.Tensor:
-            images = torch.tensor(images, dtype=torch.float32)
-        logits = self.predict(images)
-        # logits = logits.numpy()
-        logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
-        probs = torch.exp(self.beta*logits)
-        probs = probs / torch.sum(probs, dim=1, keepdim=True)
-        # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
+        with torch.no_grad():
+            if type(images) != torch.Tensor:
+                images = torch.tensor(images, dtype=torch.float32)
+            logits = self.predict(images)
+            # logits = logits.numpy()
+            logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
+            probs = torch.exp(self.beta*logits)
+            probs = probs / torch.sum(probs, dim=1, keepdim=True)
+            # sample = [np.argmax(np.random.multinomial(1, prob)) for prob in probs]
         return probs
 
     def get_grads(self, images, true_label):
