@@ -452,8 +452,8 @@ def bin_search(
     for k in tqdm(range(krepeat), desc='bin-search'):
         if stop_next:
             break
-        if k == krepeat - 1:
-            stop_next = True
+        # if k == krepeat - 1:
+        #     stop_next = True
 
         t_start = time.time()
 

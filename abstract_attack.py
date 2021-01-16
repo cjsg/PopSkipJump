@@ -190,10 +190,6 @@ class Attack:
         noise_shape = [int(batch_size)] + list(self.shape)
         if self.constraint == "l2":
             rv = torch.randn(size=noise_shape, device=self.device)
-            # if torch.cuda.is_available():
-            #     rv = torch.cuda.FloatTensor(*noise_shape).normal_()
-            # else:
-            #     rv = torch.FloatTensor(*noise_shape).normal_()
         elif self.constraint == "linf":
             rv = 2 * torch.rand(size=noise_shape) - 1  # random vector between -1 and +1
         else:

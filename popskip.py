@@ -45,11 +45,13 @@ class PopSkipJump(Attack):
         if self.constraint == 'l2':
             return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
         elif self.constraint == 'linf':
-            o_ = original.flatten()
-            p_ = perturbed.flatten()
-            indices = torch.argmax(torch.abs(o_ - p_))
-            p_[indices] = p_[indices] + 0.5 * (p_[indices] - o_[indices])
-            return torch.clamp(p_.view(perturbed.shape), self.clip_min, self.clip_max)
+            return perturbed
+            # return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
+            # o_ = original.flatten()
+            # p_ = perturbed.flatten()
+            # indices = torch.argmax(torch.abs(o_ - p_))
+            # p_[indices] = p_[indices] + 0.5 * (p_[indices] - o_[indices])
+            # return torch.clamp(p_.view(perturbed.shape), self.clip_min, self.clip_max)
 
     def get_theta_prob(self, target_cos, estimates=None):
         """

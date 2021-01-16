@@ -89,6 +89,7 @@ def project(x_star, x_t, label, theta_det):
 
 
 D = torch.zeros(size=(NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
+D_VANILLA = torch.zeros_like(D, device=device)
 D_OUT = torch.zeros_like(D, device=device)
 D_G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
@@ -103,6 +104,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             x_0 = diary.initial_projection
             x_00 = project(x_star, x_0, label, theta_det)
             D[0, image] = compute_distance(x_star, x_00)
+            D_VANILLA[0, image] = compute_distance(x_star, x_0)
             D_OUT[0, image] = -1
             MC[0, image] = diary.calls_initial_bin_search
 
@@ -112,6 +114,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
         x_tt = project(x_star, x_t, label, theta_det)
 
         D[iteration + 1, image] = compute_distance(x_star, x_tt)
+        D_VANILLA[iteration + 1, image] = compute_distance(x_star, x_t)
         D_G[iteration+1, image] = compute_distance(x_star, page.approx_grad)
         if exp_name.startswith('psj'):
             D_OUT[iteration + 1, image] = D[iteration, image]
@@ -134,6 +137,7 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
 
 dump = {
     'border_distance': D,
+    'vanilla_distance': D_VANILLA,
     'distance_approxgrad': D_G,
     'attack_out_distance': D_OUT,
     'model_calls': MC,
