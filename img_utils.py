@@ -47,12 +47,15 @@ def find_adversarial_images(dataset, labels):
             cand_img = [ii[0], ii[i]]
             cand_lbl = [ll[0], ll[i]]
     starts = []
+    targeted_labels = []
     for l in labels:
         if l != cand_lbl[0]:
             starts.append(cand_img[0])
+            targeted_labels.append(cand_lbl[0])
         else:
             starts.append(cand_img[1])
-    return starts
+            targeted_labels.append(cand_lbl[1])
+    return starts, targeted_labels
 
 
 def get_samples(dataset, n_samples=16, conf=None, model=None, samples_from=0):

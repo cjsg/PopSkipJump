@@ -11,6 +11,7 @@ from model_interface import ModelInterface
 class Attack:
     def __init__(self, model_interface, data_shape, device=None, params: DefaultParams = None):
         self.model_interface: ModelInterface = model_interface
+        self.targeted = params.targeted
         self.initial_num_evals = params.initial_num_evals
         self.max_num_evals = params.max_num_evals
         self.gamma = params.gamma
@@ -43,12 +44,12 @@ class Attack:
         else:
             self.theta_det = self.gamma / (self.d * self.d)
 
-    def attack(self, images, labels, starts=None, iterations=64):
+    def attack(self, images, labels, starts=None, targeted_labels=None, iterations=64):
         raw_results = []
         distances = []
         for i, (image, label) in enumerate(zip(images, labels)):
             logging.warning("Attacking Image: {}".format(i))
-            a = Adversarial(image=image, label=label, device=self.device)
+            a = Adversarial(image=image, label=label, targeted_label=targeted_labels[i], device=self.device)
             if starts is not None:
                 a.set_starting_point(starts[i], self.bounds)
             self.reset_variables(a)
@@ -172,7 +173,7 @@ class Attack:
         self.prev_t = None
         self.prev_s = None
         self.prev_e = None
-        self.diary = Diary(a.unperturbed, a.true_label)
+        self.diary = Diary(a.unperturbed, a.true_label, a.targeted_label)
 
     def initialize_starting_point(self, a):
         num_evals = 0

@@ -120,7 +120,11 @@ class HopSkipJump(Attack):
         return gradf, sum_directions, num_rvs
 
     def decision_by_repetition(self, perturbed):
-        decisions = self.model_interface.decision(perturbed, self.a.true_label, self.repeat_queries)
+        if self.targeted:
+            decisions = self.model_interface.decision(perturbed, self.a.targeted_label, self.repeat_queries,
+                                                      targeted=True)
+        else:
+            decisions = self.model_interface.decision(perturbed, self.a.true_label, self.repeat_queries)
         decisions = decisions.sum(dim=1) / self.repeat_queries
         decisions = (decisions > 0.5) * 1
         for i in range(perturbed.shape[0]):

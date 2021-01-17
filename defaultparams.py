@@ -8,6 +8,7 @@ class DefaultParams:
 
     def __init__(self):
         self.attack = 'popskip'
+        self.targeted = False
         self.dataset = 'mnist'
         self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
         self.num_iterations = 32

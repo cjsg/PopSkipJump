@@ -15,6 +15,13 @@ from model_interface import ModelInterface
 logging.root.setLevel(logging.WARNING)
 OUT_DIR = 'thesis'
 parser = argparse.ArgumentParser()
+
+feature_parser = parser.add_mutually_exclusive_group(required=False)
+feature_parser.add_argument('--targeted', dest='targeted', action='store_true')
+feature_parser.add_argument('--no-targeted', dest='targeted', action='store_false')
+parser.set_defaults(targeted=False)
+
+
 parser.add_argument("-d", "--dataset", type=str,
                     help="(Mandatory) supported: mnist, cifar10")
 parser.add_argument("-n", "--noise", type=str,
@@ -87,7 +94,7 @@ def run_attack(attack, dataset, params):
         det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
         imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
                                    model=det_model, samples_from=params.samples_from)
-        starts = find_adversarial_images(dataset, labels)
+        starts, targeted_labels = find_adversarial_images(dataset, labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
             img, label = get_sample(dataset=dataset, index=0)
@@ -97,13 +104,14 @@ def run_attack(attack, dataset, params):
 
         if params.init_image_path is not None:
             starts = [read_image(params.init_image_path)]
-    return attack.attack(imgs, labels, starts, iterations=params.num_iterations)
+    return attack.attack(imgs, labels, starts, targeted_labels, iterations=params.num_iterations)
 
 
 def merge_params(params: DefaultParams, args):
     params.noise = args.noise
     params.beta = args.beta
     params.attack = args.attack
+    params.targeted = args.targeted
     params.dataset = args.dataset
     params.prior_frac = args.prior_frac
     params.queries = args.queries_per_loc

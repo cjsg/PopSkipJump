@@ -31,29 +31,42 @@ class ModelInterface:
         self.model_calls += probs.numel()
         return torch.bernoulli(probs)
 
-    def decision(self, batch, true_label, num_queries=1):
+    def decision(self, batch, label, num_queries=1, targeted=False,):
         """
-        :param true_label: True labels of the original image being attacked
+        :param label: True/Targeted labels of the original image being attacked
         :param num_queries: Number of times to query each image
         :param batch: A batch of images
+        :param targeted: if targeted is true, label=targeted_label else label=true_label
         :return: decisions of shape = (len(batch), num_queries)
         """
         probs = self.get_probs_(images=batch)
         self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
-            return (prediction != true_label) * 1.0
+            if targeted:
+                return (prediction == label) * 1.0
+            else:
+                return (prediction != label) * 1.0
+
         elif self.noise == 'stochastic':
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)
-            rand_pred[rand_pred == true_label] = self.n_classes-1
+            # TODO: Review this step carefully. I think it is assumed that prediction = label
+            rand_pred[rand_pred == label] = self.n_classes - 1
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             indices_to_flip = torch.rand(size=(len(batch), num_queries), device=self.device) < self.flip_prob
             prediction[indices_to_flip] = rand_pred[indices_to_flip]
-            return (prediction != true_label) * 1.0
+            if targeted:
+                return (prediction == label) * 1.0
+            else:
+                return (prediction != label) * 1.0
+
         elif self.noise == 'bayesian':
-            probs = probs[:, true_label]
+            probs = probs[:, label]
             probs = probs.view(-1, 1).repeat(1, num_queries)
-            decisions = torch.bernoulli(1 - probs)
+            if targeted:
+                decisions = torch.bernoulli(probs)
+            else:
+                decisions = torch.bernoulli(1 - probs)
             return decisions
         else:
             raise RuntimeError(f'Unknown Noise type: {self.noise}')

@@ -1,7 +1,8 @@
 class Diary(object):
-    def __init__(self, image, label):
+    def __init__(self, image, label, targeted_label):
         self.true_label = label
         self.original = image
+        self.targeted_label = targeted_label
 
         self.initial_image = None
         self.initial_projection = None

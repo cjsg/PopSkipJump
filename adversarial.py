@@ -3,9 +3,10 @@ import torch
 
 
 class Adversarial:
-    def __init__(self, image, label, device=None, distance='MSE'):
+    def __init__(self, image, label, targeted_label, device=None, distance='MSE'):
         self.unperturbed = torch.tensor(image).type(torch.float32).to(device)
         self.true_label = label
+        self.targeted_label = targeted_label
         self.distance_metric = distance
         self.distance = float('Inf')
         self.perturbed = None
