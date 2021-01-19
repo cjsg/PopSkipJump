@@ -58,7 +58,7 @@ class HopSkipJump(Attack):
             mid_inputs = self.project(unperturbed, perturbed_inputs, mids)
 
             # Update highs and lows based on model decisions.
-            decisions = self.decision_by_repetition(mid_inputs)
+            decisions = self.decision_by_polling(mid_inputs)
             lows = torch.where(decisions == 0, mids, lows)
             highs = torch.where(decisions == 1, mids, highs)
 
@@ -93,7 +93,10 @@ class HopSkipJump(Attack):
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):
-        """ Computes an approximation by querying every point `grad_queries` times"""
+        """
+            Computes an approximation by querying every point `repeat_queries` times
+            Result is accumulated by doing polling
+        """
         # Generate random vectors.
         num_rvs = int(num_evals)
         sum_directions = torch.zeros(self.shape, device=self.device)
@@ -104,7 +107,7 @@ class HopSkipJump(Attack):
             perturbed = sample + delta * rv
             perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
-            decisions = self.decision_by_repetition(perturbed)
+            decisions = self.decision_by_polling(perturbed)
             decision_shape = [len(decisions)] + [1] * len(self.shape)
             # Map (0, 1) to (-1, +1)
             fval = 2 * decisions.view(decision_shape) - 1.0
@@ -119,7 +122,7 @@ class HopSkipJump(Attack):
         gradf = gradf / torch.norm(gradf)
         return gradf, sum_directions, num_rvs
 
-    def decision_by_repetition(self, perturbed):
+    def decision_by_polling(self, perturbed):
         if self.targeted:
             decisions = self.model_interface.decision(perturbed, self.a.targeted_label, self.repeat_queries,
                                                       targeted=True)

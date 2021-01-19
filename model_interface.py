@@ -31,7 +31,7 @@ class ModelInterface:
         self.model_calls += probs.numel()
         return torch.bernoulli(probs)
 
-    def decision(self, batch, label, num_queries=1, targeted=False,):
+    def decision(self, batch, label, num_queries=1, targeted=False):
         """
         :param label: True/Targeted labels of the original image being attacked
         :param num_queries: Number of times to query each image
@@ -121,7 +121,7 @@ class ModelInterface:
         outs = self.models[m_id].get_grads(images, true_label)
         return outs
 
-    # TODO: Will be deprecated soon
+    @DeprecationWarning
     def forward(self, images, a, freq, average=False, remember=True):
         if type(images) != torch.Tensor:
             images = torch.tensor(images).to(self.device)

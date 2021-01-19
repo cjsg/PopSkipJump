@@ -179,7 +179,13 @@ class Attack:
         num_evals = 0
         while True:
             random_noise = torch.rand(size=self.shape) * (self.clip_max - self.clip_min) + self.clip_min
-            success = self.model_interface.forward(random_noise[None], a, self.sampling_freq)
+            if self.targeted:
+                label = a.targeted_label
+            else:
+                label = a.true_label
+            decisions = self.model_interface.decision(random_noise[None], label, self.sampling_freq, self.targeted)
+            success = int(decisions.sum() * 2.0 >= self.sampling_freq)
+            # success = self.model_interface.forward(random_noise[None], a, self.sampling_freq)
             # when model is confused, it is not adversarial
             num_evals += 1
             if success == 1:
@@ -200,7 +206,10 @@ class Attack:
         return rv
 
     def _gradient_estimator(self, sample, num_evals, delta):
-        """ Computes an approximation by querying every point `grad_queries` times"""
+        """
+            Computes an approximation by querying every point `grad_queries` times
+            Result is accumulated by doing averaging
+        """
         # Generate random vectors.
         num_rvs = int(num_evals/self.grad_queries)
         sum_directions = torch.zeros(self.shape, device=self.device)
@@ -211,11 +220,7 @@ class Attack:
             perturbed = sample + delta * rv
             perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
-            if self.targeted:
-                decisions = self.model_interface.decision(perturbed, self.a.targeted_label, self.grad_queries, targeted=True)
-            else:
-                decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
-            decisions = decisions.sum(dim=1)
+            decisions = self.decision_by_averaging(perturbed)
             decision_shape = [len(decisions)] + [1] * len(self.shape)
             # Map (0, 1) -> (-1, +1)
             fval = 2 * decisions.view(decision_shape) - self.grad_queries
@@ -229,6 +234,15 @@ class Attack:
         gradf = sum_directions / (num_rvs*self.grad_queries)
         gradf = gradf / torch.norm(gradf)
         return gradf
+
+    def decision_by_averaging(self, perturbed):
+        if self.targeted:
+            decisions = self.model_interface.decision(perturbed, self.a.targeted_label, self.grad_queries,
+                                                      targeted=True)
+        else:
+            decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
+        decisions = decisions.sum(dim=1)
+        return decisions
 
     def geometric_progression_for_stepsize(self, x, update, dist, current_iteration, original=None):
         """

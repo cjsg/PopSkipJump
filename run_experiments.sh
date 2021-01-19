@@ -1,10 +1,10 @@
 betas="1"
 flip="0.00"
 repeat="1"
-attacks="hsj"
+attacks="psj"
 num_samples=10
 dm="l2"
-noise="deterministic"
+noise="bayesian"
 dataset="mnist"
 device=2
 for beta in $betas; do
