@@ -21,8 +21,12 @@ class PopSkipJump(Attack):
         self.stop_criteria = params.infomax_stop_criteria
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
+        if self.targeted:
+            label = self.a.targeted_label
+        else:
+            label = self.a.true_label
         perturbed, dist_post_update, s_, e_, t_, n_, (nn_tmap, xx) = self.info_max_batch(
-            original, perturbed[None], self.a.true_label, estimates, step)
+            original, perturbed[None], label, estimates, step)
         if page is not None:
             page.info_max_stats = InfoMaxStats(s_, t_, xx, e_, n_)
         return perturbed, dist_post_update, {'s': s_, 'e': e_, 'n': n_, 't': t_}
@@ -81,7 +85,7 @@ class PopSkipJump(Attack):
                 high = mid
         return low
 
-    def info_max_batch(self, unperturbed, perturbed_inputs, true_label, estimates, step):
+    def info_max_batch(self, unperturbed, perturbed_inputs, label, estimates, step):
         border_points = []
         dists = []
         smaps, tmaps, emaps, ns = [], [], [], []
@@ -97,7 +101,7 @@ class PopSkipJump(Attack):
             output, n = bin_search(
                 unperturbed, perturbed_input, self.model_interface, d=self.d,
                 grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
-                true_label=true_label, prev_t=self.prev_t, prev_s=self.prev_s,
+                label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
                 prev_e=self.prev_e, prior_frac=self.prior_frac, target_cos=target_cos,
                 queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
             nn_tmap_est = output['nn_tmap_est']

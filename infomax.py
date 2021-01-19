@@ -217,7 +217,7 @@ def plot_acquisition(k, xx, a_x, pts_x, ttss, output, acq_func):
     plt.show()
 
 
-def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label, dist_metric='l2'):
+def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist_metric='l2', targeted=False):
     dims = [-1] + [1] * unperturbed.ndim
     xx = xx.view(dims)
     if dist_metric == 'l2':
@@ -232,22 +232,23 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label,
     if model_interface.noise == "deterministic":
         pred = probs.argmax(dim=1)
         res = torch.zeros(xx.shape[0], device=batch.device)
-        res[pred == true_label] = 1.
+        res[pred == label] = 1.
     elif model_interface.noise == "stochastic":
         pred = probs.argmax(dim=1)
         res = torch.ones(xx.shape[0], device=batch.device) * model_interface.flip_prob / (model_interface.n_classes - 1)
-        res[pred == true_label] = 1 - model_interface.flip_prob
+        res[pred == label] = 1 - model_interface.flip_prob
     else:
-        res = probs[:, true_label]
+        res = probs[:, label]
+    if targeted:
+        res = 1 - res
     return res
-
 
 
 def bin_search(
         unperturbed=None, perturbed=None, model_interface=None,
         acq_func='I(y,t,s,e)', center_on='near_best', kmax=5000, target_cos=.2,
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
-        eps_=None, device=None, true_label=None, plot=False, prev_t=None,
+        eps_=None, device=None, label=None, targeted=False, plot=False, prev_t=None,
         prev_s=None, prev_e=None, prior_frac=1., queries=5,
         tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation", dist_metric="l2"):
     '''
@@ -264,6 +265,8 @@ def bin_search(
         grid_size   (int)   grid size used for discretization of t
         eps_        (float) noise level used (DEPRECATED!!)
         device      (str)   which device to use ('cuda' or 'cpu')
+        label       (int)   true or targeted label based on type of attack
+        targeted    (bool)  true for targeted attack and false for untargeted
         plot        (bool)  to plot or not to plot
         prev_t      (float) previous estimate of the sigmoid center t (None)
         prev_s      (float) previous estimate of the sigmoid inverse-scale s (None)
@@ -394,7 +397,7 @@ def bin_search(
     if unperturbed is None:
         pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
     else:
-        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, true_label, dist_metric)
+        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist_metric, targeted)
 
     def vprint(string):
         if verbose:

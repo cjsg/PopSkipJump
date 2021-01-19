@@ -211,7 +211,10 @@ class Attack:
             perturbed = sample + delta * rv
             perturbed = torch.clamp(perturbed, self.clip_min, self.clip_max)
             rv = (perturbed - sample) / delta
-            decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
+            if self.targeted:
+                decisions = self.model_interface.decision(perturbed, self.a.targeted_label, self.grad_queries, targeted=True)
+            else:
+                decisions = self.model_interface.decision(perturbed, self.a.true_label, self.grad_queries)
             decisions = decisions.sum(dim=1)
             decision_shape = [len(decisions)] + [1] * len(self.shape)
             # Map (0, 1) -> (-1, +1)
