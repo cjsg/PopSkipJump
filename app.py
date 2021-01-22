@@ -8,7 +8,7 @@ from defaultparams import DefaultParams
 from popskip import PopSkipJump, PopSkipJumpTrueLogits
 from popskip_human import PopSkipJumpHuman
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient, HopSkipJumpAllGradient
-from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images
+from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images, get_samples_for_cropping
 from model_factory import get_model
 from model_interface import ModelInterface
 
@@ -56,6 +56,12 @@ parser.add_argument("-isc", "--infomax_stop_criteria", type=str, default="estima
                     help="(Optional) Stopping Criteria to use in Infomax procedure")
 parser.add_argument("-dm", "--distance", type=str, default="L2",
                     help="(Optional) Distance metric for attack. ex L2, Linf")
+parser.add_argument("-sn", "--smoothing_noise", type=float, default=0.,
+                    help="(Optional) Noise used in Randomized smoothing")
+parser.add_argument("-cs", "--crop_size", type=int, default=28,
+                    help="(Optional) Size of cropped images")
+parser.add_argument("-dr", "--drop_rate", type=float, default=0.,
+                    help="(Optional) rate for dropout noise")
 
 
 def validate_args(args):
@@ -71,10 +77,12 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
-    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device())
+    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise,
+                        params.crop_size, params.drop_rate)
               for k in params.model_keys[dataset]]
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
-                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob)
+                                     noise=params.noise, device=get_device(), flip_prob=params.flip_prob,
+                                     smoothing_noise=params.smoothing_noise, crop_size=params.crop_size)
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
@@ -91,9 +99,11 @@ def create_attack(exp_name, dataset, params):
 def run_attack(attack, dataset, params):
     starts = None
     if params.experiment_mode:
-        det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
-        imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
-                                   model=det_model, samples_from=params.samples_from)
+        crop_model = get_model(params.model_keys[dataset][0], dataset, noise='cropping', crop_size=22)
+        imgs, labels = get_samples_for_cropping(dataset, crop_model, params.num_samples, params.orig_image_conf)
+        # det_model = get_model(key=params.model_keys[dataset][0], dataset=dataset, noise='deterministic')
+        # imgs, labels = get_samples(dataset, n_samples=params.num_samples, conf=params.orig_image_conf,
+        #                            model=det_model, samples_from=params.samples_from)
         starts, targeted_labels = find_adversarial_images(dataset, labels)
     else:
         if params.input_image_path is None or params.input_image_label is None:
@@ -123,6 +133,9 @@ def merge_params(params: DefaultParams, args):
     params.theta_fac = args.theta_fac
     params.infomax_stop_criteria = args.infomax_stop_criteria
     params.distance = args.distance
+    params.smoothing_noise = args.smoothing_noise
+    params.crop_size = args.crop_size
+    params.drop_rate = args.drop_rate
     return params
 
 

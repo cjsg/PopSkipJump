@@ -1,6 +1,8 @@
 import time
 from math import pi, sqrt, log10
 import torch
+import torch.nn.functional as F
+
 from scipy.special import erf  # , xlogy
 from tqdm import tqdm
 # from tqdm.notebook import tqdm  # tqdm_notebook as tqdm
@@ -228,17 +230,49 @@ def get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist
         max_limit = unperturbed + (1-xx) * dist_linf
         batch = torch.where(perturbed > max_limit, max_limit, perturbed)
         batch = torch.where(batch < min_limit, min_limit, batch)
-    probs = model_interface.get_probs_(batch)
-    if model_interface.noise == "deterministic":
+    else:
+        raise RuntimeError(f'Unknown Distance Metric: {dist_metric}')
+    if model_interface.noise in ["deterministic", "dropout"]:
+        probs = model_interface.get_probs_(batch)
+        pred = probs.argmax(dim=1)
+        res = torch.zeros(xx.shape[0], device=batch.device)
+        res[pred == label] = 1.
+    elif model_interface.noise == "smoothing":
+        rv = torch.randn(size=batch.shape, device=batch.device)
+        batch_ = batch + model_interface.smoothing_noise * rv
+        batch_ = torch.clamp(batch_, model_interface.bounds[0], model_interface.bounds[1])
+        probs = model_interface.get_probs_(batch_)
+        pred = probs.argmax(dim=1)
+        res = torch.zeros(xx.shape[0], device=batch.device)
+        res[pred == label] = 1.
+    elif model_interface.noise == "cropping":
+        size = batch.shape[1]
+        x_start = torch.randint(low=0, high=size + 1 - model_interface.crop_size, size=(1, len(batch)))[0]
+        x_end = x_start + model_interface.crop_size
+        y_start = torch.randint(low=0, high=size + 1 - model_interface.crop_size, size=(1, len(batch)))[0]
+        y_end = y_start + model_interface.crop_size
+        cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(batch)]
+        cropped_batch = torch.stack(cropped)
+        if cropped_batch.ndim == 4:
+            resized = F.interpolate(cropped_batch.permute(0, 3, 1, 2), size, mode='bilinear')
+            resized = resized.permute(0, 2, 3, 1)
+        else:
+            resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+            resized = resized.squeeze(dim=1)
+        probs = model_interface.get_probs_(resized)
         pred = probs.argmax(dim=1)
         res = torch.zeros(xx.shape[0], device=batch.device)
         res[pred == label] = 1.
     elif model_interface.noise == "stochastic":
+        probs = model_interface.get_probs_(batch)
         pred = probs.argmax(dim=1)
         res = torch.ones(xx.shape[0], device=batch.device) * model_interface.flip_prob / (model_interface.n_classes - 1)
         res[pred == label] = 1 - model_interface.flip_prob
-    else:
+    elif model_interface.noise == "bayesian":
+        probs = model_interface.get_probs_(batch)
         res = probs[:, label]
+    else:
+        raise RuntimeError(f'Unknown Noise type: {model_interface.noise}')
     if targeted:
         res = 1 - res
     return res
@@ -397,7 +431,8 @@ def bin_search(
     if unperturbed is None:
         pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
     else:
-        pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist_metric, targeted)
+        pp = None
+        # pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist_metric, targeted)
 
     def vprint(string):
         if verbose:
@@ -593,7 +628,8 @@ def bin_search(
         if model_interface is None:
             yj = torch.bernoulli(pp[j_amax]).long()
         else:
-            yj = model_interface.sample_bernoulli(pp[j_amax]).long()
+            pj = get_bernoulli_probs(xj[None], unperturbed, perturbed, model_interface, label, dist_metric, targeted)
+            yj = model_interface.sample_bernoulli(pj).long()
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

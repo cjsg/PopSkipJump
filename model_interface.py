@@ -1,5 +1,6 @@
 import random
 import torch
+import torch.nn.functional as F
 
 
 class ModelInterface:
@@ -11,7 +12,7 @@ class ModelInterface:
             - implements the definition of an adversarial example
     """
     def __init__(self, models, bounds=(0, 1), n_classes=None, slack=0.10, noise='deterministic',
-                 new_adv_def=False, device=None, flip_prob=0.0):
+                 new_adv_def=False, device=None, flip_prob=0.0, smoothing_noise=0., crop_size=None):
         self.models = models
         self.bounds = bounds
         self.n_classes = n_classes
@@ -22,6 +23,8 @@ class ModelInterface:
         self.device = device
         self.send_models_to_device()
         self.flip_prob = flip_prob
+        self.smoothing_noise = smoothing_noise
+        self.crop_size = crop_size
 
     def send_models_to_device(self):
         for model in self.models:
@@ -39,16 +42,47 @@ class ModelInterface:
         :param targeted: if targeted is true, label=targeted_label else label=true_label
         :return: decisions of shape = (len(batch), num_queries)
         """
-        probs = self.get_probs_(images=batch)
         self.model_calls += batch.shape[0] * num_queries
-        if self.noise == 'deterministic':
+        if self.noise in ['deterministic', 'dropout']:
+            probs = self.get_probs_(images=batch)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
             if targeted:
                 return (prediction == label) * 1.0
             else:
                 return (prediction != label) * 1.0
-
+        elif self.noise == 'smoothing':
+            #TODO: Add support for num_queries later
+            rv = torch.randn(size=batch.shape, device=self.device)
+            batch_ = batch + self.smoothing_noise * rv
+            batch_ = torch.clamp(batch_, self.bounds[0], self.bounds[1])
+            probs = self.get_probs_(images=batch_)
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)  # TODO: Change this
+            if targeted:
+                return (prediction == label) * 1.0
+            else:
+                return (prediction != label) * 1.0
+        elif self.noise == 'cropping':
+            size = batch.shape[1]
+            x_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(batch)))[0]
+            x_end = x_start + self.crop_size
+            y_start = torch.randint(low=0, high=size+1-self.crop_size, size=(1, len(batch)))[0]
+            y_end = y_start + self.crop_size
+            cropped = [b[x_start[i]:x_end[i], y_start[i]:y_end[i]] for i, b in enumerate(batch)]
+            cropped_batch = torch.stack(cropped)
+            if cropped_batch.ndim == 4:
+                resized = F.interpolate(cropped_batch.permute(0, 3, 1, 2), size, mode='bilinear')
+                resized = resized.permute(0, 2, 3, 1)
+            else:
+                resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
+                resized = resized.squeeze(dim=1)
+            probs = self.get_probs_(images=resized)
+            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            if targeted:
+                return (prediction == label) * 1.0
+            else:
+                return (prediction != label) * 1.0
         elif self.noise == 'stochastic':
+            probs = self.get_probs_(images=batch)
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)
             # TODO: Review this step carefully. I think it is assumed that prediction = label
             rand_pred[rand_pred == label] = self.n_classes - 1
@@ -61,6 +95,7 @@ class ModelInterface:
                 return (prediction != label) * 1.0
 
         elif self.noise == 'bayesian':
+            probs = self.get_probs_(images=batch)
             probs = probs[:, label]
             probs = probs.view(-1, 1).repeat(1, num_queries)
             if targeted:
