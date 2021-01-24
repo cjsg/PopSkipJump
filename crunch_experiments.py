@@ -101,6 +101,7 @@ def project(x_star, x_t, label, theta_det, smoothing=False):
         c = 0.25
         while True:
             x_tt = x_t + c * (x_t - x_star) / torch.norm(x_t - x_star)
+            x_tt = torch.clamp(x_tt, 0, 1)
             if smoothing:
                 pred = smoothing_output(x_tt, label)
             else:
