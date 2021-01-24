@@ -102,7 +102,7 @@ def project(x_star, x_t, label, theta_det, smoothing=False):
         while True:
             x_tt = x_t + c * (x_t - x_star) / torch.norm(x_t - x_star)
             x_tt = torch.clamp(x_tt, 0, 1)
-            if torch.all(x_tt == 1) or torch.all(x_tt == 0):
+            if torch.all(torch.logical_or(x_tt == 1, x_tt == 0)).item() or c > 2**20:
                 break
             if smoothing:
                 pred = smoothing_output(x_tt, label)
