@@ -106,6 +106,11 @@ class PopSkipJump(Attack):
                 queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map, e_map = output['ttse_max'][-1]
+            if t_map == 1:
+                print('Prob of label (unperturbed):', self.model_interface.get_probs(unperturbed)[0, label])
+                print('Prob of label (perturbed):', self.model_interface.get_probs(perturbed_input)[0, label])
+                space = [(1 - tt) * perturbed_input + tt * unperturbed for tt in torch.linspace(0, 1, 21)]
+                print([self.model_interface.get_probs(x)[0, label] for x in space])
             if self.constraint == 'l2':
                 border_point = (1 - t_map) * perturbed_input + t_map * unperturbed
             elif self.constraint == 'linf':
