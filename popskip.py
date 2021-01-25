@@ -107,18 +107,28 @@ class PopSkipJump(Attack):
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map, e_map = output['ttse_max'][-1]
             if t_map == 1:
-                print('Prob of label (unperturbed):', self.model_interface.get_probs(unperturbed)[0, label])
-                print('Prob of label (perturbed):', self.model_interface.get_probs(perturbed_input)[0, label])
-                space = [(1 - tt) * perturbed_input + tt * unperturbed for tt in torch.linspace(0, 1, 21)]
-                print([self.model_interface.get_probs(x)[0, label] for x in space])
-                print('delta:', self.delta_prob_unit)
-                print('label:', label)
-                print('prev_t,s,e:', self.prev_t, self.prev_s, self.prev_e)
-                print('prior_frac:', self.prior_frac)
-                print('target_cos', target_cos)
-                torch.save(unperturbed, open('dumps/unperturbed.pkl', 'wb'))
-                torch.save(perturbed_input, open('dumps/perturbed.pkl', 'wb'))
-                # torch.save(self.model_interface, open('dumps/model_interface.pkl', 'wb'))
+                print('Got t_map == 1, Retrying again...')
+                output, n = bin_search(
+                    unperturbed, perturbed_input, self.model_interface, d=self.d,
+                    grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
+                    label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
+                    prev_e=self.prev_e, prior_frac=self.prior_frac, target_cos=target_cos,
+                    queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
+                nn_tmap_est = output['nn_tmap_est']
+                t_map, s_map, e_map = output['ttse_max'][-1]
+                if t_map == 1:
+                    print('Prob of label (unperturbed):', self.model_interface.get_probs(unperturbed)[0, label])
+                    print('Prob of label (perturbed):', self.model_interface.get_probs(perturbed_input)[0, label])
+                    space = [(1 - tt) * perturbed_input + tt * unperturbed for tt in torch.linspace(0, 1, 21)]
+                    print([self.model_interface.get_probs(x)[0, label] for x in space])
+                    print('delta:', self.delta_prob_unit)
+                    print('label:', label)
+                    print('prev_t,s,e:', self.prev_t, self.prev_s, self.prev_e)
+                    print('prior_frac:', self.prior_frac)
+                    print('target_cos', target_cos)
+                    torch.save(unperturbed, open('dumps/unperturbed.pkl', 'wb'))
+                    torch.save(perturbed_input, open('dumps/perturbed.pkl', 'wb'))
+                    # torch.save(self.model_interface, open('dumps/model_interface.pkl', 'wb'))
 
             if self.constraint == 'l2':
                 border_point = (1 - t_map) * perturbed_input + t_map * unperturbed
