@@ -266,7 +266,7 @@ class Attack:
         # else:
         if self.constraint == "l2":
             delta = math.sqrt(self.d) * self.theta_det * dist_post_update
-            delta = max(delta, 1e-8)
+            delta = max(delta, 1e-7)
         elif self.constraint == "linf":
             delta = self.d * self.theta_det * dist_post_update
         else:
