@@ -126,6 +126,8 @@ MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
 for iteration in tqdm(range(NUM_ITERATIONS)):
+    if iteration < NUM_ITERATIONS + 1:
+        continue
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
         x_star = diary.original
