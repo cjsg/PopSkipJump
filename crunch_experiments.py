@@ -13,20 +13,27 @@ flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
 distance_metric = str(exp_name.split('_')[-8])
+dr = float(exp_name.split('_')[-10])
+cs = int(exp_name.split('_')[-12])
+sn = float(exp_name.split('_')[-14])
 device = get_device()
 NUM_ITERATIONS = 32
 NUM_IMAGES = int(exp_name.split('_')[-1])
-eps = list(range(1, 6))
+eps = torch.linspace(0, 10, 100)
 if dataset == 'cifar10':
     d = 32*32*3
     model = get_model(key='cifar10', dataset=dataset, beta=beta)
     model_noisy = get_model(key='cifar10', dataset=dataset, noise=noise,
                             smoothing_noise=0.01, crop_size=26, drop_rate=0.5)
+    actual_model = get_model(key='cifar10', dataset=dataset, noise=noise, flip_prob=0, beta=beta,
+                             smoothing_noise=sn, crop_size=cs, drop_rate=dr)
 else:
     d = 28*28
     model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
     model_noisy = get_model(key='mnist_noman', dataset=dataset, noise=noise,
                             smoothing_noise=0.01, crop_size=26, drop_rate=0.5)
+    actual_model = get_model(key='mnist_noman', dataset=dataset, noise=noise, flip_prob=0, beta=beta,
+                             smoothing_noise=sn, crop_size=cs, drop_rate=dr)
 if distance_metric == 'l2':
     theta_det = 1 / (d * math.sqrt(d))
 elif distance_metric == 'linf':
@@ -126,7 +133,7 @@ MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
 for iteration in tqdm(range(NUM_ITERATIONS)):
-    if iteration < NUM_ITERATIONS + 1:
+    if iteration < NUM_ITERATIONS - 1:
         continue
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
@@ -158,18 +165,19 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             D_OUT[iteration + 1, image] = page.distance
         MC[iteration + 1, image] = calls
 
+        sample_size = 1000
         for j in range(len(eps)):
             x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-            p_adv = model.get_probs(x_adv[None])[0]
-            if noise == 'bayesian':
-                AA[j, iteration + 1, image] = p_adv[label]
-            elif noise in ['deterministic', 'smoothing']:
-                AA[j, iteration + 1, image] = (torch.argmax(p_adv) == label) * 1.0
+            if dataset == 'mnist':
+                batch = x_adv.repeat(sample_size, 1, 1)
+            elif dataset == 'cifar10':
+                batch = x_adv.repeat(sample_size, 1, 1, 1)
             else:
-                p_temp = torch.ones_like(p_adv) * flip_prob / (p_adv.shape[0] - 1)
-                pred = torch.argmax(p_adv)
-                p_temp[pred] = 1 - flip_prob
-                AA[j, iteration + 1, image] = p_temp[label]
+                raise RuntimeError
+            preds = actual_model.ask_model(batch)
+            correct_pred = torch.sum(preds == label)
+            AA[j, iteration + 1, image] = correct_pred / sample_size
+
 
 dump = {
     'border_distance': D,
@@ -180,4 +188,4 @@ dump = {
     'model_calls': MC,
     'adv_acc': AA,
 }
-torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched.pkl', 'wb'))
+torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched_aa.pkl', 'wb'))
