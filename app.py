@@ -62,6 +62,8 @@ parser.add_argument("-cs", "--crop_size", type=int, default=28,
                     help="(Optional) Size of cropped images")
 parser.add_argument("-dr", "--drop_rate", type=float, default=0.,
                     help="(Optional) rate for dropout noise")
+parser.add_argument("-ef", "--eval_factor", type=int, default=1,
+                    help="(Optional) Multiply number of queries in grad step by eval_factor")
 
 
 def validate_args(args):
@@ -136,6 +138,7 @@ def merge_params(params: DefaultParams, args):
     params.smoothing_noise = args.smoothing_noise
     params.crop_size = args.crop_size
     params.drop_rate = args.drop_rate
+    params.eval_factor = args.eval_factor
     return params
 
 

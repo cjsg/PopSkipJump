@@ -16,13 +16,15 @@ class HopSkipJump(Attack):
         super().__init__(model_interface, data_shape, device, params)
         self.grad_queries = 1  # Original HSJA does not perform multiple queries
         self.repeat_queries = 1
+        self.eval_factor = params.eval_factor
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
         perturbed, dist_post_update = self.binary_search_batch(original, perturbed[None])
         return perturbed, dist_post_update, None
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
-        return self._gradient_estimator(perturbed, num_evals_det, delta)[0]
+        n = self.eval_factor * num_evals_det
+        return self._gradient_estimator(perturbed, n, delta)[0]
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
