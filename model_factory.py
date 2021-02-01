@@ -85,14 +85,24 @@ class Model:
     def get_grads(self, images, true_label):
         # TODO: this line will not work for noisy model.
         # wrong_labels = self.ask_model(images)
-        images = images.unsqueeze(1).type(torch.float32)
-        t_images = torch.tensor(images, requires_grad=True, device=self.device)
+        if images.ndim == 3:
+            images_ = images.unsqueeze(1).type(torch.float32)
+        else:
+            images_ = images.permute(0, 3, 1, 2)
+            transform = transforms.Compose([transforms.Normalize([0.4914, 0.4822, 0.4465],
+                                                                 [0.2023, 0.1994, 0.2010])])
+            images_ = torch.stack([transform(i) for i in images_])
+        t_images = torch.tensor(images_, requires_grad=True, device=self.device)
         t_outs = self.model(t_images)
         grad = torch.zeros(t_images.shape)
         for i in range(len(images)):
             _grad_true = torch.autograd.grad(t_outs[i, true_label], t_images, create_graph=True)[0]
             # _grad_wrong = torch.autograd.grad(t_outs[i, wrong_labels[i]], t_images, create_graph=True)[0]
             grad[i] = - _grad_true[i]
+        if images.ndim == 3:
+            grad = grad[:, 0, :, :]
+        else:
+            grad = grad.permute(0, 2, 3, 1)
         return grad.detach()
 
 
