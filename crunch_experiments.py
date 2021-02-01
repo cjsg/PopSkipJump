@@ -9,6 +9,7 @@ from tracker import Diary, DiaryPage
 OUT_DIR = 'thesis'
 exp_name = sys.argv[1]
 dataset = sys.argv[2]
+only_last = (len(sys.argv) > 3 and sys.argv[3] == 'last')
 flip_prob = float(exp_name.split('_')[-3])
 noise = exp_name.split('_')[-5]
 beta = float(exp_name.split('_')[-6])
@@ -49,6 +50,7 @@ def read_dump(path):
 raw = read_dump(exp_name)
 model.model = model.model.to(device)
 model_noisy.model = model_noisy.model.to(device)
+actual_model.model = actual_model.model.to(device)
 
 
 def interpolation(x_star, x_t, alpha):
@@ -132,8 +134,8 @@ D_G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
-for iteration in tqdm(range(NUM_ITERATIONS)):
-    if iteration < NUM_ITERATIONS - 1:
+for iteration in range(NUM_ITERATIONS):
+    if only_last and iteration < NUM_ITERATIONS - 1:
         continue
     for image in range(NUM_IMAGES):
         diary: Diary = raw[image]
@@ -165,18 +167,24 @@ for iteration in tqdm(range(NUM_ITERATIONS)):
             D_OUT[iteration + 1, image] = page.distance
         MC[iteration + 1, image] = calls
 
-        sample_size = 1000
-        for j in range(len(eps)):
-            x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
-            if dataset == 'mnist':
-                batch = x_adv.repeat(sample_size, 1, 1)
-            elif dataset == 'cifar10':
-                batch = x_adv.repeat(sample_size, 1, 1, 1)
-            else:
-                raise RuntimeError
-            preds = actual_model.ask_model(batch)
-            correct_pred = torch.sum(preds == label)
-            AA[j, iteration + 1, image] = correct_pred / sample_size
+        # try:
+        #     sample_size = 1000
+        #     for j in range(len(eps)):
+        #         x_adv = x_star + eps[j] * (x_tt - x_star) / torch.norm(x_tt - x_star)
+        #         correct_pred = 0
+        #         for _ in range(10):
+        #             if dataset == 'mnist':
+        #                 batch = x_adv.repeat(sample_size//10, 1, 1)
+        #             elif dataset == 'cifar10':
+        #                 batch = x_adv.repeat(sample_size//10, 1, 1, 1)
+        #             else:
+        #                 raise RuntimeError
+        #             preds = actual_model.ask_model(batch)
+        #             correct_pred = correct_pred + torch.sum(preds == label)
+        #         AA[j, iteration + 1, image] = correct_pred / sample_size
+        # except:
+        #     print ("Skipping Image: ", image)
+        #     pass
 
 
 dump = {
@@ -188,4 +196,4 @@ dump = {
     'model_calls': MC,
     'adv_acc': AA,
 }
-torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched_aa.pkl', 'wb'))
+torch.save(dump, open(f'{OUT_DIR}/{exp_name}/crunched.pkl', 'wb'))
