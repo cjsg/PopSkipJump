@@ -134,7 +134,7 @@ D_G = torch.zeros_like(D, device=device)
 MC = torch.zeros_like(D, device=device)
 AA = torch.zeros(size=(len(eps), NUM_ITERATIONS + 1, NUM_IMAGES), device=device)
 
-for iteration in range(NUM_ITERATIONS):
+for iteration in tqdm(range(NUM_ITERATIONS)):
     if only_last and iteration < NUM_ITERATIONS - 1:
         continue
     for image in range(NUM_IMAGES):
