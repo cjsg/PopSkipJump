@@ -60,7 +60,7 @@ def find_adversarial_images(dataset, labels):
 
 def get_samples_for_cropping(dataset, model, n_samples=100, conf=0.75):
     import os
-    data_path = f'data/images_{dataset}.pkl'
+    data_path = f'data/images_{dataset}_{n_samples}.pkl'
     if not os.path.exists(data_path):
         print("Image pickle not found")
         np.random.seed(42)
