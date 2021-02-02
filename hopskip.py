@@ -24,7 +24,15 @@ class HopSkipJump(Attack):
 
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         n = self.eval_factor * num_evals_det
-        return self._gradient_estimator(perturbed, n, delta)[0]
+        theta_prob = 1. / self.grid_size
+        if self.constraint == "l2":
+            delta_prob_unit = theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
+        elif self.constraint == "linf":
+            delta_prob_unit = theta_prob * self.d  # PSJA's delta in unit scale
+        else:
+            raise RuntimeError
+        delta_prob = dist_post_update * delta_prob_unit
+        return self._gradient_estimator(perturbed, n, delta_prob)[0]
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
