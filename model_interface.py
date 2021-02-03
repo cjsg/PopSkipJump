@@ -43,9 +43,21 @@ class ModelInterface:
         :return: decisions of shape = (len(batch), num_queries)
         """
         self.model_calls += batch.shape[0] * num_queries
-        if self.noise in ['deterministic', 'dropout']:
+        if self.noise == 'deterministic':
             probs = self.get_probs_(images=batch)
             prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            if targeted:
+                return (prediction == label) * 1.0
+            else:
+                return (prediction != label) * 1.0
+        elif self.noise == 'dropout':
+            if batch.ndim == 3:
+                new_batch = batch.repeat(num_queries, 1, 1)
+            else:
+                new_batch = batch.repeat(num_queries, 1, 1, 1)
+            probs = self.get_probs_(images=new_batch)
+            prediction = probs.argmax(dim=1).view(-1, len(batch))
+            prediction = torch.transpose(prediction, 0, 1)
             if targeted:
                 return (prediction == label) * 1.0
             else:
