@@ -35,6 +35,13 @@ class ModelInterface:
         return torch.bernoulli(probs)
 
     def decision(self, batch, label, num_queries=1, targeted=False):
+        self.model_calls += batch.shape[0] * num_queries
+        decisions = torch.zeros(len(batch), num_queries, device=batch.device)
+        for q in range(num_queries):
+            decisions[:, q] = self._decision(batch, label, targeted)
+        return decisions
+
+    def _decision(self, batch, label, targeted=False):
         """
         :param label: True/Targeted labels of the original image being attacked
         :param num_queries: Number of times to query each image
@@ -42,33 +49,26 @@ class ModelInterface:
         :param targeted: if targeted is true, label=targeted_label else label=true_label
         :return: decisions of shape = (len(batch), num_queries)
         """
-        self.model_calls += batch.shape[0] * num_queries
         if self.noise == 'deterministic':
             probs = self.get_probs_(images=batch)
-            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            prediction = probs.argmax(dim=1)
             if targeted:
                 return (prediction == label) * 1.0
             else:
                 return (prediction != label) * 1.0
         elif self.noise == 'dropout':
-            if batch.ndim == 3:
-                new_batch = batch.repeat(num_queries, 1, 1)
-            else:
-                new_batch = batch.repeat(num_queries, 1, 1, 1)
-            probs = self.get_probs_(images=new_batch)
-            prediction = probs.argmax(dim=1).view(-1, len(batch))
-            prediction = torch.transpose(prediction, 0, 1)
+            probs = self.get_probs_(images=batch)
+            prediction = probs.argmax(dim=1)
             if targeted:
                 return (prediction == label) * 1.0
             else:
                 return (prediction != label) * 1.0
         elif self.noise == 'smoothing':
-            #TODO: Add support for num_queries later
             rv = torch.randn(size=batch.shape, device=self.device)
             batch_ = batch + self.smoothing_noise * rv
             batch_ = torch.clamp(batch_, self.bounds[0], self.bounds[1])
             probs = self.get_probs_(images=batch_)
-            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)  # TODO: Change this
+            prediction = probs.argmax(dim=1)
             if targeted:
                 return (prediction == label) * 1.0
             else:
@@ -88,12 +88,13 @@ class ModelInterface:
                 resized = F.interpolate(cropped_batch.unsqueeze(dim=1), size, mode='bilinear')
                 resized = resized.squeeze(dim=1)
             probs = self.get_probs_(images=resized)
-            prediction = probs.argmax(dim=1).view(-1, 1).repeat(1, num_queries)
+            prediction = probs.argmax(dim=1)
             if targeted:
                 return (prediction == label) * 1.0
             else:
                 return (prediction != label) * 1.0
         elif self.noise == 'stochastic':
+            num_queries = 1  # TODO: this should be removed. num_queries is not supported by this function now
             probs = self.get_probs_(images=batch)
             rand_pred = torch.randint(self.n_classes-1, size=(len(batch), num_queries), device=self.device)
             # TODO: Review this step carefully. I think it is assumed that prediction = label
@@ -109,7 +110,7 @@ class ModelInterface:
         elif self.noise == 'bayesian':
             probs = self.get_probs_(images=batch)
             probs = probs[:, label]
-            probs = probs.view(-1, 1).repeat(1, num_queries)
+            # probs = probs.view(-1, 1).repeat(1, num_queries)
             if targeted:
                 decisions = torch.bernoulli(probs)
             else:
