@@ -7,7 +7,7 @@ from datetime import datetime
 from defaultparams import DefaultParams
 from popskip import PopSkipJump, PopSkipJumpTrueLogits
 from popskip_human import PopSkipJumpHuman
-from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient, HopSkipJumpAllGradient
+from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedDelta, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient, HopSkipJumpAllGradient
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images, get_samples_for_cropping
 from model_factory import get_model
 from model_interface import ModelInterface
@@ -88,6 +88,7 @@ def create_attack(exp_name, dataset, params):
     attacks_factory = {
         'hsj': HopSkipJump,
         'hsj_rep': HopSkipJumpRepeated,
+        'hsj_rep_del': HopSkipJumpRepeatedDelta,
         'hsj_rep_psj_delta': HopSkipJumpRepeatedWithPSJDelta,
         'hsj_true_grad': HopSkipJumpTrueGradient,
         'hsj_all_grad': HopSkipJumpAllGradient,
