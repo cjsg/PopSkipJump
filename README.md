@@ -27,6 +27,10 @@ One can track the progression of attack using the following command
 
 This will output the median l2 distance as a function of iterations of the attack. 
 
+## Plotting Expermiments
+`plot_paper.py` can be used to plot the experimental results presented in the paper. 
+However one needs to perform all the required experiments to be able to plot them. 
+Nevertheless, we include the code used for plotting in `plot_paper.py`  
 
 ## Changing Configurations
 You can adjust various settings of the attack in `defaultparams.py` present in root directory of the repository.
