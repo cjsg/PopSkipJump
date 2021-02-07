@@ -30,10 +30,10 @@ if dataset == 'cifar10':
                              smoothing_noise=sn, crop_size=cs, drop_rate=dr)
 else:
     d = 28*28
-    model = get_model(key='mnist_noman', dataset=dataset, beta=beta)
-    model_noisy = get_model(key='mnist_noman', dataset=dataset, noise=noise,
+    model = get_model(key='mnist_cnn', dataset=dataset, beta=beta)
+    model_noisy = get_model(key='mnist_cnn', dataset=dataset, noise=noise,
                             smoothing_noise=0.01, crop_size=26, drop_rate=0.5)
-    actual_model = get_model(key='mnist_noman', dataset=dataset, noise=noise, flip_prob=0, beta=beta,
+    actual_model = get_model(key='mnist_cnn', dataset=dataset, noise=noise, flip_prob=0, beta=beta,
                              smoothing_noise=sn, crop_size=cs, drop_rate=dr)
 if distance_metric == 'l2':
     theta_det = 1 / (d * math.sqrt(d))

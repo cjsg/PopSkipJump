@@ -40,7 +40,6 @@ class Attack:
         self.grid_size = params.grid_size[params.dataset]
         if self.constraint == "l2":
             self.theta_det = self.gamma / (math.sqrt(self.d) * self.d)
-            # self.theta = self.gamma / (np.sqrt(self.d))  # Based on CJ experiment
         else:
             self.theta_det = self.gamma / (self.d * self.d)
 

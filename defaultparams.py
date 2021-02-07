@@ -10,7 +10,7 @@ class DefaultParams:
         self.attack = 'popskip'
         self.targeted = False
         self.dataset = 'mnist'
-        self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
+        self.model_keys: dict = {'mnist': ['mnist_cnn'], 'cifar10': ['cifar10']}
         self.num_iterations = 32
         self.internal_dtype = torch.float32
         self.bounds = (0, 1)

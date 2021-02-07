@@ -87,7 +87,7 @@ def project(x_star, x_t, label, theta_det, model):
 
 def main() -> None:
     # instantiate a model (could also be a TensorFlow or JAX model)
-    det_model = get_model(key='mnist_noman', dataset='mnist', noise='deterministic')
+    det_model = get_model(key='mnist_cnn', dataset='mnist', noise='deterministic')
     fmodel = PyTorchModel(det_model.model, bounds=(0, 1))
     n_samples = 100
     imgs, lbls = get_samples('mnist', n_samples=n_samples, conf=0.75, model=det_model, samples_from=0)
