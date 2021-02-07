@@ -6,7 +6,7 @@ from img_utils import get_device
 import math
 from tracker import Diary, DiaryPage
 
-OUT_DIR = 'thesis'
+OUT_DIR = 'icml'
 exp_name = sys.argv[1]
 dataset = sys.argv[2]
 only_last = (len(sys.argv) > 3 and sys.argv[3] == 'last')

@@ -6,14 +6,13 @@ import time
 from datetime import datetime
 from defaultparams import DefaultParams
 from popskip import PopSkipJump, PopSkipJumpTrueLogits
-from popskip_human import PopSkipJumpHuman
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient, HopSkipJumpAllGradient
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images, get_samples_for_cropping
 from model_factory import get_model
 from model_interface import ModelInterface
 
 logging.root.setLevel(logging.WARNING)
-OUT_DIR = 'thesis'
+OUT_DIR = 'icml'
 parser = argparse.ArgumentParser()
 
 feature_parser = parser.add_mutually_exclusive_group(required=False)
@@ -93,7 +92,6 @@ def create_attack(exp_name, dataset, params):
         'hsj_all_grad': HopSkipJumpAllGradient,
         'psj': PopSkipJump,
         'psj_true_logits': PopSkipJumpTrueLogits,
-        'human': PopSkipJumpHuman
     }
     return attacks_factory.get(params.attack)(model_interface, get_shape(dataset), get_device(), params)
 
