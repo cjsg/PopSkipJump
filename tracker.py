@@ -47,6 +47,7 @@ class Time(object):
         self.num_evals = None
         self.approx_grad = None
         self.step_search = None
+        self.opposite = None
         self.bin_search = None
         self.end = None
 

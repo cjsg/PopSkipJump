@@ -144,6 +144,8 @@ class Attack:
             page.approx_grad = perturbed
 
             perturbed = self.opposite_movement_step(original, perturbed)
+            page.time.opposite = time.time()
+            page.calls.opposite = self.model_interface.model_calls
             page.opposite = perturbed
 
             # Binary search to return to the boundary.
