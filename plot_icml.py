@@ -27,7 +27,7 @@ noise_level = {'mnist': {
     'cropping': (['27', '26', '25'], [0, 0.33, 0.67, 1]),
     'dropout': (['0.1', '0.3', '0.5'], [0, 0.1, 0.3, 0.5]),
 }, 'cifar10': {
-    'bayesian': (['5', '1.50', '1'], [0, 0.2, 0.67, 1]),
+    'bayesian': (['5', '2', '1.50', '1'], [0, 0.2, 0.5, 0.67, 1]),
     'smoothing': (['0.0001', '0.0005', '0.001', '0.005'], [0, 0.1, 0.2, 0.45, 0.55]),
     'cropping': (['31', '30'], [0, 0.5, 1]),
     'dropout': (['0.01', '0.02', '0.03'], [0, 0.01, 0.02, 0.03])
@@ -85,32 +85,36 @@ def get_label(noise, level, attack=None, dataset=None):
 def grid():
     rc('text', usetex=True)
     rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
-    rc('font', size=12)  # default: 10 -> choose size depending on figsize
+    rc('font', size=16)  # default: 10 -> choose size depending on figsize
     rc('font', family='STIXGeneral')
-    rc('legend', fontsize=12)
+    rc('legend', fontsize=15)
     plt.tight_layout(h_pad=0, w_pad=0)
     n_images = 100
     image_path = f'thesis/plots_paper/grid_{n_images}.pdf'
     datasets = ['mnist', 'cifar10']
     noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
     noise_names = ['logit sampling', 'dropout', 'adversarial smoothing', 'random cropping']
-    fig3 = plt.figure(figsize=(20, 14))
-    gs = fig3.add_gridspec(160, 260)
+    fig3 = plt.figure(figsize=(20, 20))
+    gs = fig3.add_gridspec(300, 260)
     count = 1
     for nn, noise in enumerate(noises):
         for dd, dataset in enumerate(datasets):
-            ax0 = fig3.add_subplot(gs[nn * 37:nn * 37 + 30, 131 * dd:131 * dd + 59])
-            ax1 = fig3.add_subplot(gs[nn * 37:nn * 37 + 30, 131 * dd + 60:131 * dd + 119], sharey=ax0)
+            vertical_spacing = vs = 68
+            horizontal_spacing = hs = 131
+            height = 50
+            width = 59
+            ax0 = fig3.add_subplot(gs[nn * vs:nn * vs + height, hs * dd:hs * dd + width])
+            ax1 = fig3.add_subplot(gs[nn * vs:nn * vs + height, hs * dd + width+1:hs * dd + 2*width + 1], sharey=ax0)
             # ax0 = plt.subplot(len(noises), 2 * len(datasets), count)
             props = {'ha': 'center', 'va': 'center'}
             if dd == 0:
                 props = {'ha': 'center', 'va': 'center'}
-                plt.text(-0.25, 0.5, noise_names[nn], props, rotation=90, transform=ax0.transAxes, fontsize=14)
+                plt.text(-0.30, 0.5, noise_names[nn], props, rotation=90, transform=ax0.transAxes, fontsize=20)
             if nn == 0:
-                ax0.text(0.5, 1.05, dataset.upper(), props, transform=ax0.transAxes, fontsize=16)
-                ax1.text(0.5, 1.05, dataset.upper(), props, transform=ax1.transAxes, fontsize=16)
+                ax0.text(0.5, 1.05, dataset.upper(), props, transform=ax0.transAxes, fontsize=20)
+                ax1.text(0.5, 1.05, dataset.upper(), props, transform=ax1.transAxes, fontsize=20)
 
-            for attack in ['psj', 'hsj']:
+            for attack in ['hsj', 'psj']:
                 exp_name = f'{dataset}_{attack}_r_1_sn_0.01_cs_26_dr_0.5_dm_l2_b_1_deterministic_fp_0.00_ns_{n_images}'
                 raw = read_dump(exp_name)
                 metric = 'border_distance'
@@ -123,9 +127,14 @@ def grid():
                 calls = np.median(C, axis=1)
                 perc_40 = np.percentile(D, 40, axis=1)
                 perc_60 = np.percentile(D, 60, axis=1)
-                ax0.plot(dist, label=get_label(noise, 'det', attack=attack, dataset=dataset))
-                ax0.fill_between(range(len(perc_40)), perc_40, perc_60, alpha=0.1)
-                ax1.plot(calls, dist, label=get_label(noise, 'det', attack=attack, dataset=dataset))
+                if attack == 'hsj':
+                    ax0.plot(dist, label=get_label(noise, 'det', attack=attack, dataset=dataset), linestyle='--')
+                    ax0.fill_between(range(len(perc_40)), perc_40, perc_60, alpha=0.1)
+                    ax1.plot(calls, dist, label=get_label(noise, 'det', attack=attack, dataset=dataset), linestyle='--')
+                else:
+                    ax0.plot(dist, label=get_label(noise, 'det', attack=attack, dataset=dataset))
+                    ax0.fill_between(range(len(perc_40)), perc_40, perc_60, alpha=0.1)
+                    ax1.plot(calls, dist, label=get_label(noise, 'det', attack=attack, dataset=dataset))
             for level in noise_level[dataset][noise][0]:
                 b, sn, cs, dr = '1', '0.01', '26', '0.5'
                 if noise == 'bayesian':
@@ -155,7 +164,7 @@ def grid():
                 ax1.plot(calls, dist, label=get_label(noise, level))
             ax0.legend()
             ax0.grid(axis='y')
-            ax0.set_ylabel('border distance')
+            ax0.set_ylabel('median border distance')
             ax0.set_xlabel('rounds')
             ax1.grid(axis='y')
             ax1.set_xlabel('median model calls')
@@ -755,6 +764,56 @@ def grad_evals(dataset='cifar10'):
     plt.savefig(image_path, bbox_inches='tight')
 
 
+def acceleration():
+    n_images = 20
+    n_iterations = 32
+    noises = ['bayesian']
+    colors = ['C1', 'C2', 'C3', 'C4']
+    pfs = ['1.0', '0.5', '0.2', '0.1']
+    linestyles = ['-', '--', '--', '--']
+    datasets = ['mnist']
+    b, sn, dr, cs = 1, 0.01, 0.5, 26
+    for dataset in datasets:
+        plt.figure(figsize=(15, 4))
+        ax0 = plt.subplot(1, 3, 1)
+        ax1 = plt.subplot(1, 3, 2)
+        ax2 = plt.subplot(1, 3, 3)
+        for nn, noise in enumerate(noises):
+            if noise == 'smoothing' and dataset == 'cifar10':
+                sn = 0.01
+            elif noise == 'cropping':
+                cs = 25 if dataset == 'mnist' else 30
+            elif noise == 'dropout' and dataset == 'cifar10':
+                dr = 0.03
+            for pp, pf in enumerate(pfs):
+                exp_name = f'{dataset}_psj_pf_{pf}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                raw = read_dump(exp_name, raw=True)
+                raw_crunched = read_dump(exp_name)
+                C = np.zeros((n_images, n_iterations + 1))
+                dist = np.median(raw_crunched['border_distance'], axis=1)
+                T = np.zeros((n_images, n_iterations + 1))
+                for image in range(n_images):
+                    diary = raw[image]
+                    epoch = diary.epoch_start
+                    C[image, 0] = diary.calls_initial_bin_search
+                    T[image, 0] = diary.epoch_initial_bin_search - epoch
+                    for i in range(n_iterations):
+                        page = diary.iterations[i]
+                        C[image, i+1] = page.calls.bin_search
+                        T[image, i+1] = page.time.bin_search - epoch
+                calls = np.median(C, axis=0)
+                timings = np.median(T, axis=0)
+                ax0.plot(timings, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
+                ax1.plot(calls, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
+                ax2.plot(dist, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
+        image_path = f'thesis/plots_paper/acceleration_{dataset}_{n_images}.pdf'
+        ax0.set_ylabel('median time (in seconds)')
+        ax1.set_ylabel('median model calls')
+        ax2.set_ylabel('median border distance')
+        ax0.legend()
+        plt.savefig(image_path, bbox_inches='tight')
+
+
 # grid()
 # noise()
 # fig3_2lines(line=None)
@@ -763,9 +822,9 @@ def grad_evals(dataset='cifar10'):
 # delta(dataset='mnist')
 # delta(dataset='cifar10')
 # hsj_vs_psj()
-fig5()
+# fig5()
 # adv_risk()
 # grad_evals(dataset='mnist')
 # grad_evals(dataset='cifar10')
-
+acceleration()
 pass
