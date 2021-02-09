@@ -86,6 +86,17 @@ class PopSkipJump(Attack):
         return low
 
     def info_max_batch(self, unperturbed, perturbed_inputs, label, estimates, step):
+        if self.prior_frac == 0:
+            if step <= 1:
+                prior_frac = 1
+            elif step <= 4:
+                prior_frac = 0.5
+            elif step <= 10:
+                prior_frac = 0.2
+            else:
+                prior_frac = 0.1
+        else:
+            prior_frac = self.prior_frac
         border_points = []
         dists = []
         smaps, tmaps, emaps, ns = [], [], [], []
@@ -102,7 +113,7 @@ class PopSkipJump(Attack):
                 unperturbed, perturbed_input, self.model_interface, d=self.d,
                 grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
                 label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
-                prev_e=self.prev_e, prior_frac=self.prior_frac, target_cos=target_cos,
+                prev_e=self.prev_e, prior_frac=prior_frac, target_cos=target_cos,
                 queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
             nn_tmap_est = output['nn_tmap_est']
             t_map, s_map, e_map = output['ttse_max'][-1]
@@ -114,7 +125,7 @@ class PopSkipJump(Attack):
                     unperturbed, perturbed_input, self.model_interface, d=self.d,
                     grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
                     label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
-                    prev_e=self.prev_e, prior_frac=self.prior_frac, target_cos=target_cos,
+                    prev_e=self.prev_e, prior_frac=prior_frac, target_cos=target_cos,
                     queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint)
                 nn_tmap_est = output['nn_tmap_est']
                 t_map, s_map, e_map = output['ttse_max'][-1]
@@ -126,7 +137,7 @@ class PopSkipJump(Attack):
                 print('delta:', self.delta_prob_unit)
                 print('label:', label)
                 print('prev_t,s,e:', self.prev_t, self.prev_s, self.prev_e)
-                print('prior_frac:', self.prior_frac)
+                print('prior_frac:', prior_frac)
                 print('target_cos', target_cos)
                 torch.save(unperturbed, open('dumps/unperturbed.pkl', 'wb'))
                 torch.save(perturbed_input, open('dumps/perturbed.pkl', 'wb'))

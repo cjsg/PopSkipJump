@@ -37,25 +37,25 @@ class ModelInterface:
     def decision(self, batch, label, num_queries=1, targeted=False):
         N = batch.shape[0] * num_queries
         self.model_calls += batch.shape[0] * num_queries
-        if N <= 100*1000:
-            if batch.ndim == 3:
-                new_batch = batch.repeat(num_queries, 1, 1)
-            else:
-                new_batch = batch.repeat(num_queries, 1, 1, 1)
-            decisions = self._decision(new_batch, label, targeted)
-            decisions = decisions.view(-1, len(batch)).transpose(0, 1)
-        elif num_queries <= 100*1000:
-            decisions = torch.zeros(len(batch), num_queries, device=batch.device)
-            for b in range(len(batch)):
-                if batch.ndim == 3:
-                    new_batch = batch[b].view(-1, 1, 1).repeat(num_queries, 1, 1)
-                else:
-                    new_batch = batch[b].view(-1, 1, 1, 1).repeat(num_queries, 1, 1, 1)
-                decisions[b] = self._decision(new_batch, label, targeted)
+        # if N <= 100*1000:
+        if batch.ndim == 3:
+            new_batch = batch.repeat(num_queries, 1, 1)
         else:
-            decisions = torch.zeros(len(batch), num_queries, device=batch.device)
-            for q in range(num_queries):
-                decisions[:, q] = self._decision(batch, label, targeted)
+            new_batch = batch.repeat(num_queries, 1, 1, 1)
+        decisions = self._decision(new_batch, label, targeted)
+        decisions = decisions.view(-1, len(batch)).transpose(0, 1)
+        # elif num_queries <= 100*1000:
+        #     decisions = torch.zeros(len(batch), num_queries, device=batch.device)
+        #     for b in range(len(batch)):
+        #         if batch.ndim == 3:
+        #             new_batch = batch[b].view(-1, 1, 1).repeat(num_queries, 1, 1)
+        #         else:
+        #             new_batch = batch[b].view(-1, 1, 1, 1).repeat(num_queries, 1, 1, 1)
+        #         decisions[b] = self._decision(new_batch, label, targeted)
+        # else:
+        #     decisions = torch.zeros(len(batch), num_queries, device=batch.device)
+        #     for q in range(num_queries):
+        #         decisions[:, q] = self._decision(batch, label, targeted)
         return decisions
 
     def _decision(self, batch, label, targeted=False):
