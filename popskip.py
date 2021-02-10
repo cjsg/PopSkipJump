@@ -87,7 +87,7 @@ class PopSkipJump(Attack):
 
     def info_max_batch(self, unperturbed, perturbed_inputs, label, estimates, step):
         if self.prior_frac == 0:
-            if step <= 1:
+            if step is None or step <= 1:
                 prior_frac = 1
             elif step <= 4:
                 prior_frac = 0.5

@@ -764,23 +764,29 @@ def grad_evals(dataset='cifar10'):
     plt.savefig(image_path, bbox_inches='tight')
 
 
-def acceleration():
+def acceleration_prereq():
+    rc('text', usetex=True)
+    rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+    rc('font', size=14)  # default: 10 -> choose size depending on figsize
+    rc('font', family='STIXGeneral')
+    rc('legend', fontsize=13)
+    plt.tight_layout(h_pad=0, w_pad=0)
     n_images = 20
     n_iterations = 32
-    noises = ['bayesian']
+    noises = ['bayesian', 'smoothing', 'cropping', 'dropout']
     colors = ['C1', 'C2', 'C3', 'C4']
-    pfs = ['1.0', '0.5', '0.2', '0.1']
-    linestyles = ['-', '--', '--', '--']
-    datasets = ['mnist']
-    b, sn, dr, cs = 1, 0.01, 0.5, 26
+    pfs = ['1.0', '0']
+    linestyles = ['-', '--', '-.', ':']
+    datasets = ['mnist', 'cifar10']
     for dataset in datasets:
         plt.figure(figsize=(15, 4))
         ax0 = plt.subplot(1, 3, 1)
         ax1 = plt.subplot(1, 3, 2)
         ax2 = plt.subplot(1, 3, 3)
         for nn, noise in enumerate(noises):
+            b, sn, dr, cs = 1, 0.01, 0.5, 26
             if noise == 'smoothing' and dataset == 'cifar10':
-                sn = 0.01
+                sn = 0.005
             elif noise == 'cropping':
                 cs = 25 if dataset == 'mnist' else 30
             elif noise == 'dropout' and dataset == 'cifar10':
@@ -803,15 +809,85 @@ def acceleration():
                         T[image, i+1] = page.time.bin_search - epoch
                 calls = np.median(C, axis=0)
                 timings = np.median(T, axis=0)
-                ax0.plot(timings, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
-                ax1.plot(calls, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
-                ax2.plot(dist, label=f'{noise}_{pf}', color=colors[nn], linestyle=linestyles[pp])
+                if pf == '1.0':
+                    label = f'{noise}'
+                else:
+                    label = f'{noise}-acc.'
+                ax0.plot(timings, label=label, color=colors[nn], linestyle=linestyles[pp])
+                ax1.plot(calls, label=label, color=colors[nn], linestyle=linestyles[pp])
+                ax2.plot(dist, label=label, color=colors[nn], linestyle=linestyles[pp])
         image_path = f'thesis/plots_paper/acceleration_{dataset}_{n_images}.pdf'
         ax0.set_ylabel('median time (in seconds)')
         ax1.set_ylabel('median model calls')
         ax2.set_ylabel('median border distance')
         ax0.legend()
         plt.savefig(image_path, bbox_inches='tight')
+
+
+def acceleration():
+    rc('text', usetex=True)
+    rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+    rc('font', size=10)  # default: 10 -> choose size depending on figsize
+    rc('font', family='STIXGeneral')
+    rc('legend', fontsize=10)
+    plt.tight_layout(h_pad=0, w_pad=0)
+    n_images = 20
+    n_iterations = 32
+    noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
+    noise_names = ['logit sampling', 'dropout', 'smoothing', 'cropping']
+    colors = ['C1', 'C2', 'C3', 'C4']
+    pfs = ['1.0', '0', '1.0']
+    qs = [None, None, '5']
+    labels = ['no-acc', 'acc1', 'acc2']
+    linestyles = ['-', '--', '-.', ':']
+    datasets = ['mnist', 'cifar10']
+    for dataset in datasets:
+        plt.figure(figsize=(12, 8))
+        for nn, noise in enumerate(noises):
+            ax0 = plt.subplot(4, 3, nn*3+1)
+            ax1 = plt.subplot(4, 3, nn*3+2)
+            ax2 = plt.subplot(4, 3, nn*3+3)
+            props = {'ha': 'center', 'va': 'center'}
+            plt.text(-0.30, 0.5, noise_names[nn], props, rotation=90, transform=ax0.transAxes, fontsize=15)
+            b, sn, dr, cs = 1, 0.01, 0.5, 26
+            if noise == 'smoothing' and dataset == 'cifar10':
+                sn = 0.005
+            elif noise == 'cropping':
+                cs = 25 if dataset == 'mnist' else 30
+            elif noise == 'dropout' and dataset == 'cifar10':
+                dr = 0.03
+            for pp, pf in enumerate(pfs):
+                q = qs[pp]
+                if q is None:
+                    exp_name = f'{dataset}_psj_pf_{pf}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                else:
+                    exp_name = f'{dataset}_psj_pf_{pf}_q_{q}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                raw = read_dump(exp_name, raw=True)
+                raw_crunched = read_dump(exp_name)
+                dist = np.median(raw_crunched['border_distance'], axis=1)
+                calls = np.median(raw_crunched['model_calls'], axis=1)
+                T = np.zeros((n_images, n_iterations + 1))
+                for image in range(n_images):
+                    diary = raw[image]
+                    epoch = diary.epoch_start
+                    T[image, 0] = diary.epoch_initial_bin_search - epoch
+                    for i in range(n_iterations):
+                        page = diary.iterations[i]
+                        T[image, i+1] = page.time.bin_search - epoch
+                timings = np.median(T, axis=0)
+                ax0.plot(timings, dist, label=labels[pp], color=colors[pp])
+                ax1.plot(calls, dist, label=labels[pp], color=colors[pp])
+                ax2.plot(dist, label=labels[pp], color=colors[pp])
+            ax0.set_ylabel('median border dist.')
+            ax1.set_ylabel('median border dist.')
+            ax2.set_ylabel('median border dist.')
+            ax0.set_xlabel('median time (in seconds)')
+            ax1.set_xlabel('median model calls')
+            ax2.set_xlabel('iterations')
+            ax0.legend()
+        image_path = f'thesis/plots_paper/acceleration_grid_{dataset}_{n_images}.pdf'
+        plt.savefig(image_path, bbox_inches='tight')
+
 
 
 # grid()
