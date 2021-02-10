@@ -889,6 +889,86 @@ def acceleration():
         plt.savefig(image_path, bbox_inches='tight')
 
 
+def queries_vs_time():
+    rc('text', usetex=True)
+    rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+    rc('font', size=10)  # default: 10 -> choose size depending on figsize
+    rc('font', family='STIXGeneral')
+    rc('legend', fontsize=10)
+    plt.tight_layout(h_pad=0, w_pad=0)
+    n_images = 20
+    n_iterations = 32
+    noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
+    noise_names = ['logit sampling', 'dropout', 'smoothing', 'cropping']
+    colors = ['C1', 'C2', 'C3', 'C4']
+    pfs = ['1.0', '0', '1.0'][:2]
+    qs = [None, None, '5']
+    labels = ['no-acc', 'acc1', 'acc2']
+    linestyles = ['-', '--', '-.', ':']
+    datasets = ['mnist', 'cifar10']
+    plt.figure(figsize=(10, 15))
+    for nn, noise in enumerate(noises):
+        for dd, dataset in enumerate(datasets):
+            ax0 = plt.subplot(4, 2, nn*2+dd+1)
+            if dd == 0:
+                props = {'ha': 'center', 'va': 'center'}
+                plt.text(-0.23, 0.5, noise_names[nn], props, rotation=90, transform=ax0.transAxes, fontsize=15)
+            if nn == 0:
+                props = {'ha': 'center', 'va': 'center'}
+                plt.text(0.5, 1.1, dataset.upper(), props, transform=ax0.transAxes, fontsize=15)
+            b, sn, dr, cs = 1, 0.01, 0.5, 26
+            if noise == 'smoothing' and dataset == 'cifar10':
+                sn = 0.005
+            elif noise == 'cropping':
+                cs = 25 if dataset == 'mnist' else 30
+            elif noise == 'dropout' and dataset == 'cifar10':
+                dr = 0.03
+            for pp, pf in enumerate(pfs):
+                q = qs[pp]
+                if q is None:
+                    exp_name = f'{dataset}_psj_pf_{pf}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                else:
+                    exp_name = f'{dataset}_psj_pf_{pf}_q_{q}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                raw = read_dump(exp_name, raw=True)
+                T_binsearch = np.zeros((n_images, n_iterations + 1))
+                T_grad = np.zeros((n_images, n_iterations))
+                C_binsearch = np.zeros((n_images, n_iterations + 1))
+                C_grad = np.zeros((n_images, n_iterations))
+                for image in range(n_images):
+                    diary = raw[image]
+                    epoch = diary.epoch_start
+                    T_binsearch[image, 0] = diary.epoch_initial_bin_search - epoch
+                    C_binsearch[image, 0] = diary.calls_initial_bin_search
+                    for i in range(n_iterations):
+                        page = diary.iterations[i]
+                        T_grad[image, i] = page.time.approx_grad - epoch
+                        T_binsearch[image, i+1] = page.time.bin_search - epoch
+                        C_grad[image, i] = page.calls.approx_grad
+                        C_binsearch[image, i+1] = page.calls.bin_search
+                timings_grad = np.median(T_grad, axis=0)
+                timings_bin = np.median(T_binsearch, axis=0)
+                calls_grad = np.median(C_grad, axis=0)
+                calls_bin = np.median(C_binsearch, axis=0)
+
+                ax0.plot([0, timings_bin[0]], [0, calls_bin[0]], color='pink')
+                for i in range(n_iterations):
+                    if i==0 and pp==0:
+                        ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i], calls_grad[i]], color='grey', label='grad step')
+                        ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i], calls_bin[i+1]], color='pink', label='binsearch step')
+                    else:
+                        ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i], calls_grad[i]], color='grey')
+                        ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i], calls_bin[i+1]], color='pink')
+                ax0.plot(timings_bin, calls_bin, label=labels[pp], color=colors[pp])
+
+
+
+            ax0.set_ylabel('median model calls')
+            ax0.set_xlabel('median time (in seconds)')
+            ax0.legend()
+        image_path = f'thesis/plots_paper/acceleration_q_vs_t_{n_images}.pdf'
+        plt.savefig(image_path, bbox_inches='tight')
+
+
 
 # grid()
 # noise()
@@ -902,5 +982,6 @@ def acceleration():
 # adv_risk()
 # grad_evals(dataset='mnist')
 # grad_evals(dataset='cifar10')
-acceleration()
+# acceleration()
+queries_vs_time()
 pass
