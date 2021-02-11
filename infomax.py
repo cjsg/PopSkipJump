@@ -676,25 +676,3 @@ def bin_search(
         return output, stopping_criteria.check(output, terminated=True)[1]
     else:
         return output, En_
-
-
-# output = bin_search(
-#     acq_func='I(y,t,s,e)',  # 'I(y,t,s,e)', 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'
-#     center_on='best',  # only used if acq=-E[n]: 'best', 'near_best', 'mean', 'mode'
-#     kmax=1000,  # max number of bin search steps
-#     target_cos=.2,  # targeted E[cos(est_grad, true_grad)]
-#     delta=.5,  # radius of sphere
-#     d=1000,  # input dimension
-#     verbose=False,  # print log info
-#     plot=True,  # True,
-#     grid_size=101,
-#     queries=5)
-#
-# print()
-# print(output['tts_map'][-1])
-# print(output['tts_max'][-1])
-#
-# plt.hist(output['xxj'][:], bins=100)
-# plt.xlim(0., 1.)
-# plt.show()
-

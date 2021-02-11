@@ -184,7 +184,6 @@ class Attack:
                 label = a.true_label
             decisions = self.model_interface.decision(random_noise[None], label, self.sampling_freq, self.targeted)
             success = int(decisions.sum() * 2.0 >= self.sampling_freq)
-            # success = self.model_interface.forward(random_noise[None], a, self.sampling_freq)
             # when model is confused, it is not adversarial
             num_evals += 1
             if success == 1:

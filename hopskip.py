@@ -25,15 +25,6 @@ class HopSkipJump(Attack):
     def gradient_approximation_step(self, perturbed, num_evals_det, delta, dist_post_update, estimates, page):
         n = self.eval_factor * num_evals_det
         return self._gradient_estimator(perturbed, n, delta)[0]
-        # theta_prob = 1. / self.grid_size
-        # if self.constraint == "l2":
-        #     delta_prob_unit = theta_prob * math.sqrt(self.d)  # PSJA's delta in unit scale
-        # elif self.constraint == "linf":
-        #     delta_prob_unit = theta_prob * self.d  # PSJA's delta in unit scale
-        # else:
-        #     raise RuntimeError
-        # delta_prob = dist_post_update * delta_prob_unit
-        # return self._gradient_estimator(perturbed, n, delta_prob)[0]
 
     def opposite_movement_step(self, original, perturbed):
         # Do Nothing
@@ -90,17 +81,6 @@ class HopSkipJump(Attack):
           the desired side of the boundary.
         """
         epsilon = dist / math.sqrt(current_iteration)
-        # count = 1
-        # while True:
-        #     if count % 200 == 0:
-        #         logging.warning("Decreased epsilon {} times".format(count))
-        #     updated = torch.clamp(x + epsilon * update, self.clip_min, self.clip_max)
-        #     success = (self.decision_by_repetition(updated[None]))[0]
-        #     if success:
-        #         break
-        #     else:
-        #         epsilon = epsilon / 2.0  # pragma: no cover
-        #         count += 1
         return epsilon
 
     def _gradient_estimator(self, sample, num_evals, delta):

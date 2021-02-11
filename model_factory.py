@@ -97,7 +97,6 @@ class Model:
         grad = torch.zeros(t_images.shape)
         for i in range(len(images)):
             _grad_true = torch.autograd.grad(t_outs[i, true_label], t_images, create_graph=True)[0]
-            # _grad_wrong = torch.autograd.grad(t_outs[i, wrong_labels[i]], t_images, create_graph=True)[0]
             grad[i] = - _grad_true[i]
         if images.ndim == 3:
             grad = grad[:, 0, :, :]
