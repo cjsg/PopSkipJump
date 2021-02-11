@@ -165,7 +165,7 @@ def grid():
             ax0.legend()
             ax0.grid(axis='y')
             ax0.set_ylabel('median border distance')
-            ax0.set_xlabel('rounds')
+            ax0.set_xlabel('iterations')
             ax1.grid(axis='y')
             ax1.set_xlabel('median model calls')
             ax1.set_xscale('log')
@@ -681,12 +681,16 @@ def adv_risk():
     for dd, dataset in enumerate(datasets):
         for nn, noise in enumerate(noises):
             b, sn, dr, cs = 1, 0.01, 0.5, 26
+            symb, symbval = 'T', 1
             if noise == 'cropping':
                 cs = 25 if dataset == 'mnist' else 30
+                symb, symbval = 's', cs
             if noise == 'dropout':
                 dr = 0.5 if dataset == 'mnist' else 0.03
+                symb, symbval = '$\\alpha$', dr
             if noise == 'smoothing':
                 sn = 0.01 if dataset == 'mnist' else 0.001
+                symb, symbval = '$\\sigma$', sn
             for aa, attack in enumerate(attacks):
                 exp_name = f'{dataset}_{attack}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_100'
                 raw = read_dump(exp_name, aa=True)
@@ -695,7 +699,7 @@ def adv_risk():
                 adv_acc = torch.cat([adv_acc[:, :57], adv_acc[:, 58:]], dim=1)
                 mean_adv_acc = torch.mean(adv_acc, dim=1)
                 eps = torch.linspace(0, 10, 100)
-                label = f'{attack}({noise_names_1[nn]})'
+                label = f'{attack}-{noise_names_1[nn]} ({symb}={symbval})'
                 if dataset == 'cifar10':
                     ax[dd].plot(eps[:50], mean_adv_acc[:50], linestyle=line_style[aa], color=f'C{nn + 1}', label=label)
                 else:
@@ -703,10 +707,11 @@ def adv_risk():
         ax[dd].set_xlabel('$\\epsilon$ (perturbation in unit $l_2$-norm)')
         ax[dd].grid()
         ax[dd].set_ylim(0, 1.1)
-        ax[dd].text(0.5, 0.95, dataset.upper(), props, transform=ax[dd].transAxes, fontsize=15)
-        if dd==0:
+        ax[dd].text(0.5, 1.35, dataset.upper(), props, transform=ax[dd].transAxes, fontsize=15)
+        # if dd==0:
             # ax[dd].legend()
-            ax[dd].legend(loc='upper center', bbox_to_anchor=(1.1, 1.22), ncol=4, fancybox=True, handletextpad=2.65)
+            # ax[dd].legend(loc='upper center', bbox_to_anchor=(1.1, 1.22), ncol=4, fancybox=True, handletextpad=1)
+        ax[dd].legend(loc='upper center', bbox_to_anchor=(0.5, 1.31), ncol=2, fancybox=True, handletextpad=0.2, fontsize=9)
         ax[dd].set_ylabel('adversarial accuracy')
     # plt.setp(ax1.get_yticklabels(), visible=False)
     image_path = f'thesis/plots_paper/adv_acc.pdf'
@@ -836,9 +841,9 @@ def acceleration():
     noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
     noise_names = ['logit sampling', 'dropout', 'smoothing', 'cropping']
     colors = ['C1', 'C2', 'C3', 'C4']
-    pfs = ['1.0', '0', '1.0']
-    qs = [None, None, '5']
-    labels = ['no-acc', 'acc1', 'acc2']
+    pfs = ['1.0', '1.0', '0', '0']
+    qs = [None, '5', None, '5']
+    labels = ['no-acc', 'acc1', 'acc2', 'acc1+2']
     linestyles = ['-', '--', '-.', ':']
     datasets = ['mnist', 'cifar10']
     for dataset in datasets:
@@ -875,15 +880,25 @@ def acceleration():
                         page = diary.iterations[i]
                         T[image, i+1] = page.time.bin_search - epoch
                 timings = np.median(T, axis=0)
-                ax0.plot(timings, dist, label=labels[pp], color=colors[pp])
+                ax2.plot(timings, dist, label=labels[pp], color=colors[pp])
                 ax1.plot(calls, dist, label=labels[pp], color=colors[pp])
-                ax2.plot(dist, label=labels[pp], color=colors[pp])
+                ax0.plot(dist, label=labels[pp], color=colors[pp])
             ax0.set_ylabel('median border dist.')
-            ax1.set_ylabel('median border dist.')
-            ax2.set_ylabel('median border dist.')
-            ax0.set_xlabel('median time (in seconds)')
-            ax1.set_xlabel('median model calls')
-            ax2.set_xlabel('iterations')
+            if dataset == 'cifar10':
+                ax0.set_yscale('log')
+                ax1.set_yscale('log')
+                ax2.set_yscale('log')
+            ax1.ticklabel_format(axis='x', style='sci', scilimits=(0,0))
+            # ax1.get_xaxis().get_offset_text().set_position((1.0, 1.0))
+            ax1.get_xaxis().get_offset_text().set_visible(False)
+            exp_mnist = [6,5,4,5]
+            exp_cifar = [5,5,4,5]
+            exponent_axis = exp_mnist[nn] if dataset == 'mnist' else  exp_cifar[nn]
+            ax1.text(1, -0.05, r'$\times$10$^{%i}$'%(exponent_axis), props, transform=ax1.transAxes, fontsize=10)
+            if nn==3:
+                ax2.set_xlabel('median time (in seconds)')
+                ax1.set_xlabel('median model calls')
+                ax0.set_xlabel('iterations')
             ax0.legend()
         image_path = f'thesis/plots_paper/acceleration_grid_{dataset}_{n_images}.pdf'
         plt.savefig(image_path, bbox_inches='tight')
@@ -1022,48 +1037,48 @@ def queries_vs_time_appendix():
             calls_grad = np.median(C_grad, axis=0)
             calls_bin = np.median(C_binsearch, axis=0)
 
-            ax0.plot([0, timings_bin[0]], [0, calls_bin[0]], color='pink')
+            overall_calls = calls_bin[-1]
+            ax0.plot([0, timings_bin[0]], [0, calls_bin[0]/overall_calls], color=colors[nn])
             for i in range(n_iterations):
                 if i==0 and nn==0:
-                    ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i], calls_grad[i]], color='grey', label='grad step')
-                    ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i], calls_bin[i+1]], color='pink', label='binsearch step')
+                    ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i]/overall_calls, calls_grad[i]/overall_calls], color='grey', label='grad step')
+                    ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i]/overall_calls, calls_bin[i+1]/overall_calls], color=colors[nn], label='binsearch step')
                 else:
-                    ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i], calls_grad[i]], color='grey')
-                    ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i], calls_bin[i+1]], color='pink')
-            ax0.plot(timings_bin, calls_bin, label=noise_names[dataset][nn], color=colors[nn])
+                    ax0.plot([timings_bin[i], timings_grad[i]], [calls_bin[i]/overall_calls, calls_grad[i]/overall_calls], color='grey')
+                    ax0.plot([timings_grad[i], timings_bin[i+1]], [calls_grad[i]/overall_calls, calls_bin[i+1]/overall_calls], color=colors[nn])
+            # ax0.plot(timings_bin, calls_bin, label=noise_names[dataset][nn], color=colors[nn])
             ax0.set_ylabel('median model calls')
+            # ax0.set_yscale('log')
             ax0.set_xlabel('median time (in seconds)')
             ax0.legend()
         image_path = f'thesis/plots_paper/queries_vs_time_{n_images}.pdf'
         plt.savefig(image_path, bbox_inches='tight')
 
-
-def pie_chart():
+def queries_vs_time_dot():
     rc('text', usetex=True)
     rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
-    rc('font', size=10)  # default: 10 -> choose size depending on figsize
+    rc('font', size=11)  # default: 10 -> choose size depending on figsize
     rc('font', family='STIXGeneral')
-    rc('legend', fontsize=10)
+    rc('legend', fontsize=8)
     plt.tight_layout(h_pad=0, w_pad=0)
     n_images = 20
     n_iterations = 32
-    noises = ['bayesian', 'dropout', 'smoothing', 'cropping'][1:2]
-    noise_names = ['logit sampling', 'dropout', 'smoothing', 'cropping']
+    noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
+    noise_names = {'mnist': ['logit (T=1)', 'dropout ($\\alpha$=0.5)', 'smoothing ($\\sigma$=0.01)', 'cropping (s=25)'],
+                   'cifar10': ['logit (T=1)', 'dropout ($\\alpha$=0.03)', 'smoothing ($\\sigma$=0.005)', 'cropping (s=30)']}
     colors = ['C1', 'C2', 'C3', 'C4']
-    pfs = ['1.0', '0', '1.0']
+    pfs = ['1.0', '0', '1.0'][:2]
     qs = [None, None, '5']
     labels = ['no-acc', 'acc1', 'acc2']
     linestyles = ['-', '--', '-.', ':']
     datasets = ['mnist', 'cifar10']
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(10, 4))
     for dd, dataset in enumerate(datasets):
+        ax0 = plt.subplot(1, 2, dd + 1)
         for nn, noise in enumerate(noises):
-            # if dd == 0:
-            #     props = {'ha': 'center', 'va': 'center'}
-            #     plt.text(-0.23, 0.5, noise_names[nn], props, rotation=90, transform=ax0.transAxes, fontsize=15)
-            # if nn == 0:
-            #     props = {'ha': 'center', 'va': 'center'}
-            #     plt.text(0.5, 1.1, dataset.upper(), props, transform=ax0.transAxes, fontsize=15)
+            if nn == 0:
+                props = {'ha': 'center', 'va': 'center'}
+                plt.text(0.5, 1.1, dataset.upper(), props, transform=ax0.transAxes, fontsize=15)
             b, sn, dr, cs = 1, 0.01, 0.5, 26
             if noise == 'smoothing' and dataset == 'cifar10':
                 sn = 0.005
@@ -1071,9 +1086,83 @@ def pie_chart():
                 cs = 25 if dataset == 'mnist' else 30
             elif noise == 'dropout' and dataset == 'cifar10':
                 dr = 0.03
+            exp_name = f'{dataset}_psj_pf_1.0_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+            raw = read_dump(exp_name, raw=True)
+            T_binsearch = np.zeros((n_images, n_iterations + 1))
+            T_grad = np.zeros((n_images, n_iterations))
+            C_binsearch = np.zeros((n_images, n_iterations + 1))
+            C_grad = np.zeros((n_images, n_iterations))
+            for image in range(n_images):
+                diary = raw[image]
+                epoch = diary.epoch_start
+                T_binsearch[image, 0] = diary.epoch_initial_bin_search - epoch
+                C_binsearch[image, 0] = diary.calls_initial_bin_search
+                for i in range(n_iterations):
+                    page = diary.iterations[i]
+                    T_grad[image, i] = page.time.approx_grad - page.time.start
+                    T_binsearch[image, i+1] = page.time.bin_search - page.time.approx_grad
+                    C_grad[image, i] = page.calls.approx_grad - page.calls.start
+                    C_binsearch[image, i+1] = page.calls.bin_search - page.calls.approx_grad
+            timings_grad = np.median(T_grad, axis=0)
+            timings_bin = np.median(T_binsearch, axis=0)
+            calls_grad = np.median(C_grad, axis=0)
+            calls_bin = np.median(C_binsearch, axis=0)
+
+            ax0.scatter(timings_bin.sum(), calls_bin.sum(), marker='^', s=50, color=colors[nn], label=f'bin step - {noise_names[dataset][nn]}')
+            ax0.scatter(timings_grad.sum(), calls_grad.sum(), marker='o', s=50, color=colors[nn], label=f'grad step - {noise_names[dataset][nn]}')
+
+            ax0.set_ylabel('median model calls')
+            # ax0.ticklabel_format(axis='y', style='sci', scilimits=(0,0), useOffset=None, useLocale=None, useMathText=None)
+            ax0.set_xlabel('median time (in seconds)')
+            ax0.set_yscale('log')
+            ax0.legend()
+            ax0.grid(True)
+        image_path = f'thesis/plots_paper/queries_vs_time_dot_{n_images}.pdf'
+        plt.savefig(image_path, bbox_inches='tight')
+
+
+
+def pie_chart():
+    rc('text', usetex=True)
+    rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+    rc('font', size=11)  # default: 10 -> choose size depending on figsize
+    rc('font', family='STIXGeneral')
+    rc('legend', fontsize=11)
+    plt.tight_layout(h_pad=0, w_pad=0)
+    n_images = 20
+    n_iterations = 32
+    noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
+    noise_names = ['logit sampling', 'dropout', 'smoothing', 'cropping']
+    colors = ['C1', 'C2', 'C3', 'C4']
+    pfs = ['1.0', '1.0', '0', '0']
+    qs = [None, '5', None, '5']
+    labels = ['no-acc', 'acc1', 'acc2', 'acc1+2']
+    linestyles = ['-', '--', '-.', ':']
+    datasets = ['mnist', 'cifar10']
+    plt.figure(figsize=(12, 6))
+    for dd, dataset in enumerate(datasets):
+        for nn, noise in enumerate(noises):
+            b, sn, dr, cs = 1, 0.01, 0.5, 26
+            if noise == 'smoothing' and dataset == 'cifar10':
+                sn = 0.005
+            elif noise == 'cropping':
+                cs = 25 if dataset == 'mnist' else 30
+            elif noise == 'dropout' and dataset == 'cifar10':
+                dr = 0.03
+            ax0 = plt.subplot(2, 4, 4 * dd + nn + 1)
+            if dd == 0:
+                props = {'ha': 'center', 'va': 'center'}
+                ax0.text(0.5, 1.1, noise_names[nn], props, transform=ax0.transAxes, fontsize=15)
+            if nn == 0:
+                props = {'ha': 'center', 'va': 'center'}
+                ax0.text(-0.45, 0.5, dataset.upper(), props, rotation=90, transform=ax0.transAxes, fontsize=15)
+            grads, bins = [], []
             for pp, pf in enumerate(pfs):
-                ax0 = plt.subplot(2, 3, 3*dd + pp+1)
                 q = qs[pp]
+                # if dataset == 'cifar10' and pp == 3 and noise == 'cropping':
+                #     grads.append(0)
+                #     bins.append(0)
+                #     continue
                 if q is None:
                     exp_name = f'{dataset}_psj_pf_{pf}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
                 else:
@@ -1092,12 +1181,31 @@ def pie_chart():
                 timings_grad = np.median(T_grad, axis=0)
                 timings_bin = np.median(T_binsearch, axis=0)
                 t_grad, t_bin = timings_grad.sum(), timings_bin.sum()
-                ax0.pie([timings_grad.sum(), timings_bin.sum()], labels=['grad step', 'binsearch step'], colors=['C3', 'grey'])
-                ax0.text(-0.7, -1.3, "Approx Grad: {} secs/image".format(np.round(t_grad, 1)))
-                ax0.text(-0.7, -1.5, "Binary Search: {} secs/image".format(np.round(t_bin, 1)))
-                ax0.text(-0.7, -1.7, "Total: {} secs/image".format(np.round(t_bin+t_grad, 1)))
-                ax0.set_title(labels[pp].upper())
-    image_path = f'thesis/plots_paper/acceleration_pie_{n_images}.pdf'
+
+                grads.append(t_grad)
+                bins.append(t_bin)
+            ind = np.arange(len(pfs))  # the x locations for the groups
+            width = 0.35  # the width of the bars: can also be len(x) sequence
+
+            p1 = ax0.bar(ind, bins, width)
+            p2 = ax0.bar(ind, grads, width, bottom=bins, alpha=0.6)
+
+            if nn==0:
+                ax0.set_ylabel('time/image (in seconds)')
+            ax0.set_xticks(ind)
+            ax0.set_xticklabels(labels)
+            # plt.yticks(np.arange(0, 81, 10))
+            if dd==0 and nn==0:
+                ax0.legend((p1[0], p2[0]), ('binsearch step', 'grad step'))
+
+
+
+                # ax0.pie([timings_grad.sum(), timings_bin.sum()], labels=['grad step', 'binsearch step'], colors=['C3', 'grey'])
+                # ax0.text(-0.7, -1.3, "Approx Grad: {} secs/image".format(np.round(t_grad, 1)))
+                # ax0.text(-0.7, -1.5, "Binary Search: {} secs/image".format(np.round(t_bin, 1)))
+                # ax0.text(-0.7, -1.7, "Total: {} secs/image".format(np.round(t_bin+t_grad, 1)))
+                # ax0.set_title(labels[pp].upper())
+    image_path = f'thesis/plots_paper/acceleration_bar_{n_images}.pdf'
     plt.savefig(image_path, bbox_inches='tight')
 
 
@@ -1117,5 +1225,6 @@ def pie_chart():
 # acceleration()
 # queries_vs_time()
 # queries_vs_time_appendix()
+# queries_vs_time_dot()
 pie_chart()
 pass
