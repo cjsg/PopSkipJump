@@ -10,11 +10,13 @@ PLOTS_DIR = f'{OUT_DIR}/plots_experiments/'
 device = get_device()
 
 
-def read_dump(path, raw=False, aa=False):
+def read_dump(path, raw=False, aa=False, aaa=False):
     if raw:
         filepath = f'{OUT_DIR}/{path}/raw_data.pkl'
     elif aa:
         filepath = f'{OUT_DIR}/{path}/crunched_aa.pkl'
+    elif aaa:
+        filepath = f'{OUT_DIR}/{path}/crunched_aaa.pkl'
     else:
         filepath = f'{OUT_DIR}/{path}/crunched.pkl'
     raw = torch.load(open(filepath, 'rb'), map_location=device)
@@ -673,12 +675,13 @@ def adv_risk():
     noises = ['bayesian', 'dropout', 'smoothing', 'cropping']
     noise_names_1 = ['logit', 'dropout', 'smoothing', 'cropping']
     attacks = ['hsj', 'psj']
-    line_style = [(0, (5, 8)), (0, ())]
-    plt.figure(figsize=(10, 4))
+    line_style = ['--', (0, ())]
+    plt.figure(figsize=(10, 2.5))
     ax0 = plt.subplot(1, 2, 1)
     ax1 = plt.subplot(1, 2, 2, sharey=ax0)
     ax = [ax0, ax1]
     for dd, dataset in enumerate(datasets):
+        noise = 'bayesian'
         for nn, noise in enumerate(noises):
             b, sn, dr, cs = 1, 0.01, 0.5, 26
             symb, symbval = 'T', 1
@@ -701,21 +704,93 @@ def adv_risk():
                 eps = torch.linspace(0, 10, 100)
                 label = f'{attack}-{noise_names_1[nn]} ({symb}={symbval})'
                 if dataset == 'cifar10':
-                    ax[dd].plot(eps[:50], mean_adv_acc[:50], linestyle=line_style[aa], color=f'C{nn + 1}', label=label)
+                    ax[dd].plot(eps[:50], mean_adv_acc[:50], linestyle=line_style[aa], color=f'C{nn + 2}', label=label)
                 else:
-                    ax[dd].plot(eps, mean_adv_acc, linestyle=line_style[aa], color=f'C{nn + 1}', label=label)
-        ax[dd].set_xlabel('$\\epsilon$ (perturbation in unit $l_2$-norm)')
+                    ax[dd].plot(eps, mean_adv_acc, linestyle=line_style[aa], color=f'C{nn + 2}', label=label)
+        ax[dd].set_xlabel('$l_2$-perburation ($\\epsilon$)')
         ax[dd].grid()
-        ax[dd].set_ylim(0, 1.1)
-        ax[dd].text(0.5, 1.35, dataset.upper(), props, transform=ax[dd].transAxes, fontsize=15)
+        ax[dd].set_ylim(0, 1.2)
+        ax[dd].text(0.5, 0.92, dataset.upper(), props, transform=ax[dd].transAxes, fontsize=13)
         # if dd==0:
             # ax[dd].legend()
             # ax[dd].legend(loc='upper center', bbox_to_anchor=(1.1, 1.22), ncol=4, fancybox=True, handletextpad=1)
-        ax[dd].legend(loc='upper center', bbox_to_anchor=(0.5, 1.31), ncol=2, fancybox=True, handletextpad=0.2, fontsize=9)
+        ax[dd].legend(loc='upper center', bbox_to_anchor=(0.5, 1.45), ncol=2, fancybox=True, handletextpad=0.2, fontsize=9)
         ax[dd].set_ylabel('adversarial accuracy')
-    # plt.setp(ax1.get_yticklabels(), visible=False)
     image_path = f'thesis/plots_paper/adv_acc.pdf'
     plt.savefig(image_path, bbox_inches='tight')
+
+
+def adv_risk_logit():
+    datasets = ['mnist', 'cifar10']
+    rc('text', usetex=True)
+    rc('text.latex', preamble=[r'\usepackage{amsfonts}'])
+    rc('font', size=12)  # default: 10 -> choose size depending on figsize
+    rc('font', family='STIXGeneral')
+    rc('legend', fontsize=12)
+    plt.tight_layout(h_pad=0, w_pad=0)
+    attacks = ['hsj', 'psj']
+    line_style = ['--', (0, ())]
+    plt.figure(figsize=(10, 2.5))
+    ax0 = plt.subplot(1, 2, 1)
+    ax1 = plt.subplot(1, 2, 2, sharey=ax0)
+    ax = [ax0, ax1]
+    noise_levels = {'mnist': ['det', '5', '2', '1.50', '1'], 'cifar10': ['det', '5', '2', '1.50', '1']}
+    for dd, dataset in enumerate(datasets):
+        noise = 'bayesian'
+        for nn, noise_level in enumerate(noise_levels[dataset]):
+            b, sn, dr, cs = 1, 0.01, 0.5, 26
+            if noise_level == 'det':
+                t=0
+            else:
+                t = 1.0 / float(noise_level)
+            symb, symbval = 'T', '%.2f' % t
+            if noise == 'cropping':
+                cs = 25 if dataset == 'mnist' else 30
+                symb, symbval = 's', cs
+            if noise == 'dropout':
+                dr = 0.5 if dataset == 'mnist' else 0.03
+                symb, symbval = '$\\alpha$', dr
+            if noise == 'smoothing':
+                sn = 0.01 if dataset == 'mnist' else 0.001
+                symb, symbval = '$\\sigma$', sn
+            for aa, attack in enumerate(attacks):
+                if noise_level == 'det':
+                    exp_name = f'{dataset}_{attack}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_1_deterministic_fp_0.00_ns_100'
+                else:
+                    exp_name = f'{dataset}_{attack}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{noise_level}_{noise}_fp_0.00_ns_100'
+                if dataset == 'mnist':
+                    raw = read_dump(exp_name, aa=True)
+                else:
+                    raw = read_dump(exp_name, aaa=True)
+                AA = raw['adv_acc']
+                adv_acc = AA[:, -1, :]
+                adv_acc = torch.cat([adv_acc[:, :57], adv_acc[:, 58:]], dim=1)
+                if dataset == 'cifar10':
+                    adv_acc = adv_acc[:, :20]
+                for a in range(adv_acc.shape[1]):
+                    for b in range(1, adv_acc.shape[0]):
+                        if adv_acc[b, a] > adv_acc[b-1, a]:
+                            adv_acc[b, a] = adv_acc[b-1, a]
+                mean_adv_acc = torch.mean(adv_acc, dim=1)
+                eps = torch.linspace(0, 10, 100)
+                label = f'{attack} ({symb}={symbval})'
+                if dataset == 'cifar10':
+                    ax[dd].plot(eps[:50], mean_adv_acc[:50], linestyle=line_style[aa], color=f'C{nn + 1}', label=label)
+                else:
+                    ax[dd].plot(eps, mean_adv_acc, linestyle=line_style[aa], color=f'C{nn + 1}', label=label)
+        ax[dd].set_xlabel('$l_2$-perburation ($\\epsilon$)')
+        ax[dd].grid()
+        ax[dd].set_ylim(0, 1.2)
+        ax[dd].text(0.5, 0.92, dataset.upper(), props, transform=ax[dd].transAxes, fontsize=13)
+        if dd==0:
+            # ax[dd].legend()
+            # ax[dd].legend(loc='upper center', bbox_to_anchor=(1.1, 1.22), ncol=4, fancybox=True, handletextpad=1)
+            # ax[dd].legend(loc='upper center', bbox_to_anchor=(0.5, 1.37), ncol=2, fancybox=True, handletextpad=2, fontsize=9)
+            ax[dd].legend(loc='upper center', bbox_to_anchor=(1.1, 1.25), ncol=5, fancybox=True, handletextpad=2, fontsize=9)
+        ax[dd].set_ylabel('adversarial accuracy')
+    image_path = f'thesis/plots_paper/adv_acc_logit.pdf'
+    plt.savefig(image_path, bbox_inches='tight')
+
 
 
 def grad_evals(dataset='cifar10'):
@@ -1159,10 +1234,6 @@ def pie_chart():
             grads, bins = [], []
             for pp, pf in enumerate(pfs):
                 q = qs[pp]
-                # if dataset == 'cifar10' and pp == 3 and noise == 'cropping':
-                #     grads.append(0)
-                #     bins.append(0)
-                #     continue
                 if q is None:
                     exp_name = f'{dataset}_psj_pf_{pf}_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
                 else:
@@ -1170,42 +1241,46 @@ def pie_chart():
                 raw = read_dump(exp_name, raw=True)
                 T_binsearch = np.zeros((n_images, n_iterations + 1))
                 T_grad = np.zeros((n_images, n_iterations))
+                C_binsearch = np.zeros((n_images, n_iterations + 1))
+                C_grad = np.zeros((n_images, n_iterations))
                 for image in range(n_images):
                     diary = raw[image]
                     epoch = diary.epoch_start
                     T_binsearch[image, 0] = diary.epoch_initial_bin_search - epoch
+                    C_binsearch[image, 0] = diary.calls_initial_bin_search
                     for i in range(n_iterations):
                         page = diary.iterations[i]
                         T_grad[image, i] = page.time.approx_grad - page.time.start
                         T_binsearch[image, i+1] = page.time.bin_search - page.time.approx_grad
+                        C_grad[image, i] = page.calls.approx_grad - page.calls.start
+                        C_binsearch[image, i+1] = page.calls.bin_search - page.calls.approx_grad
                 timings_grad = np.median(T_grad, axis=0)
                 timings_bin = np.median(T_binsearch, axis=0)
                 t_grad, t_bin = timings_grad.sum(), timings_bin.sum()
+                calls_grad = np.median(C_grad, axis=0)
+                calls_bin = np.median(C_binsearch, axis=0)
+                c_grad, c_bin = calls_grad.sum(), calls_bin.sum()
 
-                grads.append(t_grad)
-                bins.append(t_bin)
+                # grads.append(t_grad)
+                # bins.append(t_bin)
+                grads.append(c_grad)
+                bins.append(c_bin)
             ind = np.arange(len(pfs))  # the x locations for the groups
             width = 0.35  # the width of the bars: can also be len(x) sequence
 
             p1 = ax0.bar(ind, bins, width)
-            p2 = ax0.bar(ind, grads, width, bottom=bins, alpha=0.6)
+            # p2 = ax0.bar(ind, grads, width, bottom=bins, alpha=0.6)
 
+            ax0.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
             if nn==0:
-                ax0.set_ylabel('time/image (in seconds)')
+                ax0.set_ylabel('model calls per image')
+                # ax0.set_ylabel('time/image (in seconds)')
             ax0.set_xticks(ind)
             ax0.set_xticklabels(labels)
             # plt.yticks(np.arange(0, 81, 10))
             if dd==0 and nn==0:
-                ax0.legend((p1[0], p2[0]), ('binsearch step', 'grad step'))
-
-
-
-                # ax0.pie([timings_grad.sum(), timings_bin.sum()], labels=['grad step', 'binsearch step'], colors=['C3', 'grey'])
-                # ax0.text(-0.7, -1.3, "Approx Grad: {} secs/image".format(np.round(t_grad, 1)))
-                # ax0.text(-0.7, -1.5, "Binary Search: {} secs/image".format(np.round(t_bin, 1)))
-                # ax0.text(-0.7, -1.7, "Total: {} secs/image".format(np.round(t_bin+t_grad, 1)))
-                # ax0.set_title(labels[pp].upper())
-    image_path = f'thesis/plots_paper/acceleration_bar_{n_images}.pdf'
+                ax0.legend([p1[0]], ['binsearch step'])
+    image_path = f'thesis/plots_paper/acceleration_bar_calls_{n_images}.pdf'
     plt.savefig(image_path, bbox_inches='tight')
 
 
@@ -1219,6 +1294,7 @@ def pie_chart():
 # hsj_vs_psj()
 # fig5()
 # adv_risk()
+adv_risk_logit()
 # grad_evals(dataset='mnist')
 # grad_evals(dataset='cifar10')
 # acceleration_prereq()
@@ -1226,5 +1302,5 @@ def pie_chart():
 # queries_vs_time()
 # queries_vs_time_appendix()
 # queries_vs_time_dot()
-pie_chart()
+# pie_chart()
 pass
