@@ -11,7 +11,7 @@ from scipy import stats
 import torchvision.models as models
 import eagerpy as ep
 from foolbox import PyTorchModel, accuracy, samples
-from foolbox.attacks import BoundaryAttack, L2BrendelBethgeAttack, L2PGD
+from foolbox.attacks import BoundaryAttack, L2BrendelBethgeAttack, L2PGD, L2CarliniWagnerAttack
 from img_utils import get_samples
 from model_factory import get_model
 from foolbox.criteria import Misclassification
@@ -89,7 +89,7 @@ def main() -> None:
     # instantiate a model (could also be a TensorFlow or JAX model)
     det_model = get_model(key='mnist_noman', dataset='mnist', noise='deterministic')
     fmodel = PyTorchModel(det_model.model, bounds=(0, 1))
-    n_samples = 100
+    n_samples = 25
     imgs, lbls = get_samples('mnist', n_samples=n_samples, conf=0.75, model=det_model, samples_from=0)
     images, labels = ep.astensors(torch.tensor(imgs[:, None, :, :], dtype=torch.float32), torch.tensor(lbls))
     clean_acc = accuracy(fmodel, images, labels)
@@ -104,7 +104,7 @@ def main() -> None:
         BD[rep] = {}
         MC[rep] = {}
         for flip in flips:
-            attack = BoundaryAttack()
+            attack = L2CarliniWagnerAttack()
             epsilons = [None]
             criterion = Noisy(labels, flip, rep)
             raw_advs, clipped_advs, success = attack(fmodel, images, criterion, epsilons=epsilons)
