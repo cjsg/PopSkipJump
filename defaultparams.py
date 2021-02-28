@@ -11,6 +11,7 @@ class DefaultParams:
         self.targeted = False
         self.dataset = 'mnist'
         self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
+        self.model_keys_filepath = 'data/model_dumps/filtered_models.txt'
         self.num_iterations = 32
         self.internal_dtype = torch.float32
         self.bounds = (0, 1)

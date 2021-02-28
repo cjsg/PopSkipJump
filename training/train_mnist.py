@@ -66,7 +66,6 @@ def train_network(network, path, n_epochs, optim_name, batch_size_train, batch_s
     test_counter = [i*len(train_loader.dataset) for i in range(n_epochs + 1)]
 
     def train(epoch):
-      epoch_time = time.time()
       network.train()
       for batch_idx, (data, target) in enumerate(train_loader):
         optimizer.zero_grad()
@@ -103,10 +102,12 @@ def train_network(network, path, n_epochs, optim_name, batch_size_train, batch_s
 
     test()
     print(f'n_epochs: {n_epochs}, optim: {optim_name}, lr: {learning_rate}, momentum: {momentum}')
+    epoch_time = time.time()
     for epoch in range(1, n_epochs + 1):
         train(epoch)
         test_loss, accuracy = test()
-        print(f'\tepoch: {epoch}, test_loss: {test_loss}, test_acc: {accuracy}')
+        _time = time.time() - epoch_time
+        print(f'\tepoch: {epoch}, test_loss: {test_loss}, test_acc: {accuracy}, time: {_time}')
     torch.save(network, f'{path}_network.pth')
 
 
@@ -131,8 +132,7 @@ def main():
                 path = f'data/model_dumps/mnist_{optim_name}_{lr}_{momen}'
                 train_network(network, path, n_epochs, optim_name, batch_size_train, batch_size_test,
                               lr, momen, log_interval)
-            break
-        break
+
 
 if __name__ == '__main__':
     main()

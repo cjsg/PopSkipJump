@@ -146,3 +146,27 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
                 return torch.tensor(results)
 
         return Human(model=None)
+    if key.startswith('mnist_'):
+        pytorch_model = MNIST_Net()
+        pytorch_model.load_state_dict(torch.load(f'data/model_dumps/{key}_model.pth'))
+        pytorch_model.eval()
+        if noise == "dropout":
+            pytorch_model.conv2_drop.p = drop_rate
+            pytorch_model.conv2_drop.train()
+        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device,
+                           smoothing_noise=smoothing_noise, crop_size=crop_size)
+
+
+def get_models_from_file(filepath, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, smoothing_noise=0., crop_size=None,
+              drop_rate=0., n_models=None):
+    f = open(filepath, 'r')
+    keys = f.readlines()
+    f.close()
+    if n_models is not None:
+        keys = keys[:n_models]
+    models = []
+    for k in keys:
+        k = k.strip()
+        model = get_model(k, dataset, noise, flip_prob, beta, device, smoothing_noise, crop_size, drop_rate)
+        models.append(model)
+    return models

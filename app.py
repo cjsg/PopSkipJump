@@ -9,7 +9,7 @@ from popskip import PopSkipJump, PopSkipJumpTrueLogits
 from popskip_human import PopSkipJumpHuman
 from hopskip import HopSkipJump, HopSkipJumpRepeated, HopSkipJumpRepeatedWithPSJDelta, HopSkipJumpTrueGradient, HopSkipJumpAllGradient
 from img_utils import get_sample, read_image, get_samples, get_shape, get_device, find_adversarial_images, get_samples_for_cropping
-from model_factory import get_model
+from model_factory import get_model, get_models_from_file
 from model_interface import ModelInterface
 
 logging.root.setLevel(logging.WARNING)
@@ -79,9 +79,14 @@ def create_attack(exp_name, dataset, params):
     else:
         os.makedirs(exp_path)
 
-    models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise,
-                        params.crop_size, params.drop_rate)
-              for k in params.model_keys[dataset]]
+    if params.model_keys_filepath is None:
+        models = [get_model(k, dataset, params.noise, params.flip_prob, params.beta, get_device(), params.smoothing_noise,
+                            params.crop_size, params.drop_rate)
+                  for k in params.model_keys[dataset]]
+    else:
+        n_models = 1
+        models = get_models_from_file(params.model_keys_filepath, dataset, params.noise, params.flip_prob, params.beta,
+                                      get_device(), params.smoothing_noise, params.crop_size, params.drop_rate, n_models)
     model_interface = ModelInterface(models, bounds=params.bounds, n_classes=10, slack=params.slack,
                                      noise=params.noise, device=get_device(), flip_prob=params.flip_prob,
                                      smoothing_noise=params.smoothing_noise, crop_size=params.crop_size)
