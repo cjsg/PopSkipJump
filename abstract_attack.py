@@ -140,7 +140,7 @@ class Attack:
             page.calls.step_search = self.model_interface.model_calls
 
             # Update the sample.
-            perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+            perturbed = self.make_gradient_step(epsilon, perturbed, update)
             page.approx_grad = perturbed
 
             perturbed = self.opposite_movement_step(original, perturbed)
@@ -168,6 +168,10 @@ class Attack:
             page.distance = self.a.distance
             self.diary.iterations.append(page)
         return self.diary
+
+    def make_gradient_step(self, epsilon, perturbed, update):
+        perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+        return perturbed
 
     def reset_variables(self, a):
         self.model_interface.model_calls = 0

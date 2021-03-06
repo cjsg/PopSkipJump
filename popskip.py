@@ -44,6 +44,22 @@ class PopSkipJump(Attack):
         page.time.num_evals = time.time()
         return self._gradient_estimator(perturbed, num_evals_prob, delta_prob)
 
+    def make_gradient_step(self, epsilon, perturbed, update):
+        if self.constraint == 'l2':
+            perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+        elif self.constraint == 'linf':
+            perturbed = torch.clamp(perturbed + epsilon * update, self.clip_min, self.clip_max)
+            # if len(self.diary.iterations) == 0:
+            #     x_tminus1 = self.diary.initial_projection
+            # else:
+            #     x_tminus1 = self.diary.iterations[-1].bin_search
+            # x_tilde = perturbed
+            # mid = 0.5 * (x_tilde + x_tminus1)
+            # perturbed = torch.clamp(mid + epsilon * update, self.clip_min, self.clip_max)
+        else:
+            raise RuntimeError(f"Unknown constraint: {self.constraint}")
+        return perturbed
+
     def opposite_movement_step(self, original, perturbed):
         # Go in the opposite direction
         if self.constraint == 'l2':
