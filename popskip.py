@@ -65,6 +65,10 @@ class PopSkipJump(Attack):
         if self.constraint == 'l2':
             return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
         elif self.constraint == 'linf':
+            eps = torch.max(torch.abs(original - perturbed))
+            diff = perturbed - original
+            alpha = 3  # alpha = 1 for l2 and alpha = infinity for linf
+            perturbed = perturbed + 0.5 * eps * (diff / eps) ** alpha
             return perturbed
             # return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)
             # o_ = original.flatten()

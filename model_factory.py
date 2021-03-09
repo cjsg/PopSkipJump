@@ -3,6 +3,7 @@ from torchvision import transforms
 import torch.nn.functional as F
 from cifar10_models import *
 from pytorchmodels import MNIST_Net, CWMNISTNetwork
+from torchvision import transforms
 from img_utils import show_image
 
 
@@ -114,6 +115,17 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
             outs = self.model(images.float())
             return outs.detach()
 
+    class MNIST_Multimodel(Model):
+        def predict(self, images):
+            images = images
+            images = images.unsqueeze(dim=1)
+            transform = transforms.Compose([
+                transforms.Normalize((0.1307,), (0.3081,))])
+            img_tr = [transform(i) for i in images]
+            outs = self.model(torch.stack(img_tr).float())
+            # outs = self.model(images.float())
+            return outs.detach()
+
     if key == 'mnist_noman':
         pytorch_model = MNIST_Net()
         pytorch_model.load_state_dict(torch.load('mnist_models/mnist_model.pth'))
@@ -153,7 +165,7 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
         if noise == "dropout":
             pytorch_model.conv2_drop.p = drop_rate
             pytorch_model.conv2_drop.train()
-        return MNIST_Model(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device,
+        return MNIST_Multimodel(pytorch_model, noise, n_classes=10, flip_prob=flip_prob, beta=beta, device=device,
                            smoothing_noise=smoothing_noise, crop_size=crop_size)
 
 
