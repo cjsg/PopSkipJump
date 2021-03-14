@@ -284,7 +284,8 @@ def bin_search(
         delta=.5, d=1000, verbose=False, window_size=10, grid_size=100,
         eps_=None, device=None, label=None, targeted=False, plot=False, prev_t=None,
         prev_s=None, prev_e=None, prior_frac=1., queries=5,
-        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation", dist_metric="l2"):
+        tt=None, ss=None, ee=None, stop_criteria="estimate_fluctuation", dist_metric="l2",
+        human_interface=None):
     '''
         acq_func    (str)   Must be one of
                             ['I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]']
@@ -393,6 +394,7 @@ def bin_search(
                     tse[:, 1] = torch.log10(tse[:, 1])
                     diffs = torch.abs(tse[1:] - tse[:-1])
                     means = torch.max(diffs, dim=0)[0]
+                    # print(f'\tStopping crtieria: {means} < [{(t_hi - t_lo) / Nt},{(s_hi - s_lo) / Ns},{(e_hi - e_lo) / Ne}]')
                     if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
                             and means[2] <= (e_hi - e_lo) / Ne) or terminated:
                         En = get_n_from_cos(target_cos, theta=1.0/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
@@ -429,7 +431,7 @@ def bin_search(
 
 
     if unperturbed is None:
-        pp = get_py_txse(1, t=.3, x=xx, s=3., eps=.1)
+        pp = get_py_txse(1, t=.3, x=xx, s=300., eps=.0)
     else:
         pp = None
         # pp = get_bernoulli_probs(xx, unperturbed, perturbed, model_interface, label, dist_metric, targeted)
@@ -488,6 +490,7 @@ def bin_search(
     CLIP_MAX = 1 - 1e-7
 
     for k in tqdm(range(krepeat), desc='bin-search'):
+    # for k in range(krepeat):
         if stop_next:
             break
         # if k == krepeat - 1:
@@ -625,11 +628,20 @@ def bin_search(
         # j_amax = torch.argmax(a_x)
         # j_amax = j_amax.repeat(queries)
         xj = xx[j_amax]
-        if model_interface is None:
-            yj = torch.bernoulli(pp[j_amax]).long()
+        if human_interface is None:
+            if model_interface is None:
+                yj = torch.bernoulli(pp[j_amax]).long()
+            else:
+                pj = get_bernoulli_probs(xj[None], unperturbed, perturbed, model_interface, label, dist_metric, targeted)
+                yj = model_interface.sample_bernoulli(pj).long()
         else:
-            pj = get_bernoulli_probs(xj[None], unperturbed, perturbed, model_interface, label, dist_metric, targeted)
-            yj = model_interface.sample_bernoulli(pj).long()
+            yj = []
+            for xj_ in xj:
+                x_ = (1 - xj_) * perturbed + xj_ * unperturbed
+                y_ = 1 - human_interface(x_, unperturbed, perturbed)
+                yj.append(y_)
+                # print(f'step:{k}, lambda:{xj_}, response:{y_}')
+            yj = torch.tensor(yj, device=device)
         # yj, memory = get_model_output(xj, unperturbed, perturbed, decision_function, memory)
         tt_max_acquisition += time.time() - t_start
         t_start = time.time()

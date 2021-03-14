@@ -5,6 +5,8 @@ import torch
 
 from abstract_attack import Attack
 from defaultparams import DefaultParams
+from tracker import InfoMaxStats
+from infomax import bin_search, get_cos_from_n
 
 
 class PopSkipJumpHuman(Attack):
@@ -89,8 +91,97 @@ class PopSkipJumpHuman(Attack):
         return out, dists_post_update
 
     def bin_search_step(self, original, perturbed, page=None, estimates=None, step=None):
-        perturbed, dist_post_update = self.binary_search(original, perturbed)
-        return perturbed, dist_post_update, None
+        # perturbed, dist_post_update = self.binary_search(original, perturbed)
+        # return perturbed, dist_post_update, None
+        perturbed, dist_post_update, s_, e_, t_, n_, (nn_tmap, xx) = self.info_max_batch(
+            original, perturbed[None], self.a.true_label, estimates, step)
+        if page is not None:
+            page.info_max_stats = InfoMaxStats(s_, t_, xx, e_, n_)
+        return perturbed, dist_post_update, {'s': s_, 'e': e_, 'n': n_, 't': t_}
+
+    def info_max_batch(self, unperturbed, perturbed_inputs, label, estimates, step):
+        if self.prior_frac == 0:
+            if step is None or step <= 1:
+                prior_frac = 1
+            elif step <= 4:
+                prior_frac = 0.5
+            elif step <= 10:
+                prior_frac = 0.2
+            else:
+                prior_frac = 0.1
+        else:
+            prior_frac = self.prior_frac
+        border_points = []
+        dists = []
+        smaps, tmaps, emaps, ns = [], [], [], []
+        if estimates is None:
+            target_cos = get_cos_from_n(self.initial_num_evals, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
+        else:
+            num_evals_det = int(min([self.initial_num_evals * math.sqrt(step+1), self.max_num_evals]))
+            target_cos = get_cos_from_n(num_evals_det, theta=self.theta_det, delta=self.delta_det_unit, d=self.d)
+        grid_size_dynamic = self.grid_size
+        for perturbed_input in perturbed_inputs:
+            output, n = bin_search(
+                unperturbed, perturbed_input, self.model_interface, d=self.d,
+                grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
+                label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
+                prev_e=self.prev_e, prior_frac=prior_frac, target_cos=target_cos,
+                queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint,
+                human_interface=self.decision_bin)
+            nn_tmap_est = output['nn_tmap_est']
+            t_map, s_map, e_map = output['ttse_max'][-1]
+            num_retries = 0
+            while t_map == 1 and num_retries < 5:
+                num_retries += 1
+                print(f'Got t_map == 1, Retrying {num_retries}...')
+                output, n = bin_search(
+                    unperturbed, perturbed_input, self.model_interface, d=self.d,
+                    grid_size=grid_size_dynamic, device=self.device, delta=self.delta_prob_unit,
+                    label=label, targeted=self.targeted, prev_t=self.prev_t, prev_s=self.prev_s,
+                    prev_e=self.prev_e, prior_frac=prior_frac, target_cos=target_cos,
+                    queries=self.queries, plot=False, stop_criteria=self.stop_criteria, dist_metric=self.constraint,
+                    human_interface=self.decision_bin)
+                nn_tmap_est = output['nn_tmap_est']
+                t_map, s_map, e_map = output['ttse_max'][-1]
+            if t_map == 1:
+                print('Prob of label (unperturbed):', self.model_interface.get_probs(unperturbed)[0, label])
+                print('Prob of label (perturbed):', self.model_interface.get_probs(perturbed_input)[0, label])
+                space = [(1 - tt) * perturbed_input + tt * unperturbed for tt in torch.linspace(0, 1, 21)]
+                print([self.model_interface.get_probs(x)[0, label] for x in space])
+                print('delta:', self.delta_prob_unit)
+                print('label:', label)
+                print('prev_t,s,e:', self.prev_t, self.prev_s, self.prev_e)
+                print('prior_frac:', prior_frac)
+                print('target_cos', target_cos)
+                torch.save(unperturbed, open('dumps/unperturbed.pkl', 'wb'))
+                torch.save(perturbed_input, open('dumps/perturbed.pkl', 'wb'))
+                t_map = 1.0 - 0.5 / self.grid_size
+                # torch.save(self.model_interface, open('dumps/model_interface.pkl', 'wb'))
+
+            if self.constraint == 'l2':
+                border_point = (1 - t_map) * perturbed_input + t_map * unperturbed
+            elif self.constraint == 'linf':
+                dist_linf = self.compute_distance(unperturbed, perturbed_input)
+                alphas = (1 - t_map) * dist_linf
+                border_point = self.project(unperturbed, perturbed_input, alphas[None])[0]
+            self.prev_t, self.prev_s, self.prev_e = t_map, s_map, e_map
+            dist = self.compute_distance(unperturbed, border_point)
+            border_points.append(border_point)
+            dists.append(dist)
+            smaps.append(s_map)
+            tmaps.append(t_map)
+            emaps.append(e_map)
+            ns.append(n)
+        idx = int(torch.argmin(torch.tensor(dists)))
+        dist = self.compute_distance(unperturbed, perturbed_inputs[idx])
+        if dist == 0:
+            print("Distance is zero in search")
+        out = border_points[idx]
+        dist_border = self.compute_distance(out, unperturbed)
+        if dist_border == 0:
+            print("Distance of border point is 0")
+        return out, dist, smaps[idx], emaps[idx], tmaps[idx], ns[idx], (nn_tmap_est, output['xxj'])
+
 
     def human_gradient_estimator(self, sample, num_evals, delta, x_star):
         num_evals = int(num_evals)

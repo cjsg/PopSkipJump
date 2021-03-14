@@ -12,9 +12,16 @@ import torchvision.models as models
 import eagerpy as ep
 from foolbox import PyTorchModel, accuracy, samples
 from foolbox.attacks import BoundaryAttack, L2BrendelBethgeAttack, L2PGD, L2CarliniWagnerAttack
-from img_utils import get_samples
+from img_utils import get_samples, get_samples_for_cropping
 from model_factory import get_model
+from tracker import Diary, DiaryPage
 from foolbox.criteria import Misclassification
+
+
+def read_dump(path):
+    filepath = 'thesis/{}/raw_data.pkl'.format(path)
+    raw = torch.load(open(filepath, 'rb'), map_location='cpu')
+    return raw
 
 
 class Noisy(Misclassification):
@@ -29,22 +36,39 @@ class Noisy(Misclassification):
         self.flip_prob = flip_prob
         self.calls = 0
         self.rep = rep
+        self.beta = 1
 
     def __call__(self, perturbed, outputs):
         outputs_, restore_type = ep.astensor_(outputs)
         del perturbed, outputs
 
-        classes = outputs_.numpy().argmax(axis=-1)
-        assert classes.shape == self.labels.shape
-        prediction = np.tile(classes.reshape(-1, 1), (1, self.rep))
-        n_samples = self.labels.shape[0]
-        self.calls += n_samples * self.rep
-        n_classes = outputs_.shape[-1]
-        rand_pred = np.random.randint(n_classes-1, size=(n_samples, self.rep))
-        rand_pred[rand_pred == self.labels.numpy()[:,None]] = n_classes - 1
-        indices_to_flip = np.random.rand(n_samples, self.rep) < self.flip_prob
-        prediction[indices_to_flip] = rand_pred[indices_to_flip]
-        prediction = stats.mode(prediction, axis=1)[0].flatten()
+        # BAYESIAN
+        # logits_ = outputs_.numpy()
+        # logits_ = logits_ - np.max(logits_, axis=1, keepdims=True)[0]
+        # probs = np.exp(self.beta * logits_)
+        # probs = probs / np.sum(probs, axis=1, keepdims=True)
+        # probs[probs < 1e-4] = 0
+        # prediction = np.zeros(len(probs))
+        # for i, prob in enumerate(probs):
+        #     prediction[i] = np.random.multinomial(1, prob).argmax()
+
+        # STOCHASTIC
+        # classes = outputs_.numpy().argmax(axis=-1)
+        # assert classes.shape == self.labels.shape
+        # prediction = np.tile(classes.reshape(-1, 1), (1, self.rep))
+        # n_samples = self.labels.shape[0]
+        # self.calls += n_samples * self.rep
+        # n_classes = outputs_.shape[-1]
+        # rand_pred = np.random.randint(n_classes-1, size=(n_samples, self.rep))
+        # rand_pred[rand_pred == self.labels.numpy()[:,None]] = n_classes - 1
+        # indices_to_flip = np.random.rand(n_samples, self.rep) < self.flip_prob
+        # prediction[indices_to_flip] = rand_pred[indices_to_flip]
+        # prediction = stats.mode(prediction, axis=1)[0].flatten()
+
+        # DETERMINISTIC
+        prediction = outputs_.numpy().argmax(axis=-1)
+        self.calls += self.labels.shape[0]
+
         is_adv = ep.astensor(torch.tensor(prediction)) != self.labels
         return restore_type(is_adv)
 
@@ -64,7 +88,8 @@ def search_boundary(x_star, x_t, theta_det, true_label, model):
 
 
 def project(x_star, x_t, label, theta_det, model):
-    x_t = x_t[0]
+    if len(x_t.shape) == 3:
+        x_t = x_t[0]
     probs = model.get_probs(x_t[None])
     if torch.argmax(probs[0]) == label:
         c = 0.25
@@ -88,47 +113,75 @@ def project(x_star, x_t, label, theta_det, model):
 def main() -> None:
     # instantiate a model (could also be a TensorFlow or JAX model)
     det_model = get_model(key='mnist_noman', dataset='mnist', noise='deterministic')
+    crop_model = get_model('mnist_noman', 'mnist', noise='cropping', crop_size=22)
     fmodel = PyTorchModel(det_model.model, bounds=(0, 1))
     n_samples = 25
-    imgs, lbls = get_samples('mnist', n_samples=n_samples, conf=0.75, model=det_model, samples_from=0)
+    imgs, lbls = get_samples_for_cropping('mnist', n_samples=n_samples, conf=0.75, model=crop_model)
+    if type(imgs) is not np.ndarray:
+        imgs = imgs.numpy()
     images, labels = ep.astensors(torch.tensor(imgs[:, None, :, :], dtype=torch.float32), torch.tensor(lbls))
     clean_acc = accuracy(fmodel, images, labels)
     print(f"clean accuracy:  {clean_acc * 100:.1f} %")
 
-    # apply the attack
+    # # apply the attack
     d = 28*28
     theta = 1 / (d*np.sqrt(d))
     flips = [0]
-    BD, MC = {}, {}
-    for rep in [1]:
-        BD[rep] = {}
-        MC[rep] = {}
-        for flip in flips:
-            attack = L2CarliniWagnerAttack()
-            epsilons = [None]
-            criterion = Noisy(labels, flip, rep)
-            raw_advs, clipped_advs, success = attack(fmodel, images, criterion, epsilons=epsilons)
-            border_distance = torch.zeros(n_samples)
-            for i, x_t in tqdm(enumerate(raw_advs[0])):
-                x_tt = project(imgs[i], x_t.numpy(), lbls[i], theta, det_model)
-                border_distance[i] = np.linalg.norm(x_tt - imgs[i]) ** 2 / d
-            print(f'Flip={flip}, Rep={rep}', end='\t')
-            print("Border-Distance", np.median(border_distance), end='\t')
-            print('Model-Calls', criterion.calls)
-            BD[rep][flip] = border_distance
-            MC[rep][flip] = criterion.calls
-    torch.save({'BD': BD, 'MC': MC}, open('aistats/brendell2.pkl', 'wb'))
+    # BD, MC, VD = {}, {}, {}
+    # for rep in [1]:
+    #     BD[rep] = {}
+    #     VD[rep] = {}
+    #     MC[rep] = {}
+    #     for flip in flips:
+    #         attack = L2BrendelBethgeAttack()
+    #         epsilons = [None]
+    #         criterion = Noisy(labels, flip, rep)
+    #         raw_advs, clipped_advs, success = attack(fmodel, images, criterion, epsilons=epsilons)
+    #         border_distance = torch.zeros(n_samples)
+    #         vanilla_distance = torch.zeros(n_samples)
+    #         for i, x_t in tqdm(enumerate(raw_advs[0])):
+    #             x_t = x_t.numpy()
+    #             x_tt = project(imgs[i], x_t, lbls[i], theta, det_model)
+    #             border_distance[i] = np.linalg.norm(x_tt - imgs[i]) / np.sqrt(d)
+    #             vanilla_distance[i] = np.linalg.norm(x_t - imgs[i]) / np.sqrt(d)
+    #         print(f'Flip={flip}, Rep={rep}', end='\t')
+    #         print("Border-Distance", np.median(border_distance), end='\t')
+    #         print('Model-Calls', criterion.calls)
+    #         BD[rep][flip] = border_distance
+    #         VD[rep][flip] = vanilla_distance
+    #         MC[rep][flip] = criterion.calls
+    # torch.save({'BD': BD, 'MC': MC, 'VD': VD}, open('thesis/brendell2.pkl', 'wb'))
 
-    D = torch.load(open('aistats/brendell2.pkl', 'rb'))
-    BD, MC = D['BD'], D['MC']
-    for rep in BD:
-        for flip in BD[rep]:
-            n_images = len(BD[rep][flip])
-            perc_50 = np.median(BD[rep][flip])
-            perc_40 = np.percentile(BD[rep][flip], 40)
-            perc_60 = np.percentile(BD[rep][flip], 60)
+    D = torch.load(open('thesis/brendell2.pkl', 'rb'))
+    BD, MC, VD = D['BD'], D['MC'], D['VD']
+    metric = VD
+    for rep in metric:
+        for flip in metric[rep]:
+            n_images = len(metric[rep][flip])
+            perc_50 = np.median(metric[rep][flip])
+            perc_40 = np.percentile(metric[rep][flip], 40)
+            perc_60 = np.percentile(metric[rep][flip], 60)
             calls = MC[rep][flip]/n_images
             print(f'rep={rep} flip={flip}\t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
+
+    raw = read_dump('whitebox_hsj_true_grad')
+    calls = 0
+    BD_hsj = np.zeros(n_samples)
+    for i in range(n_samples):
+        diary: Diary = raw[i]
+        label = diary.true_label
+        x_star = diary.original.numpy()
+        page: DiaryPage = diary.iterations[-1]
+        x_t = page.bin_search
+        calls += page.calls.bin_search
+        x_tt = project(x_star, x_t.numpy(), label, theta, det_model)
+        BD_hsj[i] = np.linalg.norm(x_t - x_star) / np.sqrt(d)
+    perc_50 = np.median(BD_hsj)
+    perc_40 = np.percentile(BD_hsj, 40)
+    perc_60 = np.percentile(BD_hsj, 60)
+    calls = calls / n_samples
+    print(f'rep={rep} \t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
+
 
 if __name__ == "__main__":
     main()
