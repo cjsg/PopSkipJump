@@ -393,10 +393,10 @@ def bin_search(
                     tse = torch.stack(output['ttse_max'][-(window_size + 1):])
                     tse[:, 1] = torch.log10(tse[:, 1])
                     diffs = torch.abs(tse[1:] - tse[:-1])
-                    means = torch.max(diffs, dim=0)[0]
-                    # print(f'\tStopping crtieria: {means} < [{(t_hi - t_lo) / Nt},{(s_hi - s_lo) / Ns},{(e_hi - e_lo) / Ne}]')
-                    if (means[0] <= (t_hi - t_lo) / Nt and means[1] <= (s_hi - s_lo) / Ns \
-                            and means[2] <= (e_hi - e_lo) / Ne) or terminated:
+                    maximums = torch.max(diffs, dim=0)[0]
+                    # print(f'\tStopping crtieria: {maximums} < [{(t_hi - t_lo) / Nt},{(s_hi - s_lo) / Ns},{(e_hi - e_lo) / Ne}]')
+                    if (maximums[0] <= (t_hi - t_lo) / Nt and maximums[1] <= (s_hi - s_lo) / Ns \
+                            and maximums[2] <= (e_hi - e_lo) / Ne) or terminated:
                         En = get_n_from_cos(target_cos, theta=1.0/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
                                             delta=delta, d=d)
                         return True, En
