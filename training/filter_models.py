@@ -1,5 +1,6 @@
-path = '../data/model_dumps/logs.txt'
-filtered_models_path = '../data/model_dumps/filtered_models.txt'
+architecture = 0
+path = f'data/model_dumps/logs{architecture}.txt'
+filtered_models_path = f'data/model_dumps/filtered_models{architecture}.txt'
 f = open(path, 'r')
 lines = f.readlines()
 f.close()
@@ -13,7 +14,7 @@ while i+10 < len(lines):
         optim = lines[i].split('optim: ')[1].split(',')[0]
         lr = lines[i].split('lr: ')[1].split(',')[0]
         momentum = lines[i].strip().split('momentum: ')[1].split(',')[0]
-        filtered_models.append(f'mnist_{optim}_{lr}_{momentum}')
+        filtered_models.append(f'mnist_net{architecture}_{optim}_{lr}_{momentum}')
     i += 11
 
 f = open(filtered_models_path, 'w')
