@@ -5,6 +5,7 @@ from cifar10_models import *
 from pytorchmodels import MNIST_Net, CWMNISTNetwork
 from torchvision import transforms
 from img_utils import show_image
+from mnist_models.mnist_arch import Net0, Net1, Net2, Net3
 
 
 class Model:
@@ -159,8 +160,19 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
 
         return Human(model=None)
     if key.startswith('mnist_'):
-        pytorch_model = MNIST_Net()
-        pytorch_model.load_state_dict(torch.load(f'data/model_dumps/{key}_model.pth'))
+        if 'net0' in key:
+            pytorch_model = Net0()
+        elif 'net1' in key:
+            pytorch_model = Net1()
+        elif 'net2' in key:
+            pytorch_model = Net2()
+        elif 'net3' in key:
+            pytorch_model = Net3()
+        else:
+            raise RuntimeError('Unknown Key')
+        # pytorch_model = MNIST_Net()
+        # pytorch_model.load_state_dict(torch.load(f'data/model_dumps/{key}_model.pth'))
+        pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
         pytorch_model.eval()
         if noise == "dropout":
             pytorch_model.conv2_drop.p = drop_rate

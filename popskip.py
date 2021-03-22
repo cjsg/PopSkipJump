@@ -67,7 +67,13 @@ class PopSkipJump(Attack):
         elif self.constraint == 'linf':
             eps = torch.max(torch.abs(original - perturbed))
             diff = perturbed - original
-            alpha = 3  # alpha = 1 for l2 and alpha = infinity for linf
+            if self.step < 15:
+                alpha = 1
+            elif self.step < 30:
+                alpha = 3
+            else:
+                alpha = 5
+            # alpha = 1  # alpha = 1 for l2 and alpha = infinity for linf
             perturbed = perturbed + 0.5 * eps * (diff / eps) ** alpha
             return perturbed
             # return torch.clamp(perturbed + 0.5 * (perturbed - original), self.clip_min, self.clip_max)

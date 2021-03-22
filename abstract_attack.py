@@ -117,6 +117,7 @@ class Attack:
         dist = self.compute_distance(perturbed, original)
         distance = self.a.distance
         for step in range(1, iterations + 1):
+            self.step = step
             page = DiaryPage()
             page.time.start = time.time()
             page.calls.start = self.model_interface.model_calls
