@@ -13,7 +13,7 @@ class DefaultParams:
         self.model_keys: dict = {'mnist': ['mnist_noman'], 'cifar10': ['cifar10']}
         self.model_keys_filepath = None
         # self.model_keys_filepath = 'data/model_dumps/filtered_models.txt'
-        self.model_keys_filepath = 'training/data/model_dumps/filtered_models_1each.txt'
+        # self.model_keys_filepath = 'training/data/model_dumps/filtered_models_1each.txt'
         self.num_iterations = 32
         self.internal_dtype = torch.float32
         self.bounds = (0, 1)
