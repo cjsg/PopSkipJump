@@ -11,7 +11,7 @@ from scipy import stats
 import torchvision.models as models
 import eagerpy as ep
 from foolbox import PyTorchModel, accuracy, samples
-from foolbox.attacks import BoundaryAttack, L2BrendelBethgeAttack, L2PGD, L2CarliniWagnerAttack
+from foolbox.attacks import BoundaryAttack, L2BrendelBethgeAttack, L2PGD, L2CarliniWagnerAttack, L2DeepFoolAttack
 from img_utils import get_samples, get_samples_for_cropping
 from model_factory import get_model
 from tracker import Diary, DiaryPage
@@ -133,7 +133,7 @@ def main() -> None:
     #     VD[rep] = {}
     #     MC[rep] = {}
     #     for flip in flips:
-    #         attack = L2BrendelBethgeAttack()
+    #         attack = L2DeepFoolAttack()
     #         epsilons = [None]
     #         criterion = Noisy(labels, flip, rep)
     #         raw_advs, clipped_advs, success = attack(fmodel, images, criterion, epsilons=epsilons)
@@ -150,37 +150,43 @@ def main() -> None:
     #         BD[rep][flip] = border_distance
     #         VD[rep][flip] = vanilla_distance
     #         MC[rep][flip] = criterion.calls
-    # torch.save({'BD': BD, 'MC': MC, 'VD': VD}, open('thesis/brendell2.pkl', 'wb'))
-
-    D = torch.load(open('thesis/brendell2.pkl', 'rb'))
-    BD, MC, VD = D['BD'], D['MC'], D['VD']
-    metric = VD
-    for rep in metric:
-        for flip in metric[rep]:
-            n_images = len(metric[rep][flip])
-            perc_50 = np.median(metric[rep][flip])
-            perc_40 = np.percentile(metric[rep][flip], 40)
-            perc_60 = np.percentile(metric[rep][flip], 60)
-            calls = MC[rep][flip]/n_images
-            print(f'rep={rep} flip={flip}\t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
-
-    raw = read_dump('whitebox_hsj_true_grad')
+    # torch.save({'BD': BD, 'MC': MC, 'VD': VD}, open('thesis/deepfool_l2.pkl', 'wb'))
+    #
+    # D = torch.load(open('thesis/deepfool_l2.pkl', 'rb'))
+    # BD, MC, VD = D['BD'], D['MC'], D['VD']
+    # metric = VD
+    # for rep in metric:
+    #     for flip in metric[rep]:
+    #         n_images = len(metric[rep][flip])
+    #         perc_50 = np.median(metric[rep][flip])
+    #         perc_40 = np.percentile(metric[rep][flip], 40)
+    #         perc_60 = np.percentile(metric[rep][flip], 60)
+    #         calls = MC[rep][flip]/n_images
+    #         print(f'rep={rep} flip={flip}\t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
+    #
+    # raw = read_dump('whitebox_hsj_true_grad')
+    raw = read_dump('blackbox_hsj')
     calls = 0
-    BD_hsj = np.zeros(n_samples)
-    for i in range(n_samples):
+    BD_hsj = np.zeros((n_samples, len(raw[0].iterations)))
+    VD_hsj = np.zeros((n_samples, len(raw[0].iterations)))
+    for i in tqdm(range(n_samples)):
         diary: Diary = raw[i]
         label = diary.true_label
         x_star = diary.original.numpy()
-        page: DiaryPage = diary.iterations[-1]
-        x_t = page.bin_search
+        for j in range(len(diary.iterations)):
+            page: DiaryPage = diary.iterations[j]
+            x_t = page.bin_search
+            x_tt = project(x_star, x_t.numpy(), label, theta, det_model)
+            BD_hsj[i, j] = np.linalg.norm(x_tt - x_star) / np.sqrt(d)
+            VD_hsj[i, j] = np.linalg.norm(x_t - x_star) / np.sqrt(d)
         calls += page.calls.bin_search
-        x_tt = project(x_star, x_t.numpy(), label, theta, det_model)
-        BD_hsj[i] = np.linalg.norm(x_t - x_star) / np.sqrt(d)
-    perc_50 = np.median(BD_hsj)
-    perc_40 = np.percentile(BD_hsj, 40)
-    perc_60 = np.percentile(BD_hsj, 60)
+    metric = VD_hsj
+    metric = np.min(metric, axis=1)
+    perc_50 = np.median(metric)
+    perc_40 = np.percentile(metric, 40)
+    perc_60 = np.percentile(metric, 60)
     calls = calls / n_samples
-    print(f'rep={rep} \t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
+    print(f'\t{perc_40}\t{perc_50}\t{perc_60}\t{calls}')
 
 
 if __name__ == "__main__":

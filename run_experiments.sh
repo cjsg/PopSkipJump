@@ -1,10 +1,10 @@
 beta="1"
 flip="0.00"
 repeat="1"
-attacks="psj hsj"
-num_samples=10
-dm="l2"
-noise="deterministic"
+attacks="psj"
+num_samples=20
+dm="linf"
+noise="bayesian"
 sn="0.01"
 cs="26"
 drs="0.5"
@@ -13,7 +13,7 @@ device=0
 for dr in $drs; do
   for attack in $attacks; do
     echo "========================================"
-    exp_name="$dataset""_$attack""_r_$repeat""_sn_$sn""_cs_$cs""_dr_$dr""_dm_$dm""_b_$beta""_$noise""_fp_$flip""_ns_$num_samples"
+    exp_name="$dataset""_$attack""_opphybrid""_r_$repeat""_sn_$sn""_cs_$cs""_dr_$dr""_dm_$dm""_b_$beta""_$noise""_fp_$flip""_ns_$num_samples"
     export CUDA_VISIBLE_DEVICES=$device
     echo "Device: $device"
     fixed_params="-d $dataset -ns $num_samples -r $repeat -fp $flip -dm $dm -sn $sn -cs $cs -dr $dr"

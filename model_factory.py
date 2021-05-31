@@ -162,17 +162,20 @@ def get_model(key, dataset, noise=None, flip_prob=0.25, beta=1.0, device=None, s
     if key.startswith('mnist_'):
         if 'net0' in key:
             pytorch_model = Net0()
+            pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
         elif 'net1' in key:
             pytorch_model = Net1()
+            pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
         elif 'net2' in key:
             pytorch_model = Net2()
+            pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
         elif 'net3' in key:
             pytorch_model = Net3()
+            pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
         else:
-            raise RuntimeError('Unknown Key')
-        # pytorch_model = MNIST_Net()
-        # pytorch_model.load_state_dict(torch.load(f'data/model_dumps/{key}_model.pth'))
-        pytorch_model.load_state_dict(torch.load(f'training/data/model_dumps/{key}_model.pth'))
+            pytorch_model = MNIST_Net()
+            pytorch_model.load_state_dict(torch.load(f'data/model_dumps/{key}_model.pth'))
+            # raise RuntimeError('Unknown Key')
         pytorch_model.eval()
         if noise == "dropout":
             pytorch_model.conv2_drop.p = drop_rate

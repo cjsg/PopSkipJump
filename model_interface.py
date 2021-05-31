@@ -162,12 +162,12 @@ class ModelInterface:
             This function should only be used for capturing statistics.
             It should not be a part of a decision based attack.
         """
-        # m_id = random.choice(list(range(len(self.models))))
-        # outs = self.models[m_id].get_probs(images)
-        m_ids = torch.randint(low=0, high=len(self.models), size=[len(images)])
-        outs = torch.zeros((len(images), self.n_classes), device=self.device)
-        for i, image in enumerate(images):
-            outs[i] = self.models[m_ids[i]].get_probs(image[None])[0]
+        m_id = random.choice(list(range(len(self.models))))
+        outs = self.models[m_id].get_probs(images)
+        # m_ids = torch.randint(low=0, high=len(self.models), size=[len(images)])
+        # outs = torch.zeros((len(images), self.n_classes), device=self.device)
+        # for i, image in enumerate(images):
+        #     outs[i] = self.models[m_ids[i]].get_probs(image[None])[0]
         return outs
 
     def get_probs(self, image):

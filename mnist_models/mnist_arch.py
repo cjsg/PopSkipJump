@@ -18,7 +18,7 @@ class Net0(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=-1)
 
 
 class Net1(nn.Module):
@@ -37,7 +37,7 @@ class Net1(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.dropout(x, training=self.training)
         x = self.fc3(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=-1)
 
 
 class Net2(nn.Module):
@@ -59,7 +59,7 @@ class Net2(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.dropout(x, training=self.training)
         x = self.fc3(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=-1)
 
 
 class Net3(nn.Module):
@@ -79,4 +79,4 @@ class Net3(nn.Module):
         x = F.relu(self.fc3(x))
         x = F.dropout(x, training=self.training)
         x = self.fc4(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x, dim=-1)

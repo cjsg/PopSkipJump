@@ -367,6 +367,8 @@ def bin_search(
     class StoppingCriteria(object):
         def __init__(self, name):
             self.name = name
+            if human_interface is not None:
+                print(f'Stopping Threshold: [{(t_hi - t_lo) / Nt},{(s_hi - s_lo) / Ns},{(e_hi - e_lo) / Ne}]')
 
         def check(self, output, terminated=False):
             if self.name == 'empirical_samples':  # Criteria 1
@@ -394,7 +396,9 @@ def bin_search(
                     tse[:, 1] = torch.log10(tse[:, 1])
                     diffs = torch.abs(tse[1:] - tse[:-1])
                     maximums = torch.max(diffs, dim=0)[0]
-                    # print(f'\tStopping crtieria: {maximums} < [{(t_hi - t_lo) / Nt},{(s_hi - s_lo) / Ns},{(e_hi - e_lo) / Ne}]')
+                    if human_interface is not None:
+                        print('t, s, e = {}'.format(output['ttse_max'][-1]))
+                        print(f'\tStopping criteria (diffs): {diffs}')
                     if (maximums[0] <= (t_hi - t_lo) / Nt and maximums[1] <= (s_hi - s_lo) / Ns \
                             and maximums[2] <= (e_hi - e_lo) / Ne) or terminated:
                         En = get_n_from_cos(target_cos, theta=1.0/grid_size, s=10.**tse[-1,1], eps=tse[-1,2],
@@ -689,6 +693,24 @@ def bin_search(
     else:
         return output, En_
 
+
+# N_det, N_human = 0, 0
+# for i in range(1, 33):
+#     n_det = 100 * sqrt(i)
+#     d = 28 * 28
+#     # s = 5.0119
+#     s = 0.8
+#     theta_det = 1 / d * d
+#     # theta_det = 1 / 100.0
+#     delta_det_unit = theta_det * d
+#     theta_prob = 1.0 / 100.0
+#     delta_prob_unit = d / 100.0
+#     t_cos = get_cos_from_n(n_det, s=s, theta=theta_det, delta=delta_det_unit, eps=0, d=d)
+#     n_prob = get_n_from_cos(t_cos, s=s, theta=theta_prob, delta=delta_prob_unit, d=d, eps=0)
+#     N_det += n_det
+#     N_human += n_prob
+#     print(n_det, n_prob)
+# print (N_det, N_human)
 
 # output = bin_search(
 #     acq_func='I(y,t,s,e)',  # 'I(y,t,s,e)', 'I(y,t,s)', 'I(y,t)', 'I(y,s)', '-E[n]'

@@ -138,6 +138,34 @@ def get_samples(dataset, n_samples=16, conf=None, model=None, samples_from=0):
     return images, labels
 
 
+def get_one_sample_of_each_class(dataset):
+    np.random.seed(42)
+    if dataset == 'mnist':
+        test_data = datasets.MNIST(root="data", train=False, download=True, transform=None)
+        samples = test_data.data
+        targets = test_data.test_labels
+    elif dataset == 'cifar10':
+        test_data = datasets.CIFAR10(root="data", train=False, download=True, transform=None)
+        samples = test_data.data
+        targets = test_data.targets
+    else:
+        raise RuntimeError('Unknown Dataset: {}'.format(dataset))
+    candidates = np.random.choice(len(test_data), len(test_data), replace=False)
+    found_images = {}
+    i = 0
+    while len(found_images) != 10:
+        _label = targets[candidates[i]]
+        if type(_label) is torch.Tensor:
+            _label = _label.item()
+        if _label not in found_images:
+            found_images[_label] = samples[candidates[i]] / 255.0
+        i += 1
+    answer = []
+    for i in range(10):
+        answer.append(found_images[i])
+    return answer
+
+
 def save_adv_image(image, path, dataset='cifar10'):
     data = image * 255
     if dataset == 'mnist':

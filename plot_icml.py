@@ -32,7 +32,8 @@ noise_level = {'mnist': {
     'bayesian': (['5', '2', '1.50', '1'], [0, 0.2, 0.5, 0.67, 1]),
     'smoothing': (['0.0001', '0.0005', '0.001', '0.005'], [0, 0.1, 0.2, 0.45, 0.55]),
     'cropping': (['31', '30'], [0, 0.5, 1]),
-    'dropout': (['0.01', '0.02', '0.03'], [0, 0.01, 0.02, 0.03])
+    # 'dropout': (['0.01', '0.02', '0.03'], [0, 0.01, 0.02, 0.03])
+    'dropout': (['0.1', '0.2', '0.3'], [0, 0.1, 0.2, 0.3])
 }}
 
 # noise_rates_mnist = {
@@ -402,7 +403,10 @@ def fig3_2lines(line=None):
                     dr = level
                 else:
                     raise RuntimeError
-                exp_name = f'{dataset}_psj_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
+                if noise == 'dropout' and dataset == 'cifar10':
+                    exp_name = f'{dataset}_psj_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{50}'
+                else:
+                    exp_name = f'{dataset}_psj_r_1_sn_{sn}_cs_{cs}_dr_{dr}_dm_l2_b_{b}_{noise}_fp_0.00_ns_{n_images}'
                 raw = read_dump(exp_name)
                 metric = 'border_distance'
                 D = raw[metric]
@@ -1284,17 +1288,18 @@ def pie_chart():
     plt.savefig(image_path, bbox_inches='tight')
 
 
+
 # grid()
 # noise()
 # fig3_2lines(line=None)
 # fig3_2lines(line=1)
-# fig3_2lines(line=2)
+fig3_2lines(line=2)
 # delta(dataset='mnist')
 # delta(dataset='cifar10')
 # hsj_vs_psj()
 # fig5()
 # adv_risk()
-adv_risk_logit()
+# adv_risk_logit()
 # grad_evals(dataset='mnist')
 # grad_evals(dataset='cifar10')
 # acceleration_prereq()
